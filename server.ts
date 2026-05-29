@@ -114,6 +114,46 @@ async function callArkBot(prompt: string) {
   return { text: cleanedText, sources };
 }
 
+function getPositionStats(position = "") {
+  if (position.includes("门将")) {
+    return { shooting: 18, passing: 72, dribbling: 42, defense: 92, speed: 58 };
+  }
+  if (position.includes("后卫")) {
+    return { shooting: 45, passing: 72, dribbling: 60, defense: 86, speed: 74 };
+  }
+  if (position.includes("中场")) {
+    return { shooting: 72, passing: 88, dribbling: 80, defense: 70, speed: 76 };
+  }
+  if (position.includes("边锋")) {
+    return { shooting: 82, passing: 76, dribbling: 88, defense: 42, speed: 90 };
+  }
+  return { shooting: 86, passing: 72, dribbling: 82, defense: 38, speed: 84 };
+}
+
+function getStarRatings(stats: Record<string, number>) {
+  const ratingFromStat = (value: number) => Math.max(2, Math.min(5, Math.round(value / 20)));
+  return {
+    speed: ratingFromStat(stats.speed),
+    shooting: ratingFromStat(stats.shooting),
+    passing: ratingFromStat(stats.passing),
+    dribbling: ratingFromStat(stats.dribbling),
+    defense: ratingFromStat(stats.defense),
+  };
+}
+
+function extractJsonObject(text: string) {
+  const cleaned = text
+    .replace(/```json/gi, "```")
+    .replace(/```/g, "")
+    .trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("Model did not return a JSON object.");
+  }
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
 function getAIClient(): GoogleGenAI {
   if (!aiClient) {
     const key = process.env.GEMINI_API_KEY;
@@ -244,6 +284,117 @@ app.post("/api/predict", async (req, res) => {
     }
   } catch (error: any) {
     console.error("Internal Server Error:", error);
+    res.status(500).json({ error: error.message || "Internal Server Error" });
+  }
+});
+
+app.post("/api/player-profile", async (req, res) => {
+  try {
+    const { player, team, teamResearch } = req.body;
+    if (!player?.name || !team?.name) {
+      res.status(400).json({ error: "Missing player or team in request body." });
+      return;
+    }
+
+    const fallbackStats = getPositionStats(player.position);
+    const fallbackProfile = {
+      id: `${team.id || team.name}-${player.englishName || player.name}`.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-"),
+      name: player.name,
+      englishName: player.englishName || player.name,
+      profileStatus: "confirmed",
+      profileSummary: `${player.name} 是${team.name}已确认名单中的${player.position}。联网资料暂时不可用时，页面仅展示已知基础信息与按位置生成的保守能力区间。`,
+      profileDataNote: "能力雷达为公开资料与位置特征综合评分，不是 FIFA/游戏官方能力值。",
+      profileUpdatedAt: new Date().toISOString().slice(0, 10),
+      profileSources: [
+        { title: "FIFA 官方资料", uri: "https://www.fifa.com" },
+        { title: "Wikipedia", uri: "https://www.wikipedia.org" },
+      ],
+      number: player.number || 0,
+      position: player.position || "待确认",
+      photo: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=500",
+      teamName: team.name,
+      flag: team.flag || "⚽",
+      worldRank: team.rank || teamResearch?.fifaRank || 0,
+      age: 26,
+      height: "待补充",
+      weight: "待补充",
+      club: player.club || "待补充",
+      nationality: team.name,
+      stats: fallbackStats,
+      starRatings: getStarRatings(fallbackStats),
+      transfers: [],
+    };
+
+    const prompt = `请联网核验并生成世界杯 H5 球员详情页结构化资料。
+球员：${player.name}
+英文名：${player.englishName || player.name}
+国家队：${team.name}
+位置：${player.position}
+当前俱乐部：${player.club || "未知"}
+
+要求：
+1. 必须优先参考 Wikipedia、俱乐部/国家队官方资料、Transfermarkt 或权威体育数据库。
+2. 返回严格 JSON，不要 Markdown，不要解释。
+3. 如果某字段无法核验，用“待补充”，不要编造。
+4. stats 是 0-100 的综合能力雷达，必须符合位置特征：
+   - 门将：defense/守门相关最高，shooting 很低；
+   - 后卫：defense 最高，可按边后卫/中卫调整 speed、passing；
+   - 中场：passing、dribbling 或 defense 根据类型突出；
+   - 前锋/边锋：shooting、speed、dribbling 突出，defense 较低。
+5. transfers 只填可核验的重要转会/履历节点，不确定费用写“未披露”或“租借/自由转会/青训”。
+
+JSON schema:
+{
+  "name": "中文名",
+  "englishName": "English name",
+  "profileSummary": "80字以内中文摘要",
+  "profileDataNote": "能力雷达说明",
+  "age": 0,
+  "height": "例如 178cm 或 待补充",
+  "weight": "例如 73kg 或 待补充",
+  "club": "当前俱乐部",
+  "nationality": "国籍中文",
+  "position": "中文位置",
+  "stats": { "shooting": 0, "passing": 0, "dribbling": 0, "defense": 0, "speed": 0 },
+  "transfers": [
+    { "date": "YYYY 或 YYYY.MM", "clubAddress": "俱乐部/履历节点", "fee": "费用或说明" }
+  ],
+  "profileSources": [
+    { "title": "来源名称", "uri": "https://..." }
+  ]
+}`;
+
+    try {
+      const { text, sources } = await callArkBot(prompt);
+      const modelProfile = extractJsonObject(text);
+      const stats = {
+        ...fallbackStats,
+        ...(modelProfile.stats || {}),
+      };
+      const profile = {
+        ...fallbackProfile,
+        ...modelProfile,
+        profileStatus: "confirmed",
+        id: fallbackProfile.id,
+        number: player.number || fallbackProfile.number,
+        teamName: team.name,
+        flag: team.flag || fallbackProfile.flag,
+        worldRank: team.rank || teamResearch?.fifaRank || fallbackProfile.worldRank,
+        photo: modelProfile.photo || fallbackProfile.photo,
+        stats,
+        starRatings: getStarRatings(stats),
+        profileSources: Array.isArray(modelProfile.profileSources) && modelProfile.profileSources.length
+          ? modelProfile.profileSources
+          : sources.map((source: any) => ({ title: source.title, uri: source.uri })),
+      };
+
+      res.json({ success: true, profile, provider: "ark-bot" });
+    } catch (error) {
+      console.error("Player profile API Error:", error);
+      res.json({ success: true, profile: fallbackProfile, isFallback: true });
+    }
+  } catch (error: any) {
+    console.error("Internal Player Profile Error:", error);
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 });

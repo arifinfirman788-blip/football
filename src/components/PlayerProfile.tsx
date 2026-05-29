@@ -13,6 +13,54 @@ interface PlayerProfileProps {
 }
 
 export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) => {
+  const isPendingProfile = player.profileStatus === 'pending';
+  const isLoadingProfile = player.profileStatus === 'loading';
+
+  if (isPendingProfile || isLoadingProfile) {
+    return (
+      <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden select-none">
+        <div className="relative h-36 bg-gradient-to-b from-[#142a3f] to-[#050f17] px-4 pt-10 pb-4 flex flex-col justify-end">
+          <div className="absolute top-3 inset-x-4 flex justify-between items-center z-10">
+            <button
+              onClick={onBack}
+              className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span className="text-xs font-semibold tracking-wider text-slate-300">球员属性档案</span>
+            <div className="w-8 h-8 flex justify-end">
+              <TrophySvg className="w-5 h-5 opacity-80" />
+            </div>
+          </div>
+
+          <div className="relative z-10">
+            <h1 className="text-2xl font-black font-display tracking-tight text-white">{player.name}</h1>
+            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest font-mono">
+              {player.englishName}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-5">
+          <div className="sport-glass-card rounded-2xl p-6 text-center border border-white/5 w-full">
+            <div className="w-12 h-12 rounded-full bg-[#00e676]/10 border border-[#00e676]/25 mx-auto flex items-center justify-center mb-3">
+              <span className="text-xl">{isLoadingProfile ? '⏳' : '!'}</span>
+            </div>
+            <span className="block text-base font-black text-white">
+              {isLoadingProfile ? '联网检索中' : '待确认'}
+            </span>
+            <span className="block text-[11px] leading-relaxed text-slate-400 mt-2">
+              {isLoadingProfile
+                ? '正在从维基百科、官方资料与公开数据库核验球员档案。'
+                : '该球员暂未进入已确认名单，暂不展示能力值、转会记录等推测信息。'}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   // Radar Chart helper
   const renderRadarChart = () => {
@@ -269,12 +317,25 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           </div>
         </div>
 
+        {player.profileSummary && (
+          <div className="sport-glass-card rounded-2xl p-4">
+            <span className="block text-xs font-bold text-[#00e676] mb-2">资料摘要</span>
+            <p className="text-[11px] text-slate-300 leading-relaxed">{player.profileSummary}</p>
+            {player.profileUpdatedAt && (
+              <p className="text-[9.5px] text-slate-500 mt-2 font-mono">更新于 {player.profileUpdatedAt}</p>
+            )}
+            {player.profileDataNote && (
+              <p className="text-[10px] text-amber-300/90 leading-relaxed mt-2">{player.profileDataNote}</p>
+            )}
+          </div>
+        )}
+
         {/* Transfers Timeline - "转会情况" */}
         <div className="sport-glass-card rounded-2xl p-4">
           <span className="block text-xs font-bold text-[#ffd54f] mb-3">🔄 转会历史</span>
           
           <div className="relative pl-4 border-l border-white/10 space-y-4 ml-1">
-            {player.transfers.map((item, idx) => (
+            {player.transfers.length > 0 ? player.transfers.map((item, idx) => (
               <div key={idx} className="relative">
                 {/* Bullet node mark */}
                 <div className="absolute -left-[20.5px] top-1.5 w-2 h-2 rounded-full bg-emerald-400 border border-slate-900 shadow"></div>
@@ -289,13 +350,18 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
                   </span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="text-[11px] text-slate-400 leading-relaxed">
+                暂无可核验的完整转会记录。
+              </div>
+            )}
           </div>
         </div>
 
         {/* Attributes ratings - "能力值" */}
         <div className="sport-glass-card rounded-2xl p-4">
-          <span className="block text-xs font-bold text-[#00e676] mb-3.5">⚔️ 专属核心特性</span>
+          <span className="block text-xs font-bold text-[#00e676] mb-1">⚔️ 专属核心特性</span>
+          <span className="block text-[9.5px] text-slate-500 mb-3.5">基于公开资料和位置特征的综合评分</span>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.entries(player.starRatings).map(([key, value]) => {
@@ -324,6 +390,25 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
             })}
           </div>
         </div>
+
+        {player.profileSources && player.profileSources.length > 0 && (
+          <div className="sport-glass-card rounded-2xl p-4">
+            <span className="block text-xs font-bold text-[#00e676] mb-3">资料来源</span>
+            <div className="space-y-2">
+              {player.profileSources.slice(0, 4).map((source, idx) => (
+                <a
+                  key={`${source.uri}-${idx}`}
+                  href={source.uri}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-[10.5px] text-slate-300 hover:text-white truncate border border-white/5 rounded-xl px-3 py-2 bg-black/10"
+                >
+                  {source.title}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
 

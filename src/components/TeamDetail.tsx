@@ -4,11 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { TEAMS } from '../data';
+import { PLAYERS, TEAMS } from '../data';
 import { Player } from '../types';
 import { TrophySvg } from './Svgs';
-import { TEAM_RESEARCH_DATA, getFallbackTeamResearch } from '../researchData';
+import { SquadPlayerResearch, TEAM_RESEARCH_DATA, getFallbackTeamResearch } from '../researchData';
 import { STAR_PLAYER_PRIORITY } from '../confirmedSquads';
+import { apiUrl } from '../utils/api';
 
 interface TeamDetailProps {
   teamId: string;
@@ -26,6 +27,134 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
     if (aPriority !== bPriority) return bPriority - aPriority;
     return (a.number || 99) - (b.number || 99);
   });
+
+  const getGeneratedStats = (position: string) => {
+    if (position.includes('门将')) return { shooting: 18, passing: 72, dribbling: 42, defense: 92, speed: 58 };
+    if (position.includes('边后卫')) return { shooting: 52, passing: 76, dribbling: 72, defense: 82, speed: 84 };
+    if (position.includes('中卫') || position.includes('后卫')) return { shooting: 45, passing: 72, dribbling: 60, defense: 86, speed: 74 };
+    if (position.includes('后腰')) return { shooting: 64, passing: 84, dribbling: 72, defense: 82, speed: 72 };
+    if (position.includes('前腰') || position.includes('中前场')) return { shooting: 78, passing: 88, dribbling: 86, defense: 54, speed: 78 };
+    if (position.includes('中场')) return { shooting: 72, passing: 88, dribbling: 80, defense: 70, speed: 76 };
+    if (position.includes('边锋')) return { shooting: 82, passing: 76, dribbling: 88, defense: 42, speed: 90 };
+    if (position.includes('中锋')) return { shooting: 88, passing: 70, dribbling: 78, defense: 42, speed: 80 };
+    return { shooting: 86, passing: 72, dribbling: 82, defense: 38, speed: 84 };
+  };
+
+  const getPlayerProfile = (entry: SquadPlayerResearch, index: number, profileStatus: Player['profileStatus'] = 'confirmed'): Player => {
+    const existingPlayer = Object.values(PLAYERS).find((player) => {
+      const sameTeam = player.teamName === team?.name;
+      const sameName = player.name === entry.name || player.englishName === entry.englishName;
+      return sameTeam && sameName;
+    });
+    if (existingPlayer) {
+      return {
+        ...existingPlayer,
+        profileStatus,
+        profileDataNote: profileStatus === 'confirmed' ? '本地档案已录入；正在逐步补充更多可核验来源。' : undefined,
+      };
+    }
+
+    const stats = getGeneratedStats(entry.position);
+    const ratingFromStat = (value: number) => Math.max(2, Math.min(5, Math.round(value / 20)));
+
+    return {
+      id: `${teamId}-${entry.englishName || entry.name}`.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-'),
+      name: entry.name,
+      englishName: entry.englishName || entry.name,
+      profileStatus,
+      profileSummary: profileStatus === 'loading' ? '正在联网检索球员资料。' : undefined,
+      profileDataNote: profileStatus === 'pending' ? '球员未确认前不展示推测资料。' : undefined,
+      number: entry.number || index + 1,
+      position: entry.position,
+      photo: 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=500',
+      teamName: team?.name || research.englishName,
+      flag: team?.flag || '⚽',
+      worldRank: team?.rank || research.fifaRank || 0,
+      age: 26,
+      height: '待补充',
+      weight: '待补充',
+      club: entry.club || '待补充',
+      nationality: team?.name || research.englishName,
+      stats,
+      starRatings: {
+        speed: ratingFromStat(stats.speed),
+        shooting: ratingFromStat(stats.shooting),
+        passing: ratingFromStat(stats.passing),
+        dribbling: ratingFromStat(stats.dribbling),
+        defense: ratingFromStat(stats.defense),
+      },
+      transfers: [],
+    };
+  };
+
+  const normalizeRemotePlayer = (profile: Partial<Player>, entry: SquadPlayerResearch, index: number): Player => {
+    const fallback = getPlayerProfile(entry, index, 'confirmed');
+    return {
+      ...fallback,
+      ...profile,
+      profileStatus: 'confirmed',
+      id: profile.id || fallback.id,
+      name: profile.name || fallback.name,
+      englishName: profile.englishName || fallback.englishName,
+      number: profile.number || fallback.number,
+      position: profile.position || fallback.position,
+      photo: profile.photo || fallback.photo,
+      teamName: profile.teamName || fallback.teamName,
+      flag: profile.flag || fallback.flag,
+      worldRank: profile.worldRank || fallback.worldRank,
+      age: profile.age || fallback.age,
+      height: profile.height || fallback.height,
+      weight: profile.weight || fallback.weight,
+      club: profile.club || fallback.club,
+      nationality: profile.nationality || fallback.nationality,
+      stats: profile.stats || fallback.stats,
+      starRatings: profile.starRatings || fallback.starRatings,
+      transfers: profile.transfers || fallback.transfers,
+      profileSources: profile.profileSources || fallback.profileSources,
+    };
+  };
+
+  const handleSquadPlayerClick = async (entry: SquadPlayerResearch, index: number) => {
+    if (entry.status !== '官方') {
+      onPlayerSelect(getPlayerProfile(entry, index, 'pending'));
+      return;
+    }
+
+    onPlayerSelect(getPlayerProfile(entry, index, 'loading'));
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const response = await fetch(apiUrl('/api/player-profile'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          player: entry,
+          team,
+          teamResearch: {
+            englishName: research.englishName,
+            fifaRank: research.fifaRank,
+            coach: research.coach,
+          },
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '球员资料检索失败');
+      }
+      onPlayerSelect(normalizeRemotePlayer(data.profile, entry, index));
+    } catch (error) {
+      console.error(error);
+      onPlayerSelect({
+        ...getPlayerProfile(entry, index, 'confirmed'),
+        profileDataNote: '联网资料暂时不可用，当前显示本地已知基础信息；请稍后重试。',
+      });
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden select-none">
@@ -199,9 +328,10 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
                 return (
                 <div 
                   key={`${entry.name}-${idx}`}
+                  onClick={() => handleSquadPlayerClick(entry, idx)}
                   className={`sport-glass-card rounded-2xl p-3 flex items-center justify-between hover:bg-white/5 transition-all ${
                     starPriority ? 'border border-[#ffd54f]/25 shadow-[0_8px_18px_rgba(255,213,79,0.08)]' : ''
-                  }`}
+                  } cursor-pointer active:scale-[0.99]`}
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <div className={`w-11 h-11 rounded-xl bg-gradient-to-br from-[#1b3d58] to-[#081521] border flex items-center justify-center shrink-0 ${
@@ -235,6 +365,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
 
                   <div className="flex items-center space-x-2 shrink-0">
                     <span className="text-xs text-slate-400">#{idx + 1}</span>
+                    <span className="text-[10px] text-[#00e676]">详情</span>
                   </div>
                 </div>
                 );

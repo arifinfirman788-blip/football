@@ -51,6 +51,11 @@ export interface Player {
   id: string;
   name: string;
   englishName: string;
+  profileStatus?: 'confirmed' | 'pending' | 'loading';
+  profileSummary?: string;
+  profileDataNote?: string;
+  profileUpdatedAt?: string;
+  profileSources?: Array<{ title: string; uri: string }>;
   number: number;
   position: string;
   photo: string;
