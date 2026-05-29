@@ -286,9 +286,6 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
 
         {/* 3. The Pitch & Soccer Center View */}
         <div className="px-4 mt-1.5 relative">
-          
-          <div className="h-1.5 rounded-t-3xl bg-gradient-to-r from-[#1b8a3e] via-[#4ced74] to-[#1b8a3e] opacity-30 blur-[0.5px]"></div>
-          
           <div className="sport-glass-card rounded-2xl p-4 flex flex-col items-center bg-[#071320] border border-white/5 relative">
             
             {/* Match State Banner */}
@@ -296,7 +293,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
               <div className="flex justify-between items-center w-full">
                 <span className="bg-[#00e676]/15 text-[#00e676] text-[9.5px] font-extrabold px-2.5 py-0.5 rounded border border-[#00e676]/30 flex items-center space-x-1 shrink-0">
                   <span className="w-1.5 h-1.5 bg-[#00e676] rounded-full animate-pulse"></span>
-                  <span className="whitespace-nowrap">{isCurrentMatchSubmitted ? '已提交竞猜' : '竞猜火热中'}</span>
+                  <span className="whitespace-nowrap">{isCurrentMatchSubmitted ? '已提交竞猜' : '火热竞猜中'}</span>
                 </span>
                 
                 <div
