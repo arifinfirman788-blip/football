@@ -1,0 +1,6 @@
+{
+  "name": "世界杯竞猜",
+  "description": "高画质1:1复刻世界杯竞猜、赛程及球队球员多维数据足球互动平台",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

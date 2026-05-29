@@ -1,0 +1,200 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom styles for high-end reproduction */
+.sport-glass-card {
+  background: linear-gradient(135deg, rgba(14, 35, 53, 0.85) 0%, rgba(8, 20, 31, 0.95) 100%);
+  border: 1px solid rgba(27, 61, 88, 0.6);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.sport-gold-btn {
+  background: linear-gradient(180deg, #ffd54f 0%, #ffb300 50%, #f57c00 100%);
+  box-shadow: 0 4px 15px rgba(245, 124, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.glow-green {
+  text-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+}
+
+.glow-gold {
+  text-shadow: 0 0 8px rgba(255, 179, 0, 0.6);
+}
+
+/* 竞猜页绿色质感底色：颜色贴近头图草坪，并一直铺到底部导航 */
+.prediction-green-bg {
+  isolation: isolate;
+  background: linear-gradient(180deg, #061a03 0%, #00160c 34%, #00160c 100%);
+}
+
+.prediction-green-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(115deg, transparent 0 46%, rgba(255, 255, 255, 0.07) 47% 48%, transparent 49% 100%);
+  background-size: 28px 28px, 28px 28px, 140px 96px;
+  mix-blend-mode: overlay;
+}
+
+.prediction-green-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 头图下半部草坪覆盖：盖住切图里的黑色区域，形成从草坪到页面的连续绿色 */
+.guess-hero {
+  background: linear-gradient(180deg, #061a03 0%, #00160c 72%, #00160c 100%);
+}
+
+.guess-hero__image {
+  z-index: 1;
+}
+
+/* 赛程页顶部筛选胶囊：深蓝玻璃质感 + 绿色选中态 */
+.schedule-filter-shell {
+  height: 48px;
+  padding: 5px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(62, 72, 83, 0.95);
+  background:
+    linear-gradient(180deg, rgba(15, 42, 66, 0.92) 0%, rgba(6, 22, 36, 0.92) 100%),
+    radial-gradient(circle at 14% 0%, rgba(105, 172, 210, 0.22), transparent 36%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -8px 18px rgba(0, 0, 0, 0.24),
+    0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.schedule-filter-button {
+  position: relative;
+  height: 38px;
+  min-width: 72px;
+  padding: 0 11px;
+  border-radius: 20px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.schedule-filter-button--active {
+  color: white;
+  background:
+    linear-gradient(180deg, rgba(132, 228, 120, 0.9) 0%, rgba(53, 164, 68, 0.94) 48%, rgba(28, 114, 48, 0.98) 100%);
+  border: 1px solid rgba(174, 255, 172, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -8px 15px rgba(0, 72, 28, 0.18),
+    0 4px 10px rgba(0, 0, 0, 0.28),
+    0 0 10px rgba(55, 183, 76, 0.22);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.schedule-filter-button--idle {
+  color: rgba(235, 242, 248, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+}
+
+.schedule-filter-button--idle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.schedule-filter-divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 5px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, transparent, rgba(206, 229, 244, 0.3), transparent);
+}
+
+/* 排行榜双分段切换：更窄的单体圆角矩形 */
+.leaderboard-segment-shell {
+  height: 40px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(77, 89, 102, 0.95);
+  background:
+    linear-gradient(180deg, rgba(9, 23, 37, 0.92) 0%, rgba(4, 13, 22, 0.92) 100%),
+    radial-gradient(circle at 15% 0%, rgba(126, 179, 221, 0.2), transparent 38%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 16px rgba(0, 0, 0, 0.28),
+    0 8px 18px rgba(0, 0, 0, 0.34);
+}
+
+.leaderboard-segment-button {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  color: rgba(233, 240, 247, 0.9);
+  transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.leaderboard-segment-button--idle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.leaderboard-segment-button--active {
+  color: white;
+  background:
+    linear-gradient(180deg, rgba(107, 215, 95, 0.95) 0%, rgba(48, 154, 63, 0.95) 48%, rgba(20, 109, 39, 0.98) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -8px 16px rgba(0, 70, 25, 0.2),
+    0 4px 10px rgba(0, 0, 0, 0.25),
+    0 0 10px rgba(55, 183, 76, 0.18);
+}
+
+.leaderboard-table-header {
+  border-radius: 18px 18px 12px 12px;
+  border: 1px solid rgba(120, 137, 154, 0.22);
+  background:
+    linear-gradient(180deg, rgba(94, 117, 138, 0.18) 0%, rgba(28, 41, 56, 0.56) 100%),
+    rgba(10, 21, 32, 0.58);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+    0 8px 18px rgba(0, 0, 0, 0.3);
+}
+
+.leaderboard-table-header > span {
+  white-space: nowrap;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(8, 20, 31, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(27, 61, 88, 0.8);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 230, 118, 0.5);
+}
