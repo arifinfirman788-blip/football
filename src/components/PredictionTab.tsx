@@ -181,7 +181,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       <div className="flex-1 overflow-y-auto pb-36 relative z-0">
         
         {/* 竞猜头图：等比例放大切图，保证左右贴紧手机屏幕边缘 */}
-        <div className="guess-hero relative h-[288px] overflow-hidden">
+        <div className="guess-hero relative h-[323px] overflow-hidden">
           <div
             className="guess-hero__image absolute -inset-[3px] bg-no-repeat"
             style={{
