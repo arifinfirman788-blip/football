@@ -90,6 +90,11 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   }, []);
 
   useEffect(() => {
+    const poster = new Image();
+    poster.src = assetUrl('assets/rewards/reward-poster-mobile.jpg');
+  }, []);
+
+  useEffect(() => {
     if (!predictableMatches.some(match => match.id === currentMatch.id)) {
       setCurrentMatch(predictableMatches[0] || ACTIVE_BET_MATCH);
     }
@@ -369,7 +374,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 className="px-4 py-1.5 bg-[#00e676]/10 hover:bg-[#00e676]/25 border border-[#00e676]/35 text-[#00e676] rounded-full text-[10.5px] font-bold tracking-wide flex items-center space-x-1.5 transition-all hover:scale-105 cursor-pointer shadow shadow-[#00e676]/5 group"
               >
                 <span>✨</span>
-                <span>呼叫 AI 大模型联网分析本场</span>
+                <span>呼叫黄小西帮您分析本场</span>
                 <span className="group-hover:translate-x-0.5 transition-transform">→</span>
               </button>
               <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[#1b3d58] to-transparent"></div>

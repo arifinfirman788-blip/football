@@ -32,9 +32,12 @@ export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose }) => 
       {/* 海报展示区：保证整图在手机框里完整展示 */}
       <div className="flex-1 w-full h-full bg-[#00160c]">
         <img
-          src={assetUrl('assets/rewards/reward-poster.png')}
+          src={assetUrl('assets/rewards/reward-poster-mobile.jpg')}
           alt="奖励海报"
           className="w-full h-full object-contain object-center"
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
         />
       </div>
     </div>

@@ -4,10 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Trophy, Sparkles, ClipboardList, Wallet, ArrowRight, UserCheck } from 'lucide-react';
+import { Calendar, Trophy, Sparkles, ClipboardList } from 'lucide-react';
 
-import { PhoneFrame } from './components/PhoneFrame';
 import { PredictionTab } from './components/PredictionTab';
 import { ScheduleTab } from './components/ScheduleTab';
 import { GroupsTab } from './components/GroupsTab';
@@ -16,7 +14,6 @@ import { PlayerProfile } from './components/PlayerProfile';
 import { AIForecastTab } from './components/AIForecastTab';
 import { RewardModal } from './components/RewardModal';
 
-import { PLAYERS, MATCHES_DATA, ACTIVE_BET_MATCH } from './data';
 import { Player, Match } from './types';
 
 export default function App() {
@@ -175,38 +172,25 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030a0f] text-slate-100 flex flex-col font-sans relative overflow-x-hidden antialiased">
-      
-      {/* Turf grass and spotlight backgrounds */}
-      <div className="absolute top-0 inset-x-0 h-[600px] bg-radial-gradient from-emerald-950/15 via-transparent to-transparent pointer-events-none z-0"></div>
-      <div className="absolute inset-0 bg-grid-white/[0.006] pointer-events-none z-0"></div>
+    <div className="min-h-screen bg-[#030a0f] text-slate-100 flex items-center justify-center font-sans relative overflow-hidden antialiased">
+      {/* 页面背景只承托 H5 画布，真实内容不再放进手机框体 */}
+      <div className="absolute inset-0 bg-[#030a0f] pointer-events-none z-0"></div>
 
-      {/* Main Single Simulator Viewport Layout */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-12 flex items-center justify-center relative z-10">
-        
-        {/* Centered Mobile Simulator with no gaps bottom-0 bottom-nav */}
-        <div className="relative">
-          <PhoneFrame phoneId="main" phoneTitle="世界杯交互主界面 (高精仿真屏)">
-            <div className="flex-grow flex flex-col overflow-hidden relative">
-              {renderPhoneContent()}
-              
-              {/* iOS style bottom nav seated completely bottom-0 with zero gaps */}
-              {renderBottomNav()}
+      {/* 390x844 标准 H5 画布：桌面居中预览，移动端直接贴合屏幕打开 */}
+      <main className="h5-app-shell relative z-10 bg-[#050f17] overflow-hidden">
+        <div className="h-full flex flex-col overflow-hidden relative">
+          {renderPhoneContent()}
 
-              <RewardModal
-                isOpen={isRewardOpen}
-                onClose={() => setIsRewardOpen(false)}
-                onParticipate={() => setIsRewardOpen(false)}
-              />
-            </div>
-          </PhoneFrame>
+          {/* 底导固定在 H5 页面底部，详情页按原逻辑自动隐藏 */}
+          {renderBottomNav()}
+
+          <RewardModal
+            isOpen={isRewardOpen}
+            onClose={() => setIsRewardOpen(false)}
+            onParticipate={() => setIsRewardOpen(false)}
+          />
         </div>
-
       </main>
-
-      <footer className="w-full text-center py-6 border-t border-white/5 text-[10px] text-slate-500 font-mono tracking-widest relative z-10">
-        CRAFTED VIA PROFESSIONAL DESIGN • FULL-STACK SANDBOXED ENVIRONMENT
-      </footer>
     </div>
   );
 }

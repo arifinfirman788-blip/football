@@ -7,6 +7,40 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background: #030a0f;
+}
+
+body {
+  overflow: hidden;
+}
+
+.h5-app-shell {
+  width: min(100vw, 390px);
+  height: min(100dvh, 844px);
+  max-height: 844px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 390px) {
+  .h5-app-shell {
+    width: 100vw;
+    box-shadow: none;
+  }
+}
+
+@media (max-height: 844px) {
+  .h5-app-shell {
+    height: 100dvh;
+    max-height: none;
+  }
+}
+
 /* Custom styles for high-end reproduction */
 .sport-glass-card {
   background: linear-gradient(135deg, rgba(14, 35, 53, 0.85) 0%, rgba(8, 20, 31, 0.95) 100%);

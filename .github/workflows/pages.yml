@@ -37,6 +37,9 @@ jobs:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_AI_API_BASE_URL: ${{ vars.VITE_AI_API_BASE_URL }}
 
+      - name: Add SPA fallback
+        run: cp dist/index.html dist/404.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

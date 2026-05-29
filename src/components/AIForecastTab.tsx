@@ -33,11 +33,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       sender: 'ai',
-      text: `👋 您好！我是您的 **联网大模型足球智脑**。
-
-我已经接入 **互联网搜索工具 + DeepSeek V3.2**，可以为您获取最即时的2026世界杯球队即时战意、伤病要闻、战术阵型与胜率概率。
-
-您可以在下方输入框输入任意要咨询的足球话题，或者直接在赛程或竞猜主页中点击 **[AI预测]**，我将自动帮您调取对局进行全维沙盘推演！`,
+      text: `您好，我是黄小西，您的世界杯观赛搭子！有什么足球相关的问题都可以咨询我哦~`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
@@ -306,12 +302,12 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
-            <span className="text-xs font-black tracking-wide text-white block">联网大模型足球智脑</span>
-            <span className="text-[8px] text-emerald-400 font-mono block uppercase tracking-[1.5px] leading-none mt-0.5">SEARCH GROUNDED BRAIN</span>
+            <span className="text-xs font-black tracking-wide text-white block">黄小西</span>
+            <span className="text-[8px] text-emerald-400 font-mono block uppercase tracking-[1.5px] leading-none mt-0.5">WORLD CUP MATE</span>
           </div>
         </div>
         <span className="text-[9px] bg-[#0d263b] text-slate-400 font-bold border border-white/5 py-0.5 px-2 rounded-md">
-          🟢 DeepSeek 联网接入
+          🟢 联网分析
         </span>
       </div>
 
@@ -376,7 +372,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             <div className="bg-[#0f2334]/95 border border-[#1b3c58]/35 rounded-3xl rounded-tl-none p-3.5 shadow-md max-w-[70%] flex flex-col">
               <span className="text-[10px] text-teal-300 font-semibold flex items-center space-x-1 animate-pulse mb-1">
                 <RefreshCw className="w-3 h-3 animate-spin text-teal-400" />
-                <span>联网大模型正在检索最新战报并撰写分析中...</span>
+                <span>黄小西正在检索最新战报并撰写分析中...</span>
               </span>
               <div className="flex space-x-1.5 mt-2 pl-3">
                 <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
