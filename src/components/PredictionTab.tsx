@@ -10,16 +10,7 @@ import { CrownIcon } from './Svgs';
 import { assetUrl } from '../utils/assets';
 
 interface PredictionTabProps {
-  coins: number;
-  setCoins: React.Dispatch<React.SetStateAction<number>>;
   onTeamSelect: (teamId: string) => void;
-  predictionHistory: Array<{
-    matchId: string;
-    fixture: string;
-    choice: string;
-    time: string;
-    status: string;
-  }>;
   setPredictionHistory: React.Dispatch<React.SetStateAction<Array<{
     matchId: string;
     fixture: string;
@@ -32,10 +23,7 @@ interface PredictionTabProps {
 }
 
 export const PredictionTab: React.FC<PredictionTabProps> = ({ 
-  coins, 
-  setCoins,
   onTeamSelect,
-  predictionHistory,
   setPredictionHistory,
   onAIPredictionClick,
   onRewardClick
@@ -80,7 +68,6 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   const [submittedPredictions, setSubmittedPredictions] = useState<Record<string, 'home' | 'draw' | 'away' | null>>({});
 
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
-  const [showGoldPurchaser, setShowGoldPurchaser] = useState<boolean>(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -143,7 +130,6 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       ...prev,
       [currentMatch.id]: selectedOutcome
     }));
-    setCoins(prev => prev + 200); // Reward 200 virtual coins!
     setShowSuccessToast(true);
 
     // Append to record history
@@ -468,39 +454,10 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
           <span className="text-[10.5px] text-slate-300 mt-1.5 leading-relaxed">
             成功推荐 <strong>{choiceMap[submittedPredictions[currentMatch.id] || 'draw']}</strong>
           </span>
-          <span className="text-xs font-bold text-[#ffd54f] mt-1.5">资产收益 +200 🪙</span>
-        </div>
-      )}
-
-      {/* Gold Purchase modal */}
-      {showGoldPurchaser && (
-        <div className="absolute inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0b1b2a] border border-[#1b3d58] rounded-3xl p-5 w-72 text-center flex flex-col items-center shadow-2xlSelect-none">
-            <span className="text-sm font-black text-white mb-1.5">金币模拟包充值</span>
-            <span className="text-[10px] text-slate-400 mb-4 font-mono">WORLD CUP SANDBOX ASSETS</span>
-            
-            <div className="grid grid-cols-2 gap-2 w-full mb-4">
-              <button 
-                onClick={() => { setCoins(prev => prev + 1000); setShowGoldPurchaser(false); }}
-                className="py-2.5 bg-yellow-400/10 border border-yellow-500/25 hover:bg-yellow-500/20 text-[#ffd54f] text-xs font-bold rounded-xl cursor-pointer"
-              >
-                +1000 🪙
-              </button>
-              <button 
-                onClick={() => { setCoins(prev => prev + 5000); setShowGoldPurchaser(false); }}
-                className="py-2.5 bg-yellow-400/10 border border-yellow-500/25 hover:bg-yellow-500/20 text-[#ffd54f] text-xs font-bold rounded-xl cursor-pointer"
-              >
-                +5000 🪙
-              </button>
-            </div>
-
-            <button 
-              onClick={() => setShowGoldPurchaser(false)}
-              className="text-xs text-slate-500 underline hover:text-white cursor-pointer"
-            >
-              取消
-            </button>
-          </div>
+          <span className="text-xs font-bold text-[#ffd54f] mt-1.5">赛后按基础分结算</span>
+          <span className="text-[9.5px] text-slate-400 mt-1 leading-relaxed">
+            常规时间猜对 +1 分，猜错 +0 分
+          </span>
         </div>
       )}
 

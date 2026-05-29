@@ -17,9 +17,6 @@ import { RewardModal } from './components/RewardModal';
 import { Player, Match } from './types';
 
 export default function App() {
-  // Global virtual currency wallet
-  const [coins, setCoins] = useState<number>(2888); // Sandbox start coins balance
-
   // Prediction database historical log state shared across profile views
   const [predictionHistory, setPredictionHistory] = useState<Array<{
     matchId: string;
@@ -94,10 +91,7 @@ export default function App() {
       case 'prediction':
         return (
           <PredictionTab
-            coins={coins}
-            setCoins={setCoins}
             onTeamSelect={(teamId) => setPhoneState(prev => ({ ...prev, selectedTeamId: teamId }))}
-            predictionHistory={predictionHistory}
             setPredictionHistory={setPredictionHistory}
             onAIPredictionClick={handleAIPredictionTransition}
             onRewardClick={() => setIsRewardOpen(true)}

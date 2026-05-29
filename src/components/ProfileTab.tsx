@@ -6,7 +6,6 @@
 import React from 'react';
 
 interface ProfileTabProps {
-  coins: number;
   predictionHistory: Array<{
     matchId: string;
     fixture: string;
@@ -16,7 +15,7 @@ interface ProfileTabProps {
   }>;
 }
 
-export const ProfileTab: React.FC<ProfileTabProps> = ({ coins, predictionHistory }) => {
+export const ProfileTab: React.FC<ProfileTabProps> = ({ predictionHistory }) => {
   return (
     <div className="flex-1 flex flex-col bg-[#050f14] text-white overflow-hidden select-none">
       
@@ -51,8 +50,8 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ coins, predictionHistory
       {/* Grid Stats */}
       <div className="px-4 py-3 bg-[#081521] border-y border-white/5 grid grid-cols-3 text-center">
         <div className="flex flex-col">
-          <span className="text-[10px] text-slate-400">总奖金币</span>
-          <span className="text-sm font-bold text-[#ffd54f] font-mono mt-0.5">🪙 {coins}</span>
+          <span className="text-[10px] text-slate-400">基础积分</span>
+          <span className="text-sm font-bold text-[#ffd54f] font-mono mt-0.5">5</span>
         </div>
         
         <div className="flex flex-col border-x border-white/5">
@@ -63,8 +62,8 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ coins, predictionHistory
         </div>
 
         <div className="flex flex-col">
-          <span className="text-[10px] text-slate-400">胜赔金</span>
-          <span className="text-sm font-bold text-[#00e676] font-mono mt-0.5">+4350</span>
+          <span className="text-[10px] text-slate-400">计分规则</span>
+          <span className="text-sm font-bold text-[#00e676] font-mono mt-0.5">+1/场</span>
         </div>
       </div>
 
@@ -125,7 +124,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ coins, predictionHistory
               <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/10">
                 客胜 (塞内加尔)
               </span>
-              <span className="text-[10px] text-[#00e676] font-bold">已胜出 +800</span>
+              <span className="text-[10px] text-[#00e676] font-bold">猜对 +1</span>
             </div>
           </div>
         </div>

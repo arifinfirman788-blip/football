@@ -73,7 +73,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 28,
       guesses: 12,
       accuracy: '85%',
-      points: 1288
+      points: 12
     },
     {
       rank: 2,
@@ -82,7 +82,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 24,
       guesses: 11,
       accuracy: '78%',
-      points: 1086
+      points: 11
     },
     {
       rank: 3,
@@ -91,7 +91,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 22,
       guesses: 10,
       accuracy: '71%',
-      points: 886
+      points: 10
     },
     {
       rank: 4,
@@ -100,7 +100,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 20,
       guesses: 9,
       accuracy: '69%',
-      points: 768
+      points: 9
     },
     {
       rank: 5,
@@ -109,7 +109,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 18,
       guesses: 8,
       accuracy: '67%',
-      points: 682
+      points: 8
     },
     {
       rank: 6,
@@ -118,7 +118,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 18,
       guesses: 8,
       accuracy: '62%',
-      points: 618
+      points: 8
     },
     {
       rank: 7,
@@ -127,7 +127,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 16,
       guesses: 7,
       accuracy: '58%',
-      points: 532
+      points: 7
     },
     {
       rank: 8,
@@ -136,7 +136,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 15,
       guesses: 7,
       accuracy: '54%',
-      points: 486
+      points: 7
     },
     {
       rank: 9,
@@ -145,7 +145,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 14,
       guesses: 6,
       accuracy: '50%',
-      points: 420
+      points: 6
     },
     {
       rank: 10,
@@ -154,18 +154,26 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       level: 14,
       guesses: 6,
       accuracy: '46%',
-      points: 378
+      points: 6
     }
   ];
 
-  const allTimeLeaderboard: LeaderboardUser[] = dailyLeaderboard.map((user) => ({
+  const baseScoreLeaderboard: LeaderboardUser[] = dailyLeaderboard.map((user) => ({
     ...user,
-    level: Math.round(user.level * 1.5),
-    guesses: Math.round(user.guesses * 8.2),
-    points: Math.round(user.points * 8.4)
-  })).sort((a,b) => b.points - a.points);
+    points: user.guesses
+  }));
 
-  const activeLeaderboardList = activeTab === 'daily' ? dailyLeaderboard : allTimeLeaderboard;
+  const allTimeLeaderboard: LeaderboardUser[] = baseScoreLeaderboard.map((user) => {
+    const correctGuesses = Math.round(user.guesses * 8.2);
+    return {
+      ...user,
+      level: Math.round(user.level * 1.5),
+      guesses: correctGuesses,
+      points: correctGuesses
+    };
+  }).sort((a,b) => b.points - a.points);
+
+  const activeLeaderboardList = activeTab === 'daily' ? baseScoreLeaderboard : allTimeLeaderboard;
 
   return (
     <div className="flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
@@ -351,7 +359,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
           <span className="text-slate-300">命中率 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">42%</strong></span>
           
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
-          <span className="text-slate-300 font-medium">积分 <strong className="text-amber-400 font-mono font-extrabold ml-0.5">286</strong></span>
+          <span className="text-slate-300 font-medium">积分 <strong className="text-amber-400 font-mono font-extrabold ml-0.5">5</strong></span>
         </div>
 
         {/* Action interactive arrow chevron */}
@@ -370,10 +378,10 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
               <span>排行榜积分挑战规则说明</span>
             </h4>
             <div className="text-slate-300 space-y-2 leading-relaxed font-sans">
-              <p>1. <strong>积分来源</strong>：用户通过主页的“世界杯预测竞猜”提交，若完全竞猜正确（胜/平/负），即可赢取高额竞猜积分加成。</p>
-              <p>2. <strong>命中率考核</strong>：每日排行榜以单天内竞猜结束后的正确率（猜对场次 ÷ 总提交次数）为准计算前十强。</p>
-              <p>3. <strong>当日与总排行</strong>：【当日排行】于每日 24:00 结束当天的考核结算，派发当天的实物奖励资格。而【总排行】则记录整个活动至今的终极勋章名册！</p>
-              <p>4. <strong>顶峰大奖</strong>：保持高胜率不仅能够跻身前十强，第一名更是有极大几率赢取 <strong>100万汽车使用券</strong> 特选尊贵豪礼！</p>
+              <p>1. <strong>积分来源</strong>：仅计算基础分，猜对一场胜/平/负 +1 分，猜错不加分。</p>
+              <p>2. <strong>结算口径</strong>：所有场次均以常规时间结算，即 90 分钟加伤停补时，不包含加时赛及点球大战。</p>
+              <p>3. <strong>命中率考核</strong>：每日排行榜以单天内竞猜结束后的正确率（猜对场次 ÷ 总提交次数）为准计算前十强。</p>
+              <p>4. <strong>当日与总排行</strong>：【当日排行】于每日 24:00 结束当天考核结算；【总排行】累计活动期间全部基础分。</p>
             </div>
             <button
               onClick={() => setShowRules(false)}
