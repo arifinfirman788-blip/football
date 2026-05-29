@@ -6,6 +6,10 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     base: process.env.VITE_BASE_PATH || '/',
+    build: {
+      target: 'safari13',
+      cssTarget: 'safari13'
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
