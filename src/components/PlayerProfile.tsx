@@ -12,9 +12,104 @@ interface PlayerProfileProps {
   onBack: () => void;
 }
 
+type StatKey = 'speed' | 'shooting' | 'passing' | 'dribbling' | 'defense';
+
+const statDisplayOrder: StatKey[] = ['speed', 'shooting', 'passing', 'dribbling', 'defense'];
+
+const getPositionTraitLabels = (position: string): Record<StatKey, string> => {
+  if (position.includes('门将')) {
+    return {
+      speed: '反应启动',
+      shooting: '长传开球',
+      passing: '脚下出球',
+      dribbling: '禁区控制',
+      defense: '扑救门线',
+    };
+  }
+
+  if (position.includes('边后卫')) {
+    return {
+      speed: '边路回追',
+      shooting: '后插射门',
+      passing: '传中质量',
+      dribbling: '套边推进',
+      defense: '一对一防守',
+    };
+  }
+
+  if (position.includes('中卫') || position.includes('后卫')) {
+    return {
+      speed: '回追速度',
+      shooting: '定位球威胁',
+      passing: '后场出球',
+      dribbling: '持球推进',
+      defense: '拦截对抗',
+    };
+  }
+
+  if (position.includes('后腰')) {
+    return {
+      speed: '覆盖半径',
+      shooting: '远射威胁',
+      passing: '节奏调度',
+      dribbling: '抗压摆脱',
+      defense: '拦截扫荡',
+    };
+  }
+
+  if (position.includes('前腰') || position.includes('中前场')) {
+    return {
+      speed: '前插启动',
+      shooting: '禁区前沿',
+      passing: '关键传球',
+      dribbling: '狭小摆脱',
+      defense: '前场压迫',
+    };
+  }
+
+  if (position.includes('中场')) {
+    return {
+      speed: '攻防覆盖',
+      shooting: '后排插上',
+      passing: '组织分球',
+      dribbling: '持球推进',
+      defense: '中路保护',
+    };
+  }
+
+  if (position.includes('边锋')) {
+    return {
+      speed: '冲刺爆发',
+      shooting: '内切终结',
+      passing: '传中助攻',
+      dribbling: '边路突破',
+      defense: '回防压迫',
+    };
+  }
+
+  if (position.includes('中锋')) {
+    return {
+      speed: '启动抢点',
+      shooting: '禁区终结',
+      passing: '背身做球',
+      dribbling: '禁区摆脱',
+      defense: '前场压迫',
+    };
+  }
+
+  return {
+    speed: '冲刺爆发',
+    shooting: '终结射门',
+    passing: '策应传球',
+    dribbling: '持球突破',
+    defense: '前场压迫',
+  };
+};
+
 export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) => {
   const isPendingProfile = player.profileStatus === 'pending';
   const isLoadingProfile = player.profileStatus === 'loading';
+  const traitLabels = getPositionTraitLabels(player.position);
 
   if (isPendingProfile || isLoadingProfile) {
     return (
@@ -67,11 +162,11 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
     // 5-axis coordinates starting from 12 o'clock (Shooting) going clockwise:
     // Angle indices: 0 = Shooting (Top), 1 = Passing (Right-top), 2 = Dribbling (Right-bottom), 3 = Defense (Left-bottom), 4 = Speed (Left-top)
     const statsArray = [
-      { name: '射门', value: player.stats.shooting, label: '射门' },
-      { name: '传球', value: player.stats.passing, label: '传球' },
-      { name: '盘带', value: player.stats.dribbling, label: '盘带' },
-      { name: '防守', value: player.stats.defense, label: '防守' },
-      { name: '速度', value: player.stats.speed, label: '速度' },
+      { name: 'shooting', value: player.stats.shooting, label: traitLabels.shooting },
+      { name: 'passing', value: player.stats.passing, label: traitLabels.passing },
+      { name: 'dribbling', value: player.stats.dribbling, label: traitLabels.dribbling },
+      { name: 'defense', value: player.stats.defense, label: traitLabels.defense },
+      { name: 'speed', value: player.stats.speed, label: traitLabels.speed },
     ];
     
     const cx = 80;
@@ -361,21 +456,16 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
         {/* Attributes ratings - "能力值" */}
         <div className="sport-glass-card rounded-2xl p-4">
           <span className="block text-xs font-bold text-[#00e676] mb-1">⚔️ 专属核心特性</span>
-          <span className="block text-[9.5px] text-slate-500 mb-3.5">基于公开资料和位置特征的综合评分</span>
+          <span className="block text-[9.5px] text-slate-500 mb-3.5">
+            {player.position}专项维度，基于公开资料和位置特征综合评分
+          </span>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(player.starRatings).map(([key, value]) => {
-              const labelMap: Record<string, string> = {
-                speed: '跑跳速度',
-                shooting: '精妙射门',
-                passing: '视野传球',
-                dribbling: '花哨盘带',
-                defense: '贴身防守',
-              };
-              const ratingNum = value as number;
+            {statDisplayOrder.map((key) => {
+              const ratingNum = player.starRatings[key] as number;
               return (
                 <div key={key} className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-medium">{labelMap[key]}</span>
+                  <span className="text-slate-400 font-medium">{traitLabels[key]}</span>
                   
                   {/* rendering beautiful golds/empty stars */}
                   <div className="flex items-center space-x-0.5 text-[#ffd54f]">
