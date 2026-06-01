@@ -3,6 +3,9 @@ import type { SquadPlayerResearch } from './researchData';
 type SquadLine = [string, string[]];
 
 /**
+ * 【当前未在前端主流程使用】
+ * 本文件只服务旧球队详情页 TeamDetail 的阵容展示；当前首页、赛程、排行、预测不会读取这里。
+ *
  * 已核验阵容辅助表：
  * - PLAYER_CN：英文名到中文名的展示映射；
  * - STAR_PLAYER_PRIORITY：阵容页排序优先级，数值越高越靠前；

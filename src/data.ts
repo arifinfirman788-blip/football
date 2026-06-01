@@ -277,7 +277,7 @@ export const ACTIVE_BET_MATCH: Match = {
   status: 'unstarted'
 };
 
-// 旧球队详情页使用的球员资料库。当前主流程已隐藏球员下钻，保留给后续恢复档案页。
+// 【当前未在前端主流程使用】旧球队详情页使用的球员资料库。当前主流程已隐藏球员下钻，保留给后续恢复档案页。
 export const PLAYERS: Record<string, Player> = {
   neymar: {
     id: 'neymar',
@@ -421,7 +421,7 @@ export const PLAYERS: Record<string, Player> = {
   }
 };
 
-// 巴西球队详情旧数据：赛程、阵容等。当前不再从首页进入球队详情。
+// 【当前未在前端主流程使用】巴西球队详情旧数据：赛程、阵容等。当前不再从首页进入球队详情。
 export const BRAZIL_SCHEDULE_DATA = [
   { stage: '小组赛·第1轮', time: '06-02 20:00', opponent: '塞尔维亚', oppFlag: '🇷🇸', result: '2 - 0', type: 'win' },
   { stage: '小组赛·第2轮', time: '06-06 23:00', opponent: '瑞士', oppFlag: '🇨🇭', result: '1 - 1', type: 'draw' },
@@ -430,6 +430,7 @@ export const BRAZIL_SCHEDULE_DATA = [
   { stage: '1/4 决赛', time: '06-20 03:00', opponent: '待定', oppFlag: '⚽', result: 'VS', type: 'notification' }
 ];
 
+// 【当前未在前端主流程使用】旧巴西阵容列表，只供旧 TeamDetail 页面兜底。
 export const BRAZIL_ROSTER = [
   PLAYERS.neymar,
   PLAYERS.vinicius,

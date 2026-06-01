@@ -84,6 +84,11 @@ export interface Player {
   transfers: TransferHistory[];
 }
 
+/**
+ * 【当前未在前端主流程使用】
+ * 旧版单场竞猜票据结构。现在实际提交记录使用 PredictionRecord。
+ * 如果后续接入后端订单/票据模型，可考虑复用或删除该接口。
+ */
 export interface PredictionSlip {
   matchId: string;
   homeTeam: Team;

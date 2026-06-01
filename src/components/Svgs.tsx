@@ -5,7 +5,13 @@
 
 import React from 'react';
 
-// 世界杯大力神杯 SVG。当前多处已改用切图，这个组件保留给旧页面或无图兜底。
+/**
+ * 【当前未在前端主流程使用】
+ * 这些 SVG 只被旧的 TeamDetail / PlayerProfile 引用。主流程页面目前优先使用切图素材；
+ * 如后续恢复旧详情页或需要无图兜底，再重新接入。
+ */
+
+// 世界杯大力神杯 SVG。
 export const TrophySvg: React.FC<{ className?: string }> = ({ className = 'w-12 h-12' }) => {
   return (
     <svg className={className} viewBox="0 0 120 180" fill="none" xmlns="http://www.w3.org/2000/svg">

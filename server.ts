@@ -304,7 +304,7 @@ app.post("/api/predict", async (req, res) => {
 });
 
 app.post("/api/player-profile", async (req, res) => {
-  // 当前主流程已隐藏球队/球员详情页；接口保留给后续重新启用球员档案时使用。
+  // 【当前前端未调用】当前主流程已隐藏球队/球员详情页；接口保留给后续重新启用球员档案时使用。
   try {
     const { player, team, teamResearch } = req.body;
     if (!player?.name || !team?.name) {

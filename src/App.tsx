@@ -16,6 +16,13 @@ import { RewardRulesPage } from './components/RewardRulesPage';
 
 import { Match, PredictionRecord } from './types';
 
+/**
+ * 当前前端实际入口说明：
+ * - 已接入主流程：PredictionTab、ScheduleTab、GroupsTab、AIForecastTab、SplashAd、
+ *   ViewingLocationsPage、RewardRulesPage。
+ * - 暂未接入主流程但保留备用：PhoneFrame、ProfileTab、TeamDetail、PlayerProfile、Svgs。
+ *   这些文件不会从 App.tsx 渲染，后续恢复对应页面时再重新引入。
+ */
 export default function App() {
   /**
    * 全局竞猜记录。

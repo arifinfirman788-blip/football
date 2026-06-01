@@ -12,8 +12,10 @@ import { STAR_PLAYER_PRIORITY } from '../confirmedSquads';
 import { apiUrl } from '../utils/api';
 
 /**
+ * 【当前未在前端使用】
  * 球队详情页已从当前底导主流程中移除。
  * 组件和接口仍保留，后续如恢复“点击球队查看详情/阵容/历史战绩”，可直接重新接入 App.tsx。
+ * 依赖数据：researchData.ts、confirmedSquads.ts、data.ts 中的 PLAYERS / BRAZIL_* 旧数据。
  */
 const POSITION_ORDER: Record<string, number> = {
   '门将': 0,

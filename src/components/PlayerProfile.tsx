@@ -7,6 +7,11 @@ import React from 'react';
 import { Player } from '../types';
 import { TrophySvg } from './Svgs';
 
+/**
+ * 【当前未在前端使用】
+ * 球员详情页已从当前主流程中移除。现在点击球队/球员不会进入本页。
+ * 保留原因：后续如果恢复球员档案，可以继续使用这里的雷达图、转会记录和基础资料布局。
+ */
 interface PlayerProfileProps {
   player: Player;
   onBack: () => void;
