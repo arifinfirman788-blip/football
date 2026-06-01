@@ -22,6 +22,10 @@ interface AIForecastTabProps {
   onBackToSchedule?: () => void;
 }
 
+/**
+ * 已自动触发过的 requestKey。
+ * 组件切换后仍保留在模块级 Set 中，避免 React 重渲染导致同一场比赛重复发送两次问题。
+ */
 const autoTriggeredRequestKeys = new Set<string>();
 
 export const AIForecastTab: React.FC<AIForecastTabProps> = ({ 
@@ -42,7 +46,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Suggested questions pill list
+  // 预测页快捷问题。运营需要调整推荐问法时，修改这里即可。
   const suggestedQuestions = [
     { text: '🇧🇷 巴西 VS 🇫🇷 法国焦点战分析 ⚔️', prompt: '请帮我联网深度分析【🇧🇷 巴西 VS 🇫🇷 法国】这场即将开始的分组赛首轮焦点战，推荐双方战术策略和比分结果。' },
     { text: '梅西目前的核心战术定位 🐐', prompt: '请帮我探究梅西当前在国家队战局中的核心技战术作用和最新的跑动热点定位。' },
@@ -50,7 +54,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     { text: '阿根廷首战的核心伤病有新消息吗？  🚑', prompt: '请联网检索并汇报阿根廷国家足球队近期备战的最新严重主力伤病报告和突发生病讯息。' }
   ];
 
-  // Auto trigger predictions when a match is selected and navigated to
+  // 从竞猜页或赛程页带比赛进入时，自动发起一次联网分析。
   useEffect(() => {
     if (selectedMatch) {
       const triggerKey = selectedMatchRequestKey || selectedMatch.id;
@@ -60,7 +64,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     }
   }, [selectedMatch, selectedMatchRequestKey]);
 
-  // Handle automatic messages scroll to bottom
+  // 新消息或“正在输入”状态变化时，将对话滚动到底部。
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -72,7 +76,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   const triggerMatchChatPrediction = async (match: Match) => {
     const userPromptText = `请帮我联网深度分析焦点战役【${match.homeTeam.flag} ${match.homeTeam.name} VS ${match.awayTeam.flag} ${match.awayTeam.name}】，评估双方近期状态、交手细节并预测可能胜平负比分！`;
     
-    // Append User message
+    // 先把用户问题写入会话，再异步请求服务端。
     setMessages(prev => [
       ...prev,
       {
@@ -111,7 +115,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
       }
     } catch (err) {
       console.error(err);
-      // Clean fallback offline prediction
+      // 前端离线兜底：服务端不可用时仍给出明确提示，避免聊天区空白。
       const mockResult = `### 🏆 【AI 智能推荐落盘】 ${match.homeTeam.flag} ${match.homeTeam.name} VS ${match.awayTeam.flag} ${match.awayTeam.name}
 > ⚠️ *提示：当前离线状态，战术脑已启动本地语料沙盒进行离线拟合。*
 
@@ -142,7 +146,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     const finalQuery = queryText.trim();
     setInputValue('');
 
-    // Append User message
+    // 普通问答与比赛自动分析共用 /api/predict。
     setMessages(prev => [
       ...prev,
       {
@@ -197,7 +201,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     }
   };
 
-  // Helper function to parse and display headers/markdown cleanly inside chat bubbles
+  // 轻量 Markdown 渲染器：只处理当前模型回答会用到的标题、引用和列表。
   const renderAIPredictionMarkdown = (text: string) => {
     const lines = text.split('\n');
     return (
@@ -206,7 +210,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
           const trimmed = line.trim();
           if (!trimmed) return <div key={idx} className="h-1" />;
 
-          // Heading 3
+          // 三级标题
           if (trimmed.startsWith('###')) {
             return (
               <h3 key={idx} className="text-sm font-black text-emerald-400 pt-2 border-b border-white/5 pb-1 flex items-center space-x-1.5 leading-snug">
@@ -216,7 +220,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             );
           }
 
-          // Heading 4
+          // 四级标题
           if (trimmed.startsWith('####')) {
             return (
               <h4 key={idx} className="text-[11.5px] font-bold text-teal-300 pt-1 flex items-center space-x-1.5 leading-snug">
@@ -226,7 +230,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             );
           }
 
-          // Blockquote banner
+          // 引用提示块
           if (trimmed.startsWith('>')) {
             return (
               <div key={idx} className="bg-emerald-500/10 border-l-[3px] border-emerald-500 p-2 rounded-r-xl text-[10px] text-emerald-300/90 italic font-medium my-1.5 leading-snug">
@@ -235,7 +239,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             );
           }
 
-          // Bullet points
+          // 列表项
           if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
             const matchBold = trimmed.match(/\*\*(.*?)\*\*/g);
             let content = trimmed.substring(1).trim();
@@ -262,7 +266,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             );
           }
 
-          // Plain text lines with support for bold formatting
+          // 普通文本行，并支持 **加粗**。
           const matchBold = trimmed.match(/\*\*(.*?)\*\*/g);
           let content = trimmed;
           if (matchBold) {
@@ -295,7 +299,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   return (
     <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden relative select-none">
       
-      {/* 1. Header Title Banner */}
+      {/* 顶部标题栏 */}
       <div className="relative py-3.5 px-4 bg-[#081521]/60 border-b border-white/5 flex items-center justify-between z-10 shrink-0">
         <div className="flex items-center space-x-2">
           <div className="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-400 animate-pulse">
@@ -311,7 +315,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
         </span>
       </div>
 
-      {/* 2. Scrollable Messages Chat Area */}
+      {/* 可滚动消息区 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-none pb-48 relative z-0">
         {messages.map((msg, idx) => {
           const isUser = msg.sender === 'user';
@@ -325,7 +329,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-500 rounded-tr-none text-white' 
                   : 'bg-[#0f2334]/95 border border-[#1b3c58]/35 rounded-tl-none text-slate-200'
               }`}>
-                {/* Message Body */}
+                {/* 消息正文 */}
                 <div className="break-words">
                   {isUser ? (
                     <span className="text-xs font-semibold leading-relaxed font-sans">{msg.text}</span>
@@ -334,7 +338,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
                   )}
                 </div>
 
-                {/* Grounding Sources */}
+                {/* 联网搜索来源 */}
                 {!isUser && msg.sources && msg.sources.length > 0 && (
                   <div className="mt-3.5 pt-2 border-t border-white/5 flex flex-col space-y-1">
                     <span className="text-[9px] text-[#00e676]/90 font-extrabold uppercase tracking-wider flex items-center space-x-1">
@@ -357,7 +361,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
                   </div>
                 )}
 
-                {/* Message Timestamp */}
+                {/* 消息时间 */}
                 <span className="text-[8px] text-slate-500 font-mono tracking-tight text-right mt-1.5 self-end block leading-none">
                   {msg.timestamp}
                 </span>
@@ -366,7 +370,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
           );
         })}
 
-        {/* Typing message simulator */}
+        {/* AI 输入中状态 */}
         {isTyping && (
           <div className="flex w-full justify-start">
             <div className="bg-[#0f2334]/95 border border-[#1b3c58]/35 rounded-3xl rounded-tl-none p-3.5 shadow-md max-w-[70%] flex flex-col">
@@ -386,10 +390,10 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 3. Bottom controls (Suggested pills + Input form) positioned completely at bottom stack */}
+      {/* 底部操作区：快捷问题 + 输入框 */}
       <div className="absolute bottom-[68px] inset-x-0 bg-gradient-to-t from-[#050f17] via-[#050f17]/95 to-transparent pt-3 pb-3 px-3.5 z-10 border-t border-white/5 select-none shrink-0">
         
-        {/* Suggested questions scrolling horizontal bar */}
+        {/* 横向滚动快捷问题 */}
         <div className="mb-2">
           <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest block mb-1">
             💡 热门足球话题快捷推荐
@@ -408,7 +412,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
           </div>
         </div>
 
-        {/* Input Text Form */}
+        {/* 输入表单 */}
         <form 
           onSubmit={handleOnSubmit}
           className="flex items-center space-x-2.5 bg-[#0b1b2a] border border-[#1b3d58] rounded-2xl py-1.5 pl-3.5 pr-1.5 focus-within:border-[#00e676]/50 transition-all shadow-inner"

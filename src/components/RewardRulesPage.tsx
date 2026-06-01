@@ -12,6 +12,7 @@ interface RewardRulesPageProps {
   onClose: () => void;
 }
 
+// 规则文案集中维护，运营规则调整时只需要修改这里。
 const pointRules = [
   '每场胜/平/负竞猜仅计算基础分。',
   '常规时间猜对 1 场 +1 分，猜错不加分。',
@@ -61,6 +62,7 @@ export const RewardRulesPage: React.FC<RewardRulesPageProps> = ({ isOpen, onClos
             <span className="text-[9px] text-[#ffd54f] font-mono">TOP 奖励</span>
           </div>
 
+          {/* 奖励图片替换点：运营更新奖品时，覆盖 public/assets/rewards/reward-poster-mobile.jpg 即可。 */}
           <img
             src={assetUrl('assets/rewards/reward-poster-mobile.jpg')}
             alt="奖励海报"

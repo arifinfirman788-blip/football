@@ -18,6 +18,11 @@ app.use(express.json());
 
 let aiClient: GoogleGenAI | null = null;
 
+/**
+ * CORS 白名单。
+ * 本地开发通常不需要配置；如果前端部署到 GitHub Pages、后端部署到云服务，
+ * 需要在 ALLOWED_ORIGINS 中加入 GitHub Pages 域名。
+ */
 function getAllowedOrigins(): string[] {
   return (process.env.ALLOWED_ORIGINS || "")
     .split(",")
@@ -57,6 +62,13 @@ function getArkBotEndpoint(): string {
 }
 
 async function callArkBot(prompt: string) {
+  /**
+   * 火山方舟 Bot / 兼容 OpenAI Chat Completions 的通用入口。
+   * 必需环境变量：
+   * - ARK_BOT_API_URL 或 MODEL_API_URL
+   * - ARK_BOT_API_KEY 或 MODEL_API_KEY
+   * - ARK_BOT_MODEL 或 MODEL_NAME
+   */
   const apiKey = process.env.ARK_BOT_API_KEY || process.env.MODEL_API_KEY;
   const model = process.env.ARK_BOT_MODEL || process.env.MODEL_NAME;
   if (!apiKey || !model) {
@@ -115,6 +127,7 @@ async function callArkBot(prompt: string) {
 }
 
 function getPositionStats(position = "") {
+  // 球员能力雷达兜底值。联网资料不可用时，按位置给出保守区间。
   if (position.includes("门将")) {
     return { shooting: 18, passing: 72, dribbling: 42, defense: 92, speed: 58 };
   }
@@ -142,6 +155,7 @@ function getStarRatings(stats: Record<string, number>) {
 }
 
 function extractJsonObject(text: string) {
+  // 大模型偶尔会包 Markdown 代码块，这里只截取第一个 JSON 对象。
   const cleaned = text
     .replace(/```json/gi, "```")
     .replace(/```/g, "")
@@ -172,7 +186,7 @@ function getAIClient(): GoogleGenAI {
   return aiClient;
 }
 
-// REST API for AI Match Prediction with Google Search Grounding!
+// AI 预测接口：竞猜页/赛程页/预测页共用。
 app.post("/api/predict", async (req, res) => {
   try {
     const { matchId, homeTeam, awayTeam, stage, time, question } = req.body;
@@ -206,6 +220,7 @@ app.post("/api/predict", async (req, res) => {
 
     try {
       if (process.env.ARK_BOT_API_URL || process.env.MODEL_API_URL) {
+        // 优先使用用户提供的通用大模型 Bot；它通常自带联网搜索工具。
         console.log("Calling Ark Bot with web search for football prediction...");
         const { text, sources } = await callArkBot(prompt);
         res.json({
@@ -219,6 +234,7 @@ app.post("/api/predict", async (req, res) => {
       }
 
       const ai = getAIClient();
+      // 兜底使用 Gemini + Google Search Grounding。部署环境必须配置 GEMINI_API_KEY。
       console.log(`Calling Gemini with Search Grounding to predict ${homeTeam.name} VS ${awayTeam.name}...`);
       
       const response = await ai.models.generateContent({
@@ -231,7 +247,7 @@ app.post("/api/predict", async (req, res) => {
 
       const text = response.text || "大模型未生成有效结果，请稍后重试。";
       
-      // Extract Google Search Grounding Metadata
+      // 提取 Google Search Grounding 来源，前端会在回答底部展示引用。
       const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
       const sources = chunks ? chunks.map((chunk: any) => ({
         title: chunk.web?.title || "网络参考来源",
@@ -247,8 +263,7 @@ app.post("/api/predict", async (req, res) => {
     } catch (aiError: any) {
       console.error("Gemini API Error:", aiError);
       
-      // If API key is missing or invalid, fall back to a highly realistic simulated analysis 
-      // of this matchup so that the app works beautifully even if the user hasn't configured their API key yet.
+      // API 不可用时给出模拟分析，保证 H5 不空白；正式上线可改为直接返回错误提示。
       const fallbackAnalysis = `### 🏆 【AI 智能深度分析 (模拟模式)】 ${homeTeam.flag} ${homeTeam.name} VS ${awayTeam.flag} ${awayTeam.name}
 > ⚠️ *提示：当前未检测到 valid GEMINI_API_KEY。已激活本地专业技战术沙盘系统为您提供高度还原的模拟预测。*
 
@@ -289,6 +304,7 @@ app.post("/api/predict", async (req, res) => {
 });
 
 app.post("/api/player-profile", async (req, res) => {
+  // 当前主流程已隐藏球队/球员详情页；接口保留给后续重新启用球员档案时使用。
   try {
     const { player, team, teamResearch } = req.body;
     if (!player?.name || !team?.name) {
@@ -325,6 +341,7 @@ app.post("/api/player-profile", async (req, res) => {
       transfers: [],
     };
 
+    // 要求模型返回严格 JSON，前端球员详情页才能安全合并字段。
     const prompt = `请联网核验并生成世界杯 H5 球员详情页结构化资料。
 球员：${player.name}
 英文名：${player.englishName || player.name}
@@ -399,7 +416,7 @@ JSON schema:
   }
 });
 
-// Vite frontend handler
+// 本地开发走 Vite 中间件；生产环境直接托管 dist。
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

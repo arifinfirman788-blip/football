@@ -5,6 +5,11 @@
 
 import React from 'react';
 
+/**
+ * 旧版“我的”页组件。
+ * 当前底导已改为“竞猜、赛程、排行、预测”，用户记录入口迁移到排行页“我的排行”。
+ * 如后续需要恢复个人中心，可把 PredictionRecord 类型同步过来并替换这里的旧结构。
+ */
 interface ProfileTabProps {
   predictionHistory: Array<{
     matchId: string;
@@ -19,7 +24,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ predictionHistory }) => 
   return (
     <div className="flex-1 flex flex-col bg-[#050f14] text-white overflow-hidden select-none">
       
-      {/* User Card Area */}
+      {/* 用户资料卡：旧“我的”页入口，当前底导已不展示。 */}
       <div className="relative py-8 px-5 bg-gradient-to-b from-[#102436] to-[#050f14] flex flex-col items-center justify-center text-center">
         <div className="relative mb-3">
           <img 
@@ -47,7 +52,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ predictionHistory }) => 
         </div>
       </div>
 
-      {/* Grid Stats */}
+      {/* 用户竞猜统计宫格 */}
       <div className="px-4 py-3 bg-[#081521] border-y border-white/5 grid grid-cols-3 text-center">
         <div className="flex flex-col">
           <span className="text-[10px] text-slate-400">基础积分</span>
@@ -67,7 +72,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ predictionHistory }) => 
         </div>
       </div>
 
-      {/* Logs/History list */}
+      {/* 竞猜历史列表 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-bold text-[#00e676] tracking-wide">📝 我的竞猜记录</span>
@@ -99,7 +104,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ predictionHistory }) => 
             </div>
           ))}
 
-          {/* Static default logs for richness */}
+          {/* 静态历史数据：用于保留旧页面的展示完整度。 */}
           <div className="sport-glass-card rounded-2xl p-3 flex items-center justify-between">
             <div className="flex flex-col space-y-1">
               <span className="text-xs font-bold text-white">阿根廷 VS 德国</span>

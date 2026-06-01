@@ -23,6 +23,10 @@ interface ViewingLocation {
   lat: number;
 }
 
+/**
+ * TODO: 以下地点用于展示列表和导航交互，不是最终运营数据。
+ * 正式版建议由活动后台下发，并补充营业状态、适用比赛、预约方式和排序权重。
+ */
 const viewingLocations: ViewingLocation[] = [
   {
     id: 'shanghai-jingan',
@@ -71,10 +75,12 @@ const viewingLocations: ViewingLocation[] = [
 ];
 
 const getAmapNavigationUrl = (location: ViewingLocation) => (
+  // 高德 URI API 会优先尝试唤起 App，无法唤起时由浏览器继续打开地图页面。
   `https://uri.amap.com/navigation?to=${location.lng},${location.lat},${encodeURIComponent(location.name)}&mode=car&policy=1&coordinate=gaode&callnative=1`
 );
 
 export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOpen, onClose }) => {
+  // 二级页关闭时不渲染 DOM，避免遮挡底导和竞猜页交互。
   if (!isOpen) return null;
 
   return (

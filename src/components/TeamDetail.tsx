@@ -11,6 +11,10 @@ import { SquadPlayerResearch, TEAM_RESEARCH_DATA, getFallbackTeamResearch } from
 import { STAR_PLAYER_PRIORITY } from '../confirmedSquads';
 import { apiUrl } from '../utils/api';
 
+/**
+ * 球队详情页已从当前底导主流程中移除。
+ * 组件和接口仍保留，后续如恢复“点击球队查看详情/阵容/历史战绩”，可直接重新接入 App.tsx。
+ */
 const POSITION_ORDER: Record<string, number> = {
   '门将': 0,
   '后卫': 1,
@@ -46,6 +50,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
   });
 
   const getGeneratedStats = (position: string) => {
+    // 联网球员资料不可用时，按位置生成雷达图兜底值。
     if (position.includes('门将')) return { shooting: 18, passing: 72, dribbling: 42, defense: 92, speed: 58 };
     if (position.includes('边后卫')) return { shooting: 52, passing: 76, dribbling: 72, defense: 82, speed: 84 };
     if (position.includes('中卫') || position.includes('后卫')) return { shooting: 45, passing: 72, dribbling: 60, defense: 86, speed: 74 };
@@ -132,6 +137,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
   };
 
   const handleSquadPlayerClick = async (entry: SquadPlayerResearch, index: number) => {
+    // 非官方名单不做联网详情，避免为未确认球员生成不可靠档案。
     if (entry.status !== '官方') {
       onPlayerSelect(getPlayerProfile(entry, index, 'pending'));
       return;
@@ -176,12 +182,12 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
   return (
     <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden select-none">
       
-      {/* 1. Header with Stadium visual background */}
+      {/* 球队详情头图：体育场视觉背景 */}
       <div className="relative h-44 bg-gradient-to-b from-[#1b341f] via-[#0d2214] to-[#050f17] px-4 pt-10 pb-4 flex flex-col justify-between overflow-hidden">
-        {/* Spot lights overlay */}
+        {/* 聚光灯叠层 */}
         <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-white/10 to-transparent pointer-events-none blur-md"></div>
         
-        {/* Navigation line */}
+        {/* 顶部导航行 */}
         <div className="absolute top-3 inset-x-4 flex justify-between items-center z-10">
           <button 
             onClick={onBack}
@@ -199,10 +205,10 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
           </div>
         </div>
 
-        {/* Brand/Team Info Row */}
+        {/* 球队基础信息行 */}
         <div className="flex items-end justify-between relative mt-4">
           <div className="flex items-center space-x-3.5">
-            {/* National Crest Badge */}
+            {/* 国家队徽章 */}
             <div className="relative w-14 h-14 bg-gradient-to-b from-[#fff200] to-[#128a3a] rounded-xl p-[2px] shadow-lg flex items-center justify-center">
               <div className="w-full h-full bg-[#1b5e20] rounded-lg flex items-center justify-center">
                 <span className="text-3xl">{team?.flag || '⚽'}</span>
@@ -232,7 +238,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
         </div>
       </div>
 
-      {/* 2. Sub-tabs toggle Pills */}
+      {/* 二级切换标签 */}
       <div className="p-3 bg-[#06111a] border-b border-white/5">
         <div className="flex bg-[#000]/25 p-1 rounded-xl border border-white/5">
           <button
@@ -281,7 +287,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
         </div>
       </div>
 
-      {/* 3. Sub pages contents */}
+      {/* 二级内容区 */}
       <div className="flex-1 overflow-y-auto px-3.5 pb-6 pt-3 space-y-3">
         {activeSubTab === 'schedule' && (
           <div className="space-y-2">
@@ -291,13 +297,13 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
                 key={idx}
                 className="sport-glass-card rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/5 transition-all"
               >
-                {/* Stage and Time */}
+                {/* 阶段与开赛时间 */}
                 <div className="flex flex-col space-y-1">
                   <span className="text-[11px] text-slate-400 font-semibold">{match.stage}</span>
                   <span className="text-[9px] text-slate-500 font-mono">{match.time}</span>
                 </div>
 
-                {/* Matchup row */}
+                {/* 对阵信息 */}
                 <div className="flex items-center space-x-3 shrink-0">
                   <div className="flex items-center space-x-1.5">
                     <span className="text-sm">{team?.flag || '⚽'}</span>
@@ -314,7 +320,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
                   </div>
                 </div>
 
-                {/* Seal Icon indicator */}
+                {/* 状态图标 */}
                 <div className="w-8 flex justify-end">
                   <span className="text-[10px] text-slate-400">{match.status}</span>
                 </div>

@@ -16,6 +16,10 @@ type StatKey = 'speed' | 'shooting' | 'passing' | 'dribbling' | 'defense';
 
 const statDisplayOrder: StatKey[] = ['speed', 'shooting', 'passing', 'dribbling', 'defense'];
 
+/**
+ * 球员详情页已不在当前主流程中展示。
+ * 这里保留“不同位置不同雷达维度文案”，后续恢复球员页时可继续沿用。
+ */
 const getPositionTraitLabels = (position: string): Record<StatKey, string> => {
   if (position.includes('门将')) {
     return {
@@ -157,10 +161,10 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
     );
   }
   
-  // Radar Chart helper
+  // 雷达图辅助方法。
   const renderRadarChart = () => {
-    // 5-axis coordinates starting from 12 o'clock (Shooting) going clockwise:
-    // Angle indices: 0 = Shooting (Top), 1 = Passing (Right-top), 2 = Dribbling (Right-bottom), 3 = Defense (Left-bottom), 4 = Speed (Left-top)
+    // 五轴坐标从 12 点方向开始顺时针排列：
+    // 0 = 射门，1 = 传球，2 = 盘带，3 = 防守，4 = 速度。
     const statsArray = [
       { name: 'shooting', value: player.stats.shooting, label: traitLabels.shooting },
       { name: 'passing', value: player.stats.passing, label: traitLabels.passing },
@@ -173,13 +177,13 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
     const cy = 65;
     const maxRadius = 45;
     
-    // Convert angle & value to coordinates
+    // 将角度和值转换为 SVG 坐标。
     const getCoordinates = (value: number, index: number) => {
-      const angle = (Math.PI / 2) - (index * 2 * Math.PI) / 5; // offset upward, clockwise
+      const angle = (Math.PI / 2) - (index * 2 * Math.PI) / 5; // 顶部起点，顺时针。
       const factor = value / 100;
       const r = maxRadius * factor;
       const x = cx + r * Math.cos(angle);
-      const y = cy - r * Math.sin(angle); // flip screen y
+      const y = cy - r * Math.sin(angle); // 屏幕坐标 y 轴向下，因此这里取反。
       return { x, y };
     };
 
@@ -190,7 +194,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
       return { x, y };
     };
 
-    // Draw grid wireframes (concentric pentagons showing 30, 60, 100 levels)
+    // 绘制雷达图网格：30、60、100 三档同心五边形。
     const gridLevels = [30, 60, 100];
     const gridPolygons = gridLevels.map(level => {
       const points = Array.from({ length: 5 }, (_, i) => {
@@ -201,7 +205,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
       return points;
     });
 
-    // Filled dynamic player stats polygon
+    // 球员能力填充区域。
     const playerPoints = statsArray.map((stat, i) => {
       const coords = getCoordinates(stat.value, i);
       return `${coords.x},${coords.y}`;
@@ -209,7 +213,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
 
     return (
       <svg className="w-40 h-32 select-none" viewBox="0 0 160 130">
-        {/* Background Grid Pentagons */}
+        {/* 背景网格五边形 */}
         {gridPolygons.map((points, i) => (
           <polygon
             key={i}
@@ -220,7 +224,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           />
         ))}
 
-        {/* Diagonal Axis Lines */}
+        {/* 五项能力轴线 */}
         {Array.from({ length: 5 }).map((_, i) => {
           const axisP = getAxisCoords(i);
           return (
@@ -236,7 +240,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           );
         })}
 
-        {/* Player Stats Polygons in emerald green gradient glaze */}
+        {/* 球员能力绿色渐变区域 */}
         <polygon
           points={playerPoints}
           fill="url(#radar_gradient)"
@@ -245,7 +249,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           opacity="0.85"
         />
 
-        {/* Tiny glow dots on vertices */}
+        {/* 顶点高光点 */}
         {statsArray.map((stat, i) => {
           const coords = getCoordinates(stat.value, i);
           return (
@@ -261,7 +265,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           );
         })}
 
-        {/* Labels positioned precisely around the pentagon */}
+        {/* 雷达图周围的能力标签 */}
         {statsArray.map((stat, i) => {
           const angle = (Math.PI / 2) - (i * 2 * Math.PI) / 5;
           const labelPadding = 12;
@@ -309,22 +313,22 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
   return (
     <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden select-none">
       
-      {/* 1. Profile visual Header */}
+      {/* 球员详情视觉头图 */}
       <div className="relative h-56 bg-neutral-900 overflow-hidden flex flex-col justify-end px-4 pb-4.5">
         
-        {/* Dynamic Player Action Background Banner */}
+        {/* 球员动作背景图 */}
         <div className="absolute inset-0 z-0">
           <img 
             src={player.photo} 
             alt={player.name}
             className="w-full h-full object-cover object-top brightness-[0.4]"
           />
-          {/* Edge gradient backings */}
+          {/* 边缘渐变遮罩，保证文字可读 */}
           <div className="absolute inset-0 bg-gradient-to-t from-[#050f17] via-transparent to-black/50"></div>
           <div className="absolute inset-x-0 bottom-0 h-16 bg-[#050f17]"></div>
         </div>
 
-        {/* Top Floating back and details */}
+        {/* 顶部返回与状态信息 */}
         <div className="absolute top-3 inset-x-4 flex justify-between items-center z-10">
           <button 
             onClick={onBack}
@@ -342,10 +346,10 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           </div>
         </div>
 
-        {/* Middle contents with layout: Left Details Text, Right Radar pentagram */}
+        {/* 中部信息区：左侧资料，右侧雷达图 */}
         <div className="w-full grid grid-cols-12 items-end relative z-10 mt-10">
           
-          {/* Left profile titles */}
+          {/* 左侧球员标题信息 */}
           <div className="col-span-6 flex flex-col space-y-1.5 pb-2">
             <h1 className="text-2xl font-black font-display tracking-tight text-white">{player.name}</h1>
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest font-mono line-clamp-1">{player.englishName}</span>
@@ -365,7 +369,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
             </div>
           </div>
 
-          {/* Right Radar SVG */}
+          {/* 右侧雷达图 */}
           <div className="col-span-6 flex justify-end">
             {renderRadarChart()}
           </div>
@@ -374,10 +378,10 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
 
       </div>
 
-      {/* 2. Scrollable specs details */}
+      {/* 可滚动详细资料 */}
       <div className="flex-1 overflow-y-auto px-3.5 pb-6 space-y-3.5 relative">
         
-        {/* Basic Info grid - "基础资料" */}
+        {/* 基础资料 */}
         <div className="sport-glass-card rounded-2xl p-4">
           <span className="block text-xs font-bold text-[#00e676] mb-3">📋 基础资料</span>
           
@@ -396,7 +400,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
             </div>
           </div>
 
-          {/* Club Roster Info */}
+          {/* 俱乐部与名单状态 */}
           <div className="mt-3 grid grid-cols-2 gap-3 pt-3 border-t border-white/5">
             <div className="flex items-center space-x-2">
               <span className="text-xs text-slate-400 shrink-0">俱乐部：</span>
@@ -425,14 +429,14 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           </div>
         )}
 
-        {/* Transfers Timeline - "转会情况" */}
+        {/* 转会时间线 */}
         <div className="sport-glass-card rounded-2xl p-4">
           <span className="block text-xs font-bold text-[#ffd54f] mb-3">🔄 转会历史</span>
           
           <div className="relative pl-4 border-l border-white/10 space-y-4 ml-1">
             {player.transfers.length > 0 ? player.transfers.map((item, idx) => (
               <div key={idx} className="relative">
-                {/* Bullet node mark */}
+                {/* 时间线节点 */}
                 <div className="absolute -left-[20.5px] top-1.5 w-2 h-2 rounded-full bg-emerald-400 border border-slate-900 shadow"></div>
                 
                 <div className="flex justify-between items-start text-xs">
@@ -453,7 +457,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
           </div>
         </div>
 
-        {/* Attributes ratings - "能力值" */}
+        {/* 能力值 */}
         <div className="sport-glass-card rounded-2xl p-4">
           <span className="block text-xs font-bold text-[#00e676] mb-1">⚔️ 专属核心特性</span>
           <span className="block text-[9.5px] text-slate-500 mb-3.5">
@@ -467,7 +471,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
                 <div key={key} className="flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-medium">{traitLabels[key]}</span>
                   
-                  {/* rendering beautiful golds/empty stars */}
+                  {/* 星级评分展示 */}
                   <div className="flex items-center space-x-0.5 text-[#ffd54f]">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <span key={i} className="text-xs">

@@ -2,6 +2,16 @@ import type { SquadPlayerResearch } from './researchData';
 
 type SquadLine = [string, string[]];
 
+/**
+ * 已核验阵容辅助表：
+ * - PLAYER_CN：英文名到中文名的展示映射；
+ * - STAR_PLAYER_PRIORITY：阵容页排序优先级，数值越高越靠前；
+ * - WIKIPEDIA_SQUAD_NUMBERS：只录入 Wikipedia No. 列可核验的球衣号。
+ *
+ * 注意：不要再用数组顺序自动生成号码。若号码无法核验，应保持 undefined，
+ * 页面会显示“号码待定”。
+ */
+
 const PLAYER_CN: Record<string, string> = {
   'Alisson': '阿利森',
   'Ederson': '埃德森',
@@ -264,6 +274,7 @@ const getWikipediaNumber = (teamId: string, englishName: string) => (
 );
 
 const parsePlayer = (teamId: string, raw: string, position: string): SquadPlayerResearch => {
+  // 原始字段约定为 "英文名 (俱乐部)"；解析失败时保留原始文本，保证页面不崩。
   const match = raw.match(/^(.*?)\s*\((.*?)\)$/);
   const englishName = (match?.[1] || raw).trim();
   const wikiNumber = getWikipediaNumber(teamId, englishName);
@@ -278,6 +289,7 @@ const parsePlayer = (teamId: string, raw: string, position: string): SquadPlayer
 };
 
 const buildSquad = (teamId: string, lines: SquadLine[]): SquadPlayerResearch[] => {
+  // 按位置分组录入，方便后续替换成接口返回的 roster 数组。
   return lines.flatMap(([position, players]) => (
     players.map(player => parsePlayer(teamId, player, position))
   ));

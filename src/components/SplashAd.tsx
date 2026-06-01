@@ -7,7 +7,9 @@ import React from 'react';
 import { assetUrl } from '../utils/assets';
 
 interface SplashAdProps {
+  // 父组件控制淡出状态，便于与页面切换时机统一。
   isLeaving: boolean;
+  // 图片加载成功或失败都要通知父组件，避免弱网时永久卡在开屏。
   onReady: () => void;
   onSkip: () => void;
 }
@@ -28,6 +30,7 @@ export const SplashAd: React.FC<SplashAdProps> = ({ isLeaving, onReady, onSkip }
 
       <div className="absolute inset-0 bg-gradient-to-b from-[#00160c] via-[#00160c] to-[#030a0f]" />
 
+      {/* 开屏和奖励规则页共用同一张宣传图，运营替图时只需覆盖资源文件。 */}
       <img
         src={assetUrl('assets/rewards/reward-poster-mobile.jpg')}
         alt="世界杯竞猜活动海报"

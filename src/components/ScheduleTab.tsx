@@ -16,7 +16,11 @@ interface ScheduleTabProps {
 export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPredictionClick }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'group' | 'knockout' | 'follow'>('all');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
-  const [starredMatches, setStarredMatches] = useState<string[]>(['m1', 'm3']); // Preset star bookmarks for interactive fun
+  /**
+   * 我的关注目前是前端演示状态。
+   * 正式版建议登录后从后端读取，并在 toggleStar 中调用收藏/取消收藏接口。
+   */
+  const [starredMatches, setStarredMatches] = useState<string[]>(['m1', 'm3']);
 
   const toggleStar = (e: React.MouseEvent, matchId: string) => {
     e.stopPropagation();
@@ -30,7 +34,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
     return `${dateLabel} ${match.timestamp}`;
   };
 
-  // Filter logic
+  // “全部赛程 / 小组赛 / 淘汰赛”的一级筛选。
   const filteredMatches = MATCHES_DATA.filter((match) => {
     if (activeCategory === 'group') {
       return match.stage.includes('小组赛');
@@ -38,10 +42,10 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
     if (activeCategory === 'knockout') {
       return !match.stage.includes('小组赛');
     }
-    return true; // "all"
+    return true;
   });
 
-  // Group by day label
+  // 普通列表按北京时间日期分段展示。
   const daysMap: Record<string, Match[]> = {};
   filteredMatches.forEach((match) => {
     if (!daysMap[match.time]) {
@@ -56,6 +60,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
   );
 
   const groupMatchesMap = useMemo(() => {
+    // 小组赛页同时展示小组积分表和本组赛程，预先构造 group -> matches 映射。
     const map: Record<string, Match[]> = {};
     MATCHES_DATA.forEach((match) => {
       if (!match.group) return;
@@ -149,7 +154,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
         </div>
       </div>
 
-      {/* 3. Grouped Dynamic List / Group tables */}
+      {/* 内容区：根据筛选展示我的关注、小组赛或按日期分组的赛程列表 */}
       <div className="flex-1 overflow-y-auto px-3.5 pb-28 pt-2 space-y-4 relative z-0">
         {activeCategory === 'follow' ? (
           <div className="space-y-2 pb-12">
@@ -344,13 +349,13 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
         ) : Object.keys(daysMap).length > 0 ? (
           Object.keys(daysMap).map((dayName) => (
             <div key={dayName} className="space-y-2">
-              {/* Day title */}
+              {/* 日期标题 */}
               <div className="text-[11px] text-slate-400 font-semibold tracking-wide flex items-center justify-between px-1">
                 <span>{dayName}</span>
                 <span className="text-[9px] font-mono text-slate-500">北京时间</span>
               </div>
 
-              {/* Match Cards */}
+              {/* 当天比赛卡片 */}
               <div className="space-y-2">
                 {daysMap[dayName].map((match) => {
                   const isStarred = starredMatches.includes(match.id);
@@ -359,7 +364,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                       key={match.id}
                       className="sport-glass-card rounded-2xl p-3.5 flex items-center justify-between hover:scale-[1.01] active:translate-y-[0.5px] transition-all cursor-pointer relative"
                     >
-                      {/* Left Block: Time & Stage info */}
+                      {/* 左侧：时间与比赛阶段 */}
                       <div className="flex flex-col space-y-1 w-14 border-r border-white/5 pr-1.5 shrink-0 select-none">
                         <span className="text-[13px] font-bold font-mono tracking-tight text-white">{match.timestamp}</span>
                         <span className="text-[8px] text-slate-400 font-medium truncate">{match.stage.split('·')[0]}</span>
@@ -370,10 +375,10 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                         )}
                       </div>
 
-                      {/* Middle: Matchup Teams */}
+                      {/* 中部：主客队和比分 */}
                       <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center px-1.5 select-none min-w-0">
                         
-                        {/* Home team */}
+                        {/* 主队 */}
                         <div 
                           onClick={(e) => { e.stopPropagation(); onTeamSelect(match.homeTeam.id); }}
                           className="flex flex-col items-center hover:bg-white/5 py-1 px-1 rounded-xl transition-all min-w-0"
@@ -384,7 +389,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                           </span>
                         </div>
 
-                        {/* Scores / VS */}
+                        {/* 比分或 VS */}
                         <div className="flex flex-col items-center justify-center shrink-0 px-2 min-w-[56px]">
                           {match.status === 'unstarted' ? (
                             <span className="text-slate-400 font-display text-[10px] font-bold uppercase tracking-[1px] whitespace-nowrap">VS</span>
@@ -398,7 +403,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                           <span className="text-[8px] text-slate-500 font-mono mt-0.5 whitespace-nowrap">{match.stage.split('·')[1]}</span>
                         </div>
 
-                        {/* Away team */}
+                        {/* 客队 */}
                         <div 
                           onClick={(e) => { e.stopPropagation(); onTeamSelect(match.awayTeam.id); }}
                           className="flex flex-col items-center hover:bg-white/5 py-1 px-1 rounded-xl transition-all min-w-0"
@@ -411,9 +416,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
 
                       </div>
 
-                      {/* Right action button mimicking status */}
+                      {/* 右侧：关注按钮、比赛状态、AI 预测入口 */}
                       <div className="flex items-center space-x-2 shrink-0">
-                        {/* Favorite Star */}
+                        {/* 关注比赛 */}
                         <button 
                           onClick={(e) => toggleStar(e, match.id)}
                           className="p-1 text-slate-400 hover:text-amber-450 transition-colors"

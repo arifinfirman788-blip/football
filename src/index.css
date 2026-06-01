@@ -20,6 +20,7 @@ body {
   overflow: hidden;
 }
 
+/* H5 主画布：桌面按 390x844 居中预览，真机访问时铺满视口，避免出现手机框和黑边。 */
 .h5-app-shell {
   width: min(100vw, 390px);
   height: min(100vh, 844px);
@@ -54,7 +55,7 @@ body {
   }
 }
 
-/* Custom styles for high-end reproduction */
+/* 通用质感组件：旧页面和局部卡片仍会复用，不要轻易删除。 */
 .sport-glass-card {
   background: linear-gradient(135deg, rgba(14, 35, 53, 0.85) 0%, rgba(8, 20, 31, 0.95) 100%);
   border: 1px solid rgba(27, 61, 88, 0.6);
@@ -230,7 +231,7 @@ body {
   white-space: nowrap;
 }
 
-/* Scrollbar customization */
+/* 滚动条美化：主要影响桌面预览，移动端大多由系统接管。 */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;

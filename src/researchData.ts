@@ -2,6 +2,7 @@
  * 球队研究数据：
  * 1. 页面先读取这里的本地兜底资料，保证无网络/无 API Key 时也能展示。
  * 2. 后续可通过 /api/team-research 联网刷新，逐步补全真实赛程、阵容和维度数据。
+ * 3. 当前主流程已不再展示球队/球员详情页，但保留结构，方便后续产品重新启用。
  */
 
 import { MATCHES_DATA, TEAMS, GROUPS_DATA } from './data';
@@ -57,6 +58,7 @@ export interface TeamResearchProfile {
   sources: Array<{ title: string; url: string }>;
 }
 
+// 资料核验来源。新增球队和球员资料时，应同步保留可追溯来源。
 const officialSources = [
   {
     title: 'FIFA 2026 官方赛程',
@@ -76,6 +78,7 @@ const officialSources = [
   }
 ];
 
+// 少数重点球队的人工补充资料；没有覆盖的球队会走统一结构化兜底。
 const TEAM_RESEARCH_OVERRIDES: Record<string, TeamResearchProfile> = {
   brazil: {
     teamId: 'brazil',
@@ -204,6 +207,7 @@ const buildTeamFixtures = (teamId: string): TeamFixtureResearch[] => {
 };
 
 const buildPlaceholderSquad = (teamName: string): SquadPlayerResearch[] => {
+  // 未公布名单时只生成“待确认”占位，不生成球衣号码，避免误导用户。
   const plan = [
     ['门将', 3],
     ['后卫', 8],
@@ -257,6 +261,7 @@ const buildGenericTeamResearch = (teamId: string): TeamResearchProfile => {
 };
 
 const normalizeTeamResearch = (teamId: string, profile: TeamResearchProfile): TeamResearchProfile => {
+  // 优先使用已核验阵容；不足 26 人时才补充待确认占位。
   const team = TEAMS[teamId];
   const confirmedSquad = CONFIRMED_SQUADS[teamId];
   const generatedSquad = buildPlaceholderSquad(team?.name || teamId);

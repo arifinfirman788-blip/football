@@ -5,7 +5,13 @@
 
 import { Team, Match, Group, Player } from './types';
 
-// Teams List
+/**
+ * 页面本地数据源。
+ * 当前用于 H5 原型和静态部署演示。正式版建议将赛程、球队排名、赛果和积分榜改为后端接口，
+ * 并保留这里作为网络异常时的兜底快照。
+ */
+
+// 参赛球队及世界排名。rank 需要在赛事期间由数据服务定时同步。
 export const TEAMS: Record<string, Team> = {
   brazil: { id: 'brazil', name: '巴西', flag: '🇧🇷', rank: 5 },
   france: { id: 'france', name: '法国', flag: '🇫🇷', rank: 3 },
@@ -33,7 +39,7 @@ export const TEAMS: Record<string, Team> = {
   switzerland: { id: 'switzerland', name: '瑞士', flag: '🇨🇭', rank: 18 },
   cameroon: { id: 'cameroon', name: '喀麦隆', flag: '🇨🇲', rank: 43 },
   serbia: { id: 'serbia', name: '塞尔维亚', flag: '🇷🇸', rank: 25 },
-  // Extra 22 teams to support 12 groups (A-L) of 4 teams each (48 teams)
+  // 补齐 48 支球队，支持 A-L 共 12 个小组。
   uruguay: { id: 'uruguay', name: '乌拉圭', flag: '🇺🇾', rank: 16 },
   italy: { id: 'italy', name: '意大利', flag: '🇮🇹', rank: 9 },
   morocco: { id: 'morocco', name: '摩洛哥', flag: '🇲🇦', rank: 12 },
@@ -87,7 +93,7 @@ const WORLD_CUP_2026_GROUPS: Array<{ id: string; teamIds: string[] }> = [
   { id: 'L', teamIds: ['england', 'croatia', 'ghana', 'panama'] },
 ];
 
-// 2026 已确定小组，页面初始积分仍为赛前 0 分。
+// 2026 小组数据。赛事开始后 played、points、goalDiff、rank 应由后端赛果服务更新。
 export const GROUPS_DATA: Group[] = WORLD_CUP_2026_GROUPS.map(group => ({
   id: group.id,
   teams: group.teamIds.map((teamId, index) => ({
@@ -99,7 +105,7 @@ export const GROUPS_DATA: Group[] = WORLD_CUP_2026_GROUPS.map(group => ({
   }))
 }));
 
-// Matches Schedule Data (2026 小组赛完整 72 场，开球源数据为 UTC，页面展示北京时间)
+// 2026 小组赛完整 72 场。下方 MATCH_SOURCE_DATA 会用官方 UTC 时间覆盖这里的展示占位值。
 const RAW_MATCHES_DATA: Match[] = [
   { id: 'm1', stage: '小组赛·第1轮', group: 'A', time: '2026年6月11日 星期四', dateKey: '2026-06-11', timestamp: '13:00', homeTeam: TEAMS.mexico, awayTeam: TEAMS.south_africa, status: 'unstarted' },
   { id: 'm2', stage: '小组赛·第1轮', group: 'A', time: '2026年6月11日 星期四', dateKey: '2026-06-11', timestamp: '20:00', homeTeam: TEAMS.south_korea, awayTeam: TEAMS.czechia, status: 'unstarted' },
@@ -255,7 +261,7 @@ export const MATCHES_DATA: Match[] = RAW_MATCHES_DATA.map((match) => ({
   ...MATCH_SOURCE_DATA[match.id],
 })).sort((a, b) => Date.parse(a.kickoffUtc || '') - Date.parse(b.kickoffUtc || ''));
 
-// Special Match for active Betting Console: Brazil vs Morocco
+// 首页竞猜台的主推比赛：巴西 vs 摩洛哥。
 export const ACTIVE_BET_MATCH: Match = {
   id: 'bet_bra_mar',
   stage: '小组赛·第1轮',
@@ -271,7 +277,7 @@ export const ACTIVE_BET_MATCH: Match = {
   status: 'unstarted'
 };
 
-// Players Database
+// 旧球队详情页使用的球员资料库。当前主流程已隐藏球员下钻，保留给后续恢复档案页。
 export const PLAYERS: Record<string, Player> = {
   neymar: {
     id: 'neymar',
@@ -279,7 +285,7 @@ export const PLAYERS: Record<string, Player> = {
     englishName: 'NEYMAR JR.',
     number: 10,
     position: '前锋',
-    photo: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=300', // fine high quality stock action pic
+    photo: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=300', // 旧版演示图，正式版建议替换为授权球员图。
     teamName: '巴西',
     flag: '🇧🇷',
     worldRank: 10,
@@ -415,7 +421,7 @@ export const PLAYERS: Record<string, Player> = {
   }
 };
 
-// Brazil Team Detail info (Schedule, Roster lineup etc)
+// 巴西球队详情旧数据：赛程、阵容等。当前不再从首页进入球队详情。
 export const BRAZIL_SCHEDULE_DATA = [
   { stage: '小组赛·第1轮', time: '06-02 20:00', opponent: '塞尔维亚', oppFlag: '🇷🇸', result: '2 - 0', type: 'win' },
   { stage: '小组赛·第2轮', time: '06-06 23:00', opponent: '瑞士', oppFlag: '🇨🇭', result: '1 - 1', type: 'draw' },

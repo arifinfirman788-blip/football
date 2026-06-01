@@ -19,14 +19,14 @@ interface LeaderboardUser {
 }
 
 interface GroupsTabProps {
-  onTeamSelect?: (teamId: string) => void;
+  // 用户自己的竞猜记录，用于“我的排行”二级页计算已提交、积分、命中率。
   predictionHistory: PredictionRecord[];
 }
 
 const bannerBg = assetUrl('assets/schedule/stadium-header.png');
 const bannerTrophy = assetUrl('assets/schedule/trophy-cup.png');
 
-// High-fidelity custom medallions rendered based exactly on Attachment 1 (medals have beautiful colored ribbon tails)
+// 前三名奖牌是纯前端绘制，后续如有品牌奖牌切图，可在这里直接替换。
 interface MedalProps {
   rank: number;
 }
@@ -41,12 +41,12 @@ const CustomMedal: React.FC<MedalProps> = ({ rank }) => {
 
   return (
     <div className="relative w-10 h-10 flex flex-col items-center justify-center shrink-0">
-      {/* Medallion hanging ribbons behind */}
+      {/* 奖牌飘带 */}
       <svg className="absolute top-[21px] w-6.5 h-4.5 drop-shadow-sm" viewBox="0 0 24 20" fill="none">
         <path d="M5 0L0 18L5.5 14L11 18L5.5 0" fill={c.ribbonL} />
         <path d="M19 0L13.5 18L19 14L24.5 18L19 0" fill={c.ribbonR} />
       </svg>
-      {/* Circle Medallion */}
+      {/* 奖牌主体 */}
       <div 
         className="w-7 h-7 rounded-full flex items-center justify-center font-black text-sm relative z-10 shadow-lg border"
         style={{
@@ -67,7 +67,10 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   const [showRules, setShowRules] = useState<boolean>(false);
   const [showMyRankingDetail, setShowMyRankingDetail] = useState<boolean>(false);
 
-  // Attachment 1 accurate Leaderboard list data
+  /**
+   * TODO: 当前排行榜为演示数据。
+   * 正式版建议由后端分别提供“当日排行”和“总排行”，前端不要自行推算其他用户的积分。
+   */
   const dailyLeaderboard: LeaderboardUser[] = [
     {
       rank: 1,
@@ -177,6 +180,8 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   }).sort((a,b) => b.points - a.points);
 
   const activeLeaderboardList = activeTab === 'daily' ? baseScoreLeaderboard : allTimeLeaderboard;
+
+  // 当前用户统计：points 为 null 代表尚未结算，因此不计入命中率分母。
   const submittedCount = predictionHistory.length;
   const settledRecords = predictionHistory.filter(record => record.points !== null);
   const pendingCount = predictionHistory.filter(record => record.points === null).length;
@@ -187,6 +192,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
     : '待结算';
 
   if (showMyRankingDetail) {
+    // “我的排行”二级页：展示用户每一场竞猜的选择与积分结算明细。
     return (
       <div className="flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
         <div className="relative h-[118px] shrink-0 bg-gradient-to-b from-[#102436] to-[#040c14] border-b border-white/5 px-4 pt-5 pb-3">
@@ -282,7 +288,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   return (
     <div className="flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
       
-      {/* 1. Header with Stadium Night Ambience & World Cup Trophy */}
+      {/* 排行榜顶部：体育场背景、大力神杯和规则入口 */}
       <div className="relative h-[194px] shrink-0 overflow-hidden bg-[#06111a]">
         <img
           src={bannerBg}
@@ -339,7 +345,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
         </div>
       </div>
 
-      {/* 2. Horizontal Table Header - Column alignment strictly mapped 1:1 on screenshot grid */}
+      {/* 表头和列表必须使用同一套 grid 列宽，确保字段上下对齐 */}
       <div className="leaderboard-table-header grid grid-cols-[48px_minmax(110px,1fr)_54px_54px_52px] items-center mx-3.5 mt-2 px-3.5 py-2 text-[10px] text-slate-300 font-bold tracking-wider shrink-0 select-none">
         <span className="text-center font-medium">排名</span>
         <span className="pl-1 font-medium">用户</span>
@@ -348,7 +354,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
         <span className="text-right font-medium pr-1">积分</span>
       </div>
 
-      {/* 3. Fully replicated Scrollable List of players */}
+      {/* 排行榜数据列表 */}
       <div className="flex-1 overflow-y-auto px-3.5 pt-2 pb-44 space-y-2 relative z-0 scrollbar-none">
         {activeLeaderboardList.map((user) => {
           const isRank1 = user.rank === 1;
@@ -380,7 +386,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
               key={user.rank}
               className={`grid grid-cols-[48px_minmax(110px,1fr)_54px_54px_52px] items-center px-3.5 py-2.5 rounded-xl transition-all ${cardBg} ${borderStyle}`}
             >
-              {/* Rank column */}
+              {/* 排名 */}
               <div className="flex justify-center shrink-0">
                 {user.rank <= 3 ? (
                   <CustomMedal rank={user.rank} />
@@ -391,7 +397,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
                 )}
               </div>
 
-              {/* User Avatar + Profile details column */}
+              {/* 用户头像与昵称 */}
               <div className="pl-1 flex items-center space-x-2 min-w-0 overflow-hidden">
                 <img
                   src={user.avatar}
@@ -414,17 +420,17 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
                 </div>
               </div>
 
-              {/* Guesses column */}
+              {/* 猜对场次 */}
               <span className="text-center text-[12px] font-bold font-mono text-slate-100 select-all">
                 {user.guesses}
               </span>
 
-              {/* Accuracy column - Neon green as screenshot */}
+              {/* 命中率 */}
               <span className="text-center text-[12px] font-bold font-mono text-[#00e676] select-all">
                 {user.accuracy}
               </span>
 
-              {/* Points column - Gold colors for Top 3 */}
+              {/* 积分 */}
               <span className={`text-right pr-2 text-[12.5px] font-bold font-mono select-all ${
                 isRank1 
                   ? 'text-[#ffe082]' 
@@ -441,13 +447,13 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
         })}
       </div>
 
-      {/* 4. Bottom Floating User Banner exact match to design bar with sports aesthetic */}
+      {/* 底部“我的排行”入口：点击后进入用户积分明细二级页 */}
       <button
         onClick={() => setShowMyRankingDetail(true)}
         className="absolute bottom-22 left-4 right-4 bg-[#0c2419ec] backdrop-blur-md border border-[#00e676]/30 px-3.5 py-2.5 rounded-full z-20 flex justify-between items-center text-slate-100 shadow-[0_10px_25px_rgba(0,230,118,0.15)] select-none"
       >
         
-        {/* Left spinning green soccer indicator */}
+        {/* 左侧入口名称 */}
         <div className="flex items-center space-x-2">
           <div className="w-5.5 h-5.5 bg-gradient-to-r from-emerald-500 to-[#00e676] rounded-full flex items-center justify-center shadow-lg animate-[spin_4s_linear_infinite]">
             <span className="text-xs">⚽</span>
@@ -457,7 +463,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
           </span>
         </div>
 
-        {/* Separated specs metrics items */}
+        {/* 用户实时统计 */}
         <div className="flex items-center space-x-2 text-[10.5px]">
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
           <span className="text-slate-300">提交 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">{submittedCount}</strong></span>
@@ -469,14 +475,14 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
           <span className="text-slate-300 font-medium">积分 <strong className="text-amber-400 font-mono font-extrabold ml-0.5">{earnedPoints}</strong></span>
         </div>
 
-        {/* Action interactive arrow chevron */}
+        {/* 进入二级页箭头 */}
         <span className="text-slate-400 hover:text-white transition-colors text-[10.5px] pr-0.5">
           ❯
         </span>
 
       </button>
 
-      {/* Rules Modal Overlay with rich glassmorphism details */}
+      {/* 排行榜规则弹层 */}
       {showRules && (
         <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-40 p-5 flex flex-col justify-center animate-in fade-in duration-200">
           <div className="bg-[#0b1724] border border-white/10 rounded-2xl p-4 shadow-2xl text-xs space-y-3">

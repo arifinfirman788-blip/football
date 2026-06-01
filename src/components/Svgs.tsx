@@ -5,39 +5,39 @@
 
 import React from 'react';
 
-// World Cup Golden Trophy SVG
+// 世界杯大力神杯 SVG。当前多处已改用切图，这个组件保留给旧页面或无图兜底。
 export const TrophySvg: React.FC<{ className?: string }> = ({ className = 'w-12 h-12' }) => {
   return (
     <svg className={className} viewBox="0 0 120 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Base */}
+      {/* 底座 */}
       <ellipse cx="60" cy="170" rx="35" ry="8" fill="url(#gold_base_gradient)" />
       <path d="M35 155h50v15H35z" fill="url(#gold_dark)" rx="3" />
       <path d="M40 135h40v20H40z" fill="url(#gold_med)" rx="2" />
       <path d="M45 135 L40 155 H80 L75 135 Z" fill="url(#gold_dark)" />
       
-      {/* Green marble rings */}
+      {/* 绿色环形装饰 */}
       <rect x="42" y="142" width="36" height="4" fill="#00e676" rx="1" />
       <rect x="42" y="150" width="36" height="3" fill="#00bcd4" rx="1" />
       
-      {/* Stem / Figures */}
+      {/* 杯身人物轮廓 */}
       <path d="M45 80 C 45 110, 50 135, 60 135 C 70 135, 75 110, 75 80 Z" fill="url(#gold_light)" />
       
-      {/* Two angelic figures stretching up, supporting globe */}
+      {/* 双人托举地球的主体轮廓 */}
       <path d="M48 100 C 42 110, 48 128, 60 128 C 72 128, 78 110, 72 100" stroke="url(#gold_dark)" strokeWidth="3" fill="none" />
       
-      {/* Angel arms/wings supporting sphere */}
+      {/* 托举球体的手臂轮廓 */}
       <path d="M40 75 C 38 65, 48 55, 60 62 C 72 55, 82 65, 80 75 L 75 85 L 60 90 L 45 85 Z" fill="url(#gold_med)" />
       
-      {/* Sphere/Globe representing soccer/earth */}
+      {/* 顶部地球 / 足球球体 */}
       <circle cx="60" cy="48" r="28" fill="url(#gold_light)" />
       <circle cx="60" cy="48" r="28" fill="url(#globe_lines)" fillOpacity="0.15" />
       
-      {/* Continental plates overlay */}
+      {/* 大洲纹理叠层 */}
       <path d="M44 38c7-4 17-2 21 3 3 4-2 9-5 11-4 2-10 0-13-4-2-4-7-6-3-10z" fill="url(#gold_dark)" opacity="0.6" />
       <path d="M68 45c5-2 12-1 14 3 2 4-2 7-5 8s-8-1-10-4c-1-3-3-5 1-7z" fill="url(#gold_dark)" opacity="0.6" />
       <path d="M52 58c4-1 9 0 11 3 2 3-1 6-3 6s-6 0-8-3c-1-2-2-4 0-6z" fill="url(#gold_dark)" opacity="0.6" />
 
-      {/* Highlights / Shine Glow */}
+      {/* 金属高光 */}
       <circle cx="48" cy="36" r="3" fill="white" opacity="0.5" filter="blur(1px)" />
       <circle cx="70" cy="32" r="2" fill="white" opacity="0.4" filter="blur(1px)" />
       <path d="M58 80 L60 135" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.3" />
@@ -71,32 +71,32 @@ export const TrophySvg: React.FC<{ className?: string }> = ({ className = 'w-12 
   );
 };
 
-// Highly Polished Soccer Ball SVG
+// 高光足球 SVG，用于没有切图素材时的装饰兜底。
 export const SoccerBallSvg: React.FC<{ className?: string }> = ({ className = 'w-16 h-16' }) => {
   return (
     <div className={`relative ${className} flex items-center justify-center`}>
       <svg className="w-full h-full drop-shadow-[0_8px_16px_rgba(0,0,0,0.4)]" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Ball main body */}
+        {/* 足球主体 */}
         <circle cx="50" cy="50" r="46" fill="url(#ball_skin)" stroke="#e4e4e7" strokeWidth="1" />
         
-        {/* Pentagons & Lines */}
-        {/* Center Pent */}
+        {/* 五边形与走线 */}
+        {/* 中央五边形 */}
         <path d="M50 35 L62 45 L58 58 L42 58 L38 45 Z" fill="#18181b" stroke="#374151" strokeWidth="1.5" strokeLinejoin="round" />
         
-        {/* Connecting lines & other panels */}
-        {/* Top */}
+        {/* 连接线与其他面片 */}
+        {/* 顶部 */}
         <line x1="50" y1="35" x2="50" y2="15" stroke="#374151" strokeWidth="1.5" />
         <path d="M50 15 L35 7 L23 18 L38 45" stroke="#374151" strokeWidth="1.5" fill="none" />
         <path d="M50 15 L65 7 L77 18 L62 45" stroke="#374151" strokeWidth="1.5" fill="none" />
         <path d="M35 7 L50 4 L65 7" stroke="#374151" strokeWidth="1.5" fill="none" />
 
-        {/* Top Left pent */}
+        {/* 左上五边形 */}
         <path d="M23 18 L15 32 L26 42 L38 45 L23 18 Z" fill="#18181b" opacity="0.95" stroke="#374151" strokeWidth="1.5" />
         
-        {/* Top Right pent */}
+        {/* 右上五边形 */}
         <path d="M77 18 L85 32 L74 42 L62 45 L77 18 Z" fill="#18181b" opacity="0.95" stroke="#374151" strokeWidth="1.5" />
 
-        {/* Bottom Left pent */}
+        {/* 左下五边形 */}
         <path d="M42 58 L30 68 L36 84 L50 82" stroke="#374151" strokeWidth="1.5" fill="none" />
         <path d="M26 42 L13 54 L18 70 L30 68" stroke="#374151" strokeWidth="1.5" fill="none" />
         <path d="M13 54 L15 32" stroke="#374151" strokeWidth="1.5" />
@@ -104,7 +104,7 @@ export const SoccerBallSvg: React.FC<{ className?: string }> = ({ className = 'w
 
         <path d="M30 68 L18 70 L15 88 L35 91 L36 84 Z" fill="#18181b" opacity="0.95" stroke="#374151" strokeWidth="1.5" />
 
-        {/* Bottom Right pent */}
+        {/* 右下五边形 */}
         <path d="M58 58 L70 68 L64 84 L50 82" stroke="#374151" strokeWidth="1.5" fill="none" />
         <path d="M74 42 L87 54 L82 70 L70 68" stroke="#374151" strokeWidth="1.5" fill="none" />
         <path d="M87 54 L85 32" stroke="#374151" strokeWidth="1.5" />
@@ -112,10 +112,10 @@ export const SoccerBallSvg: React.FC<{ className?: string }> = ({ className = 'w
 
         <path d="M70 68 L82 70 L85 88 L65 91 L64 84 Z" fill="#18181b" opacity="0.95" stroke="#374151" strokeWidth="1.5" />
 
-        {/* Bottom center pent */}
+        {/* 底部中央五边形 */}
         <path d="M50 82 L36 84 L40 95 L60 95 L64 84 Z" fill="#18181b" opacity="0.95" stroke="#374151" strokeWidth="1.5" />
 
-        {/* Shadow overlays & Spherical lighting gloss */}
+        {/* 阴影与球面高光 */}
         <circle cx="50" cy="50" r="46" fill="url(#ball_shade)" opacity="0.75" />
         <circle cx="42" cy="38" r="42" fill="url(#ball_highlight)" opacity="0.35" />
 
@@ -141,7 +141,7 @@ export const SoccerBallSvg: React.FC<{ className?: string }> = ({ className = 'w
   );
 };
 
-// Crown badge vector
+// 皇冠徽章矢量图，用于排行榜奖牌兜底。
 export const CrownIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

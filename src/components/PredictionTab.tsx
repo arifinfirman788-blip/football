@@ -10,7 +10,9 @@ import { assetUrl } from '../utils/assets';
 import { Gift } from 'lucide-react';
 
 interface PredictionTabProps {
+  // 当前版本不再进入球队详情页，保留回调是为了后续需要恢复下钻时改动更小。
   onTeamSelect: (teamId: string) => void;
+  // 竞猜记录由 App 统一持有，保证用户切换底导后记录仍然存在。
   predictionHistory: PredictionRecord[];
   setPredictionHistory: React.Dispatch<React.SetStateAction<PredictionRecord[]>>;
   onAIPredictionClick: (match: Match) => void;
@@ -51,15 +53,20 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
           .find(match => match.dateKey > todayKey)?.dateKey || todayKey
     );
 
-  // 竞猜页只展示当前竞猜日的比赛；开赛前统一展示 6 月 11 日开赛日比赛
+  /**
+   * 竞猜页只展示一个竞猜日：
+   * - 活动开始前，展示最早开赛日；
+   * - 活动期间，优先展示当天；
+   * - 当天无比赛时，自动跳到下一个有比赛的日期。
+   */
   const predictableMatches: Match[] = unstartedMatches.filter(match => match.dateKey === displayDateKey);
 
-  // Active match being predicted
+  // 横向比赛选择器当前选中的比赛。
   const [currentMatch, setCurrentMatch] = useState<Match>(predictableMatches[0] || ACTIVE_BET_MATCH);
 
-  // Predictions mapping states (saving user selections independently per match)
+  // 尚未提交的临时选择。提交后以 predictionHistory 为唯一可信记录。
   const [predictions, setPredictions] = useState<Record<string, 'home' | 'draw' | 'away' | null>>({
-    [ACTIVE_BET_MATCH.id]: 'draw', // Default pre-selection for the featured match
+    [ACTIVE_BET_MATCH.id]: 'draw', // 首页主推比赛默认预选“平局”，后续可按运营策略调整。
   });
 
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
@@ -118,7 +125,8 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   const remainingSubmissions = predictableMatches.filter(match => !submittedPredictions[match.id]).length;
 
   const handleOutcomeClick = (outcome: 'home' | 'draw' | 'away') => {
-    if (submittedPredictions[currentMatch.id]) return; // Locked once submitted
+    // 已提交后锁定，不允许用户在前端直接改选；正式版还需由后端再次校验。
+    if (submittedPredictions[currentMatch.id]) return;
     setPredictions(prev => ({
       ...prev,
       [currentMatch.id]: outcome
@@ -141,6 +149,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
         ? '平局（两队打平）'
         : `客胜（${currentMatch.awayTeam.name}胜）`;
 
+    // 待接后端：正式版应先提交到竞猜接口，成功后再写入前端记录。
     const record: PredictionRecord = {
       matchId: currentMatch.id,
       fixture: `${currentMatch.homeTeam.name} VS ${currentMatch.awayTeam.name}`,
@@ -169,7 +178,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     }, 2800);
   };
 
-  // Current outcome text for display
+  // 已提交选择优先于临时选择，用于回显和禁用按钮。
   const currentOutcome = submittedPredictions[currentMatch.id] || predictions[currentMatch.id] || null;
   const isCurrentMatchSubmitted = !!submittedPredictions[currentMatch.id];
 
@@ -230,7 +239,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
             onClick={onViewingLocationsClick}
             className="w-full max-w-[326px] mx-auto bg-gradient-to-r from-[#00e676]/12 via-[#102436]/88 to-[#ffd54f]/10 border border-[#00e676]/30 rounded-xl pl-10 pr-3 py-2.5 flex items-center justify-between gap-3 hover:bg-[#00e676]/15 hover:border-[#00e676]/55 transition-all cursor-pointer shadow-md group relative overflow-hidden"
           >
-            {/* Gloss light sweep effect */}
+            {/* 高光扫光装饰 */}
             <div className="absolute inset-0 w-[50%] bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 translate-x-[-150%] group-hover:translate-x-[250%] transition-transform duration-1000 ease-out"></div>
             <span className="absolute -left-1 top-1.5 -rotate-45 bg-[#00a86b] text-white text-[8px] font-black px-2.5 py-0.5 rounded-md border border-white/30 shadow leading-none">
               LIVE
@@ -244,7 +253,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
           </button>
         </div>
 
-        {/* 2. Multiple upcoming matches selector/slider (SOLVES MULTI-PLAYERS & MULTI-MATCH PREDICTIONS DEMAND) */}
+        {/* 当前竞猜日比赛选择器：每场比赛独立保留选择和提交状态 */}
         <div className="px-4 pt-3.5 pb-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block">
@@ -277,7 +286,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                     <span className="text-white text-[11px] max-w-[45px] truncate">{m.awayTeam.name}</span>
                   </div>
                   
-                  {/* Status Indicator */}
+                  {/* 比赛状态指示 */}
                   {hasPredicted ? (
                     <span className="text-[8.5px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md border border-emerald-500/20 mt-1.5">
                       ✓ 已预测 ({submittedPredictions[m.id] === 'home' ? '主胜' : submittedPredictions[m.id] === 'draw' ? '平' : '客胜'})
@@ -293,11 +302,11 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
           </div>
         </div>
 
-        {/* 3. The Pitch & Soccer Center View */}
+        {/* 当前比赛主操作区 */}
         <div className="px-4 mt-1.5 relative">
           <div className="sport-glass-card rounded-2xl p-4 flex flex-col items-center bg-[#071320] border border-white/5 relative">
             
-            {/* Match State Banner */}
+            {/* 比赛状态和开赛倒计时 */}
             <div className="w-full flex flex-col space-y-2 mb-4">
               <div className="flex justify-between items-center w-full">
                 <span className="bg-[#00e676]/15 text-[#00e676] text-[9.5px] font-extrabold px-2.5 py-0.5 rounded border border-[#00e676]/30 flex items-center space-x-1 shrink-0">
@@ -325,10 +334,10 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
               </div>
             </div>
 
-            {/* Soccer Center Matchup Row */}
+            {/* 主客队信息 */}
             <div className="w-full grid grid-cols-[1fr_auto_1fr] items-center my-1 select-none min-w-0">
               
-              {/* Home Country */}
+              {/* 主队 */}
               <div 
                 onClick={() => onTeamSelect(currentMatch.homeTeam.id)}
                 className="flex flex-col items-center cursor-pointer group min-w-0"
@@ -344,18 +353,18 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 <span className="text-[9.5px] text-slate-400 mt-0.5 font-mono whitespace-nowrap">世界排名 {currentMatch.homeTeam.rank}</span>
               </div>
 
-              {/* VS */}
+              {/* VS 与开赛时间 */}
               <div className="flex flex-col items-center justify-center shrink-0 px-3 min-w-[70px]">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-b from-[#112437] to-[#040e15] border border-[#1b3d58] flex items-center justify-center shadow-inner">
                   <span className="text-xs font-display font-black text-slate-400 tracking-wider">VS</span>
                 </div>
-                {/* Match Time */}
+                {/* 开赛时间 */}
                 <span className="text-[9px] font-mono bg-black/40 text-slate-300 px-2.5 py-0.5 rounded-full border border-white/5 mt-3 whitespace-nowrap">
                   {currentMatch.timestamp}
                 </span>
               </div>
 
-              {/* Away Country */}
+              {/* 客队 */}
               <div 
                 onClick={() => onTeamSelect(currentMatch.awayTeam.id)}
                 className="flex flex-col items-center cursor-pointer group min-w-0"
@@ -372,7 +381,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
               </div>
             </div>
 
-            {/* Separation turf graphics lines with smart launch button */}
+            {/* 进入 AI 预测页，并携带当前比赛上下文 */}
             <div className="w-full flex flex-col items-center my-2.5 space-y-2">
               <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[#1b3d58] to-transparent"></div>
               <button
@@ -386,12 +395,12 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
               <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[#1b3d58] to-transparent"></div>
             </div>
 
-            {/* Prediction Choices Grid: Green-Yellow-Green buttons */}
+            {/* 胜平负选择：主胜/客胜用绿色，平局用黄色 */}
             <div className="w-full flex flex-col space-y-2 pt-1">
               <span className="text-[10px] font-bold text-slate-400 self-center tracking-wide uppercase">主客队胜负竞猜</span>
               
               <div className="grid grid-cols-3 gap-2">
-                {/* Option 1: Home Win */}
+                {/* 主胜 */}
                 <button
                   onClick={() => handleOutcomeClick('home')}
                   disabled={isCurrentMatchSubmitted}
@@ -408,7 +417,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                   )}
                 </button>
 
-                {/* Option 2: Draw */}
+                {/* 平局 */}
                 <button
                   onClick={() => handleOutcomeClick('draw')}
                   disabled={isCurrentMatchSubmitted}
@@ -425,7 +434,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                   )}
                 </button>
 
-                {/* Option 3: Away Win */}
+                {/* 客胜 */}
                 <button
                   onClick={() => handleOutcomeClick('away')}
                   disabled={isCurrentMatchSubmitted}
@@ -446,7 +455,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
           </div>
         </div>
 
-        {/* 5. Gilded "提交竞猜" Action Button */}
+        {/* 提交竞猜：提交后锁定，并在下方展示“我的今日竞猜” */}
         <div className="px-4 mt-4">
           <button
             onClick={handleSubmitPrediction}
@@ -516,7 +525,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
 
       </div>
 
-      {/* Toast confirmation */}
+      {/* 提交成功提示 */}
       {showSuccessToast && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[#061421]/95 border-2 border-[#00e676] rounded-2xl p-6 text-center shadow-[0_12px_30px_rgba(0,0,0,0.85)] flex flex-col items-center w-64 select-none">
           <div className="w-11 h-11 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20 mb-2.5 animate-bounce text-xl">
