@@ -3,27 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ACTIVE_BET_MATCH, MATCHES_DATA } from '../data';
-import { Match } from '../types';
+import { Match, PredictionRecord } from '../types';
 import { CrownIcon } from './Svgs';
 import { assetUrl } from '../utils/assets';
 
 interface PredictionTabProps {
   onTeamSelect: (teamId: string) => void;
-  setPredictionHistory: React.Dispatch<React.SetStateAction<Array<{
-    matchId: string;
-    fixture: string;
-    choice: string;
-    time: string;
-    status: string;
-  }>>>;
+  predictionHistory: PredictionRecord[];
+  setPredictionHistory: React.Dispatch<React.SetStateAction<PredictionRecord[]>>;
   onAIPredictionClick: (match: Match) => void;
   onRewardClick: () => void;
 }
 
 export const PredictionTab: React.FC<PredictionTabProps> = ({ 
   onTeamSelect,
+  predictionHistory,
   setPredictionHistory,
   onAIPredictionClick,
   onRewardClick
@@ -64,10 +60,20 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     [ACTIVE_BET_MATCH.id]: 'draw', // Default pre-selection for the featured match
   });
 
-  // Submitted predictions mapping states
-  const [submittedPredictions, setSubmittedPredictions] = useState<Record<string, 'home' | 'draw' | 'away' | null>>({});
-
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
+
+  const submittedPredictions = useMemo(() => (
+    predictionHistory.reduce<Record<string, 'home' | 'draw' | 'away'>>((acc, record) => {
+      acc[record.matchId] = record.outcome;
+      return acc;
+    }, {})
+  ), [predictionHistory]);
+
+  const todayPredictionRecords = useMemo(() => (
+    predictionHistory
+      .filter(record => record.dateKey === displayDateKey)
+      .sort((a, b) => `${a.dateKey} ${a.timestamp}`.localeCompare(`${b.dateKey} ${b.timestamp}`))
+  ), [displayDateKey, predictionHistory]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -124,26 +130,37 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       alert('今日提交机会已用完！');
       return;
     }
-    
-    // Process Submission
-    setSubmittedPredictions(prev => ({
+
+    setShowSuccessToast(true);
+
+    const choiceLabel = selectedOutcome === 'home'
+      ? `主胜（${currentMatch.homeTeam.name}胜）`
+      : selectedOutcome === 'draw'
+        ? '平局（两队打平）'
+        : `客胜（${currentMatch.awayTeam.name}胜）`;
+
+    const record: PredictionRecord = {
+      matchId: currentMatch.id,
+      fixture: `${currentMatch.homeTeam.name} VS ${currentMatch.awayTeam.name}`,
+      choice: choiceLabel,
+      outcome: selectedOutcome,
+      time: currentMatch.time,
+      dateKey: currentMatch.dateKey,
+      timestamp: currentMatch.timestamp,
+      stage: currentMatch.stage,
+      status: '待开奖',
+      points: null,
+    };
+
+    setPredictionHistory(prev => [
+      record,
+      ...prev.filter(item => item.matchId !== currentMatch.id)
+    ]);
+
+    setPredictions(prev => ({
       ...prev,
       [currentMatch.id]: selectedOutcome
     }));
-    setShowSuccessToast(true);
-
-    // Append to record history
-    const choiceLabel = selectedOutcome === 'home' ? '主胜' : selectedOutcome === 'draw' ? '平局' : '客胜';
-    setPredictionHistory(prev => [
-      {
-        matchId: currentMatch.id,
-        fixture: `${currentMatch.homeTeam.name} VS ${currentMatch.awayTeam.name}`,
-        choice: choiceLabel,
-        time: currentMatch.time,
-        status: '待开奖'
-      },
-      ...prev
-    ]);
 
     setTimeout(() => {
       setShowSuccessToast(false);
@@ -151,7 +168,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   };
 
   // Current outcome text for display
-  const currentOutcome = predictions[currentMatch.id] || null;
+  const currentOutcome = submittedPredictions[currentMatch.id] || predictions[currentMatch.id] || null;
   const isCurrentMatchSubmitted = !!submittedPredictions[currentMatch.id];
 
   const choiceMap = {
@@ -159,6 +176,14 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     draw: '平局 (双方打平)',
     away: `客胜 (${currentMatch.awayTeam.name}胜)`,
   };
+
+  const getRecordChoiceClass = (outcome: 'home' | 'draw' | 'away') => (
+    outcome === 'draw'
+      ? 'text-[#ffd54f] bg-[#ffd54f]/10 border-[#ffd54f]/20'
+      : 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/20'
+  );
+
+  const isTodayCompleted = dailySubmissionLimit > 0 && remainingSubmissions === 0;
 
   return (
     <div className="prediction-green-bg flex-1 flex flex-col text-white overflow-hidden relative">
@@ -441,6 +466,55 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
             <span>剩余可用：{remainingSubmissions} 次</span>
           </div>
         </div>
+
+        {todayPredictionRecords.length > 0 && (
+          <div className="px-4 mt-3.5">
+            <div className="sport-glass-card rounded-2xl border border-[#00e676]/15 bg-[#061a11]/80 p-3.5 shadow-[0_10px_22px_rgba(0,0,0,0.32)]">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex flex-col">
+                  <span className="text-xs font-black text-white tracking-wide">我的今日竞猜</span>
+                  <span className="text-[9px] text-slate-400 font-mono mt-0.5">
+                    已提交 {todayPredictionRecords.length}/{dailySubmissionLimit} 场
+                  </span>
+                </div>
+                <span className={`text-[9.5px] font-bold px-2 py-1 rounded-full border ${
+                  isTodayCompleted
+                    ? 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/25'
+                    : 'text-[#ffd54f] bg-[#ffd54f]/10 border-[#ffd54f]/20'
+                }`}>
+                  {isTodayCompleted ? '今日已完成' : '继续完成'}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {todayPredictionRecords.map((record) => (
+                  <div
+                    key={record.matchId}
+                    className="rounded-xl bg-black/18 border border-white/5 px-3 py-2 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <span className="block text-[11px] font-bold text-slate-100 truncate">
+                        {record.fixture}
+                      </span>
+                      <span className="block text-[9px] text-slate-500 font-mono mt-0.5">
+                        {record.dateKey.slice(5).replace('-', '/')} {record.timestamp} · {record.stage}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-end shrink-0 gap-1">
+                      <span className={`text-[9.5px] font-bold rounded-full border px-2 py-0.5 ${getRecordChoiceClass(record.outcome)}`}>
+                        {record.choice}
+                      </span>
+                      <span className="text-[9px] text-slate-500 font-mono">
+                        {record.points === null ? '待结算' : `+${record.points}分`}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
 

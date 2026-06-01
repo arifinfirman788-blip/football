@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { HelpCircle } from 'lucide-react';
+import { ChevronLeft, HelpCircle } from 'lucide-react';
 import { assetUrl } from '../utils/assets';
+import { PredictionRecord } from '../types';
 
 interface LeaderboardUser {
   rank: number;
@@ -19,6 +20,7 @@ interface LeaderboardUser {
 
 interface GroupsTabProps {
   onTeamSelect?: (teamId: string) => void;
+  predictionHistory: PredictionRecord[];
 }
 
 const bannerBg = assetUrl('assets/schedule/stadium-header.png');
@@ -60,9 +62,10 @@ const CustomMedal: React.FC<MedalProps> = ({ rank }) => {
   );
 };
 
-export const GroupsTab: React.FC<GroupsTabProps> = () => {
+export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   const [activeTab, setActiveTab] = useState<'daily' | 'all-time'>('daily');
   const [showRules, setShowRules] = useState<boolean>(false);
+  const [showMyRankingDetail, setShowMyRankingDetail] = useState<boolean>(false);
 
   // Attachment 1 accurate Leaderboard list data
   const dailyLeaderboard: LeaderboardUser[] = [
@@ -174,6 +177,107 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
   }).sort((a,b) => b.points - a.points);
 
   const activeLeaderboardList = activeTab === 'daily' ? baseScoreLeaderboard : allTimeLeaderboard;
+  const submittedCount = predictionHistory.length;
+  const settledRecords = predictionHistory.filter(record => record.points !== null);
+  const pendingCount = predictionHistory.filter(record => record.points === null).length;
+  const earnedPoints = predictionHistory.reduce((sum, record) => sum + (record.points ?? 0), 0);
+  const correctCount = predictionHistory.filter(record => record.points === 1).length;
+  const accuracy = settledRecords.length > 0
+    ? `${Math.round((correctCount / settledRecords.length) * 100)}%`
+    : '待结算';
+
+  if (showMyRankingDetail) {
+    return (
+      <div className="flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
+        <div className="relative h-[118px] shrink-0 bg-gradient-to-b from-[#102436] to-[#040c14] border-b border-white/5 px-4 pt-5 pb-3">
+          <button
+            onClick={() => setShowMyRankingDetail(false)}
+            className="absolute left-4 top-5 w-9 h-9 rounded-full bg-black/32 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-95 transition-all"
+          >
+            <ChevronLeft className="w-5 h-5 text-white" />
+          </button>
+
+          <div className="h-full flex flex-col items-center justify-center">
+            <span className="text-[10px] text-[#00e676] font-bold tracking-[3px] uppercase">My Ranking Detail</span>
+            <h2 className="text-xl font-black tracking-[3px] mt-1">竞猜积分明细</h2>
+          </div>
+        </div>
+
+        <div className="px-4 pt-3 pb-2 grid grid-cols-3 gap-2 shrink-0">
+          <div className="rounded-2xl bg-[#071521] border border-white/6 p-3 text-center shadow-[0_8px_18px_rgba(0,0,0,0.3)]">
+            <span className="block text-[9px] text-slate-400">已提交</span>
+            <strong className="block text-lg text-white font-mono mt-0.5">{submittedCount}</strong>
+          </div>
+          <div className="rounded-2xl bg-[#071521] border border-[#00e676]/12 p-3 text-center shadow-[0_8px_18px_rgba(0,0,0,0.3)]">
+            <span className="block text-[9px] text-slate-400">当前积分</span>
+            <strong className="block text-lg text-[#ffd54f] font-mono mt-0.5">{earnedPoints}</strong>
+          </div>
+          <div className="rounded-2xl bg-[#071521] border border-white/6 p-3 text-center shadow-[0_8px_18px_rgba(0,0,0,0.3)]">
+            <span className="block text-[9px] text-slate-400">命中率</span>
+            <strong className="block text-sm text-[#00e676] font-mono mt-1">{accuracy}</strong>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 pt-2 pb-28 space-y-2.5">
+          <div className="rounded-2xl border border-[#00e676]/14 bg-[#061a11]/70 p-3 text-[10.5px] text-slate-300 leading-relaxed">
+            基础分规则：常规时间猜对 +1 分，猜错 +0 分；未开赛或未结算的竞猜先显示为待结算。
+          </div>
+
+          {predictionHistory.length > 0 ? (
+            predictionHistory.map((record) => (
+              <div
+                key={record.matchId}
+                className="rounded-2xl bg-[#071521]/95 border border-white/[0.08] shadow-[0_8px_18px_rgba(0,0,0,0.32)] p-3.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="block text-xs font-black text-white truncate">{record.fixture}</span>
+                    <span className="block text-[9px] text-slate-500 font-mono mt-1">
+                      {record.dateKey.slice(5).replace('-', '/')} {record.timestamp} · {record.stage}
+                    </span>
+                  </div>
+
+                  <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border ${
+                    record.outcome === 'draw'
+                      ? 'text-[#ffd54f] bg-[#ffd54f]/10 border-[#ffd54f]/20'
+                      : 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/20'
+                  }`}>
+                    {record.choice}
+                  </span>
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-[10.5px]">
+                  <span className="text-slate-400">结算状态</span>
+                  <div className="flex items-center gap-2">
+                    <span className={record.points === null ? 'text-slate-400' : record.points > 0 ? 'text-[#00e676]' : 'text-rose-300'}>
+                      {record.status}
+                    </span>
+                    <strong className="text-[#ffd54f] font-mono">
+                      {record.points === null ? '待结算' : `+${record.points} 分`}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="h-64 rounded-2xl border border-white/5 bg-[#071521]/80 flex flex-col items-center justify-center text-center px-6">
+              <span className="text-3xl mb-3">⚽</span>
+              <span className="text-sm font-black text-white">暂无竞猜记录</span>
+              <span className="text-[10.5px] text-slate-400 mt-2 leading-relaxed">
+                在竞猜页提交当日比赛后，这里会显示每一场选择和后续积分变化。
+              </span>
+            </div>
+          )}
+
+          {pendingCount > 0 && (
+            <div className="text-center text-[9.5px] text-slate-500 font-mono pt-1">
+              还有 {pendingCount} 场等待赛后按基础分结算
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
@@ -338,7 +442,10 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
       </div>
 
       {/* 4. Bottom Floating User Banner exact match to design bar with sports aesthetic */}
-      <div className="absolute bottom-22 left-4 right-4 bg-[#0c2419ec] backdrop-blur-md border border-[#00e676]/30 px-3.5 py-2.5 rounded-full z-20 flex justify-between items-center text-slate-100 shadow-[0_10px_25px_rgba(0,230,118,0.15)] select-none">
+      <button
+        onClick={() => setShowMyRankingDetail(true)}
+        className="absolute bottom-22 left-4 right-4 bg-[#0c2419ec] backdrop-blur-md border border-[#00e676]/30 px-3.5 py-2.5 rounded-full z-20 flex justify-between items-center text-slate-100 shadow-[0_10px_25px_rgba(0,230,118,0.15)] select-none"
+      >
         
         {/* Left spinning green soccer indicator */}
         <div className="flex items-center space-x-2">
@@ -346,20 +453,20 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
             <span className="text-xs">⚽</span>
           </div>
           <span className="text-[11px] font-bold">
-            我的排名 <strong className="text-sm font-black text-[#00e676] font-mono leading-none ml-0.5">15</strong>
+            我的排行 <strong className="text-sm font-black text-[#00e676] font-mono leading-none ml-0.5">15</strong>
           </span>
         </div>
 
         {/* Separated specs metrics items */}
         <div className="flex items-center space-x-2 text-[10.5px]">
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
-          <span className="text-slate-300">猜对场次 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">5</strong></span>
+          <span className="text-slate-300">提交 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">{submittedCount}</strong></span>
           
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
-          <span className="text-slate-300">命中率 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">42%</strong></span>
+          <span className="text-slate-300">命中率 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">{accuracy}</strong></span>
           
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
-          <span className="text-slate-300 font-medium">积分 <strong className="text-amber-400 font-mono font-extrabold ml-0.5">5</strong></span>
+          <span className="text-slate-300 font-medium">积分 <strong className="text-amber-400 font-mono font-extrabold ml-0.5">{earnedPoints}</strong></span>
         </div>
 
         {/* Action interactive arrow chevron */}
@@ -367,7 +474,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = () => {
           ❯
         </span>
 
-      </div>
+      </button>
 
       {/* Rules Modal Overlay with rich glassmorphism details */}
       {showRules && (

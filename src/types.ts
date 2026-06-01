@@ -92,3 +92,16 @@ export interface PredictionSlip {
   choice: 'home' | 'draw' | 'away';
   status: 'pending' | 'submitted' | 'settled';
 }
+
+export interface PredictionRecord {
+  matchId: string;
+  fixture: string;
+  choice: string;
+  outcome: 'home' | 'draw' | 'away';
+  time: string;
+  dateKey: string;
+  timestamp: string;
+  stage: string;
+  status: '待开奖' | '猜对 +1' | '猜错 +0';
+  points: number | null;
+}

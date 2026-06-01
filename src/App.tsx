@@ -9,22 +9,14 @@ import { Calendar, Trophy, Sparkles, ClipboardList } from 'lucide-react';
 import { PredictionTab } from './components/PredictionTab';
 import { ScheduleTab } from './components/ScheduleTab';
 import { GroupsTab } from './components/GroupsTab';
-import { TeamDetail } from './components/TeamDetail';
-import { PlayerProfile } from './components/PlayerProfile';
 import { AIForecastTab } from './components/AIForecastTab';
 import { RewardModal } from './components/RewardModal';
 
-import { Player, Match } from './types';
+import { Match, PredictionRecord } from './types';
 
 export default function App() {
   // Prediction database historical log state shared across profile views
-  const [predictionHistory, setPredictionHistory] = useState<Array<{
-    matchId: string;
-    fixture: string;
-    choice: string;
-    time: string;
-    status: string;
-  }>>([]);
+  const [predictionHistory, setPredictionHistory] = useState<PredictionRecord[]>([]);
 
   // State parameter for match forecast context switching
   const [selectedMatchForAI, setSelectedMatchForAI] = useState<Match | null>(null);
@@ -34,12 +26,8 @@ export default function App() {
   // Single centralized view state for mobile phone simulator (merged as requested by user)
   const [phoneState, setPhoneState] = useState<{
     activeTab: 'prediction' | 'schedule' | 'groups' | 'ai-forecast';
-    selectedTeamId: string | null;
-    selectedPlayer: Player | null;
   }>({
     activeTab: 'prediction', // Default to Bettings/Predictions tab
-    selectedTeamId: null,
-    selectedPlayer: null
   });
 
   // Four customized tab buttons matching the user's specific guidelines:
@@ -58,40 +46,18 @@ export default function App() {
     setPhoneState(prev => ({
       ...prev,
       activeTab: 'ai-forecast',
-      selectedTeamId: null,      // Reset detail views to avoid page occlusion
-      selectedPlayer: null
     }));
   };
 
   // Helper method to router/render Phone displays
   const renderPhoneContent = () => {
-    // 1. If viewing player detail profiles (such as Neymar Jr.)
-    if (phoneState.selectedPlayer) {
-      return (
-        <PlayerProfile
-          player={phoneState.selectedPlayer}
-          onBack={() => setPhoneState(prev => ({ ...prev, selectedPlayer: null }))}
-        />
-      );
-    }
-
-    // 2. If viewing team rosters & details (such as Brazil)
-    if (phoneState.selectedTeamId) {
-      return (
-        <TeamDetail
-          teamId={phoneState.selectedTeamId}
-          onBack={() => setPhoneState(prev => ({ ...prev, selectedTeamId: null }))}
-          onPlayerSelect={(player) => setPhoneState(prev => ({ ...prev, selectedPlayer: player }))}
-        />
-      );
-    }
-
-    // 3. Render active tab
+    // Render active tab. 球队和球员二级页已去掉，球队点击只保留展示态不再下钻。
     switch (phoneState.activeTab) {
       case 'prediction':
         return (
           <PredictionTab
-            onTeamSelect={(teamId) => setPhoneState(prev => ({ ...prev, selectedTeamId: teamId }))}
+            onTeamSelect={() => undefined}
+            predictionHistory={predictionHistory}
             setPredictionHistory={setPredictionHistory}
             onAIPredictionClick={handleAIPredictionTransition}
             onRewardClick={() => setIsRewardOpen(true)}
@@ -100,14 +66,14 @@ export default function App() {
       case 'schedule':
         return (
           <ScheduleTab
-            onTeamSelect={(teamId) => setPhoneState(prev => ({ ...prev, selectedTeamId: teamId }))}
+            onTeamSelect={() => undefined}
             onAIPredictionClick={handleAIPredictionTransition}
           />
         );
       case 'groups':
         return (
           <GroupsTab
-            onTeamSelect={(teamId) => setPhoneState(prev => ({ ...prev, selectedTeamId: teamId }))}
+            predictionHistory={predictionHistory}
           />
         );
       case 'ai-forecast':
@@ -129,9 +95,6 @@ export default function App() {
 
   // Bottom Navigation Bar custom renderer sitting exactly flush at bottom-0 of phone display
   const renderBottomNav = () => {
-    // Hide footer if nested deep inside squad rosters or players charts
-    if (phoneState.selectedTeamId || phoneState.selectedPlayer) return null;
-
     return (
       <div className="absolute bottom-0 inset-x-0 h-[68px] pb-4.5 bg-[#081521]/95 text-xs flex justify-around items-center border-t border-white/5 px-2 z-40 select-none">
         {tabs.map((tab) => {
@@ -175,7 +138,7 @@ export default function App() {
         <div className="h-full flex flex-col overflow-hidden relative">
           {renderPhoneContent()}
 
-          {/* 底导固定在 H5 页面底部，详情页按原逻辑自动隐藏 */}
+          {/* 底导固定在 H5 页面底部 */}
           {renderBottomNav()}
 
           <RewardModal
