@@ -14,7 +14,7 @@ interface PredictionTabProps {
   predictionHistory: PredictionRecord[];
   setPredictionHistory: React.Dispatch<React.SetStateAction<PredictionRecord[]>>;
   onAIPredictionClick: (match: Match) => void;
-  onRewardClick: () => void;
+  onViewingLocationsClick: () => void;
 }
 
 export const PredictionTab: React.FC<PredictionTabProps> = ({ 
@@ -22,7 +22,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   predictionHistory,
   setPredictionHistory,
   onAIPredictionClick,
-  onRewardClick
+  onViewingLocationsClick
 }) => {
   const [now, setNow] = useState(() => new Date());
 
@@ -226,23 +226,23 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
 
         </div>
 
-        {/* VIEW REWARDS PREMIUM ENTRANCE KEY - ADDS PORTAL TO ATTACHMENT 2 */}
-        <div className="px-4 pt-3.5 select-none animate-pulse [animation-duration:3s]">
+        {/* 线下观影地点入口：替换原竞猜公告/奖励入口 */}
+        <div className="px-4 pt-3.5 select-none">
           <button
-            onClick={onRewardClick}
-            className="w-full max-w-[326px] mx-auto bg-gradient-to-r from-[#ffd54f]/10 via-[#00e676]/10 to-[#ffd54f]/10 border border-[#ffca28]/35 rounded-xl pl-10 pr-3 py-2.5 flex items-center justify-between gap-3 hover:bg-[#ffca28]/25 hover:border-[#ffd54f] transition-all cursor-pointer shadow-md group relative overflow-hidden"
+            onClick={onViewingLocationsClick}
+            className="w-full max-w-[326px] mx-auto bg-gradient-to-r from-[#00e676]/12 via-[#102436]/88 to-[#ffd54f]/10 border border-[#00e676]/30 rounded-xl pl-10 pr-3 py-2.5 flex items-center justify-between gap-3 hover:bg-[#00e676]/15 hover:border-[#00e676]/55 transition-all cursor-pointer shadow-md group relative overflow-hidden"
           >
             {/* Gloss light sweep effect */}
             <div className="absolute inset-0 w-[50%] bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 translate-x-[-150%] group-hover:translate-x-[250%] transition-transform duration-1000 ease-out"></div>
-            <span className="absolute -left-1 top-1.5 -rotate-45 bg-red-500 text-white text-[8px] font-black px-2.5 py-0.5 rounded-md border border-white/30 shadow leading-none">
-              HOT
+            <span className="absolute -left-1 top-1.5 -rotate-45 bg-[#00a86b] text-white text-[8px] font-black px-2.5 py-0.5 rounded-md border border-white/30 shadow leading-none">
+              LIVE
             </span>
 
             <span className="relative z-10 text-white text-[11.5px] font-bold leading-none truncate min-w-0">
-              每天参与竞猜，赢积分换大奖哦
+              线下观影地点查看，一起为喜欢的球队呐喊
             </span>
 
-            <span className="relative z-10 text-[#ffd54f] text-[11px] font-black shrink-0">查看详情</span>
+            <span className="relative z-10 text-[#ffd54f] text-[11px] font-black shrink-0">查看地点</span>
           </button>
         </div>
 

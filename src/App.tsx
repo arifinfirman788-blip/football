@@ -10,7 +10,8 @@ import { PredictionTab } from './components/PredictionTab';
 import { ScheduleTab } from './components/ScheduleTab';
 import { GroupsTab } from './components/GroupsTab';
 import { AIForecastTab } from './components/AIForecastTab';
-import { RewardModal } from './components/RewardModal';
+import { SplashAd } from './components/SplashAd';
+import { ViewingLocationsPage } from './components/ViewingLocationsPage';
 
 import { Match, PredictionRecord } from './types';
 
@@ -21,7 +22,10 @@ export default function App() {
   // State parameter for match forecast context switching
   const [selectedMatchForAI, setSelectedMatchForAI] = useState<Match | null>(null);
   const [selectedMatchForAIRequestKey, setSelectedMatchForAIRequestKey] = useState<string | null>(null);
-  const [isRewardOpen, setIsRewardOpen] = useState<boolean>(false);
+  const [isViewingLocationsOpen, setIsViewingLocationsOpen] = useState<boolean>(false);
+  const [showSplashAd, setShowSplashAd] = useState<boolean>(true);
+  const [isSplashLeaving, setIsSplashLeaving] = useState<boolean>(false);
+  const [isSplashReady, setIsSplashReady] = useState<boolean>(false);
 
   // Single centralized view state for mobile phone simulator (merged as requested by user)
   const [phoneState, setPhoneState] = useState<{
@@ -60,7 +64,7 @@ export default function App() {
             predictionHistory={predictionHistory}
             setPredictionHistory={setPredictionHistory}
             onAIPredictionClick={handleAIPredictionTransition}
-            onRewardClick={() => setIsRewardOpen(true)}
+            onViewingLocationsClick={() => setIsViewingLocationsOpen(true)}
           />
         );
       case 'schedule':
@@ -128,6 +132,29 @@ export default function App() {
     );
   };
 
+  const closeSplashAd = () => {
+    setIsSplashLeaving(true);
+    window.setTimeout(() => {
+      setShowSplashAd(false);
+    }, 700);
+  };
+
+  React.useEffect(() => {
+    if (!showSplashAd || !isSplashReady) return;
+
+    const visibleTimer = window.setTimeout(() => {
+      setIsSplashLeaving(true);
+    }, 2400);
+    const removeTimer = window.setTimeout(() => {
+      setShowSplashAd(false);
+    }, 3100);
+
+    return () => {
+      window.clearTimeout(visibleTimer);
+      window.clearTimeout(removeTimer);
+    };
+  }, [showSplashAd, isSplashReady]);
+
   return (
     <div className="min-h-screen bg-[#030a0f] text-slate-100 flex items-center justify-center font-sans relative overflow-hidden antialiased">
       {/* 页面背景只承托 H5 画布，真实内容不再放进手机框体 */}
@@ -141,11 +168,18 @@ export default function App() {
           {/* 底导固定在 H5 页面底部 */}
           {renderBottomNav()}
 
-          <RewardModal
-            isOpen={isRewardOpen}
-            onClose={() => setIsRewardOpen(false)}
-            onParticipate={() => setIsRewardOpen(false)}
+          <ViewingLocationsPage
+            isOpen={isViewingLocationsOpen}
+            onClose={() => setIsViewingLocationsOpen(false)}
           />
+
+          {showSplashAd && (
+            <SplashAd
+              isLeaving={isSplashLeaving}
+              onReady={() => setIsSplashReady(true)}
+              onSkip={closeSplashAd}
+            />
+          )}
         </div>
       </main>
     </div>
