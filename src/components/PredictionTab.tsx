@@ -6,8 +6,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ACTIVE_BET_MATCH, MATCHES_DATA } from '../data';
 import { Match, PredictionRecord } from '../types';
-import { CrownIcon } from './Svgs';
 import { assetUrl } from '../utils/assets';
+import { Gift } from 'lucide-react';
 
 interface PredictionTabProps {
   onTeamSelect: (teamId: string) => void;
@@ -15,6 +15,7 @@ interface PredictionTabProps {
   setPredictionHistory: React.Dispatch<React.SetStateAction<PredictionRecord[]>>;
   onAIPredictionClick: (match: Match) => void;
   onViewingLocationsClick: () => void;
+  onRewardRulesClick: () => void;
 }
 
 export const PredictionTab: React.FC<PredictionTabProps> = ({ 
@@ -22,7 +23,8 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   predictionHistory,
   setPredictionHistory,
   onAIPredictionClick,
-  onViewingLocationsClick
+  onViewingLocationsClick,
+  onRewardRulesClick
 }) => {
   const [now, setNow] = useState(() => new Date());
 
@@ -204,25 +206,21 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
             }}
           />
           <div className="absolute inset-x-0 bottom-0 h-2 bg-[#00160c] pointer-events-none z-10" />
-          {/* Elegant Floating User Profile Info attached left-4 top-4 */}
-          <div className="absolute top-4 left-4 flex items-center space-x-2.5 z-20 select-none bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
-            <div className="relative">
-              <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" 
-                alt="Avatar" 
-                className="w-8 h-8 rounded-full object-cover border border-[#ffca28] shadow-[0_0_8px_rgba(255,202,40,0.25)]"
-              />
-              <div className="absolute -bottom-0.5 -right-0.5 bg-gradient-to-r from-yellow-500 to-amber-600 rounded-full p-0.5 border border-slate-950 shadow">
-                <CrownIcon className="w-2 h-2 text-white" />
-              </div>
+          {/* 奖励兑换入口：原用户头像位置改为规则页二级入口 */}
+          <button
+            onClick={onRewardRulesClick}
+            className="absolute top-4 left-4 flex items-center space-x-2.5 z-20 select-none bg-black/45 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#ffd54f]/25 shadow-[0_6px_16px_rgba(0,0,0,0.28)] active:scale-95 transition-all"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#ffe082] to-[#c47b07] border border-[#fff3bf]/70 shadow-[0_0_10px_rgba(255,213,79,0.26)] flex items-center justify-center">
+              <Gift className="w-4.5 h-4.5 text-[#3b2400]" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[10.5px] font-bold text-white font-sans">球迷小王</span>
+              <span className="text-[10.5px] font-bold text-white font-sans">奖励兑换</span>
               <span className="text-[8px] font-black text-[#ffd54f]/95 font-mono flex items-center space-x-0.5 leading-none">
-                <span>Lv.18</span>
+                <span>积分规则</span>
               </span>
             </div>
-          </div>
+          </button>
 
         </div>
 

@@ -12,6 +12,7 @@ import { GroupsTab } from './components/GroupsTab';
 import { AIForecastTab } from './components/AIForecastTab';
 import { SplashAd } from './components/SplashAd';
 import { ViewingLocationsPage } from './components/ViewingLocationsPage';
+import { RewardRulesPage } from './components/RewardRulesPage';
 
 import { Match, PredictionRecord } from './types';
 
@@ -23,6 +24,7 @@ export default function App() {
   const [selectedMatchForAI, setSelectedMatchForAI] = useState<Match | null>(null);
   const [selectedMatchForAIRequestKey, setSelectedMatchForAIRequestKey] = useState<string | null>(null);
   const [isViewingLocationsOpen, setIsViewingLocationsOpen] = useState<boolean>(false);
+  const [isRewardRulesOpen, setIsRewardRulesOpen] = useState<boolean>(false);
   const [showSplashAd, setShowSplashAd] = useState<boolean>(true);
   const [isSplashLeaving, setIsSplashLeaving] = useState<boolean>(false);
   const [isSplashReady, setIsSplashReady] = useState<boolean>(false);
@@ -65,6 +67,7 @@ export default function App() {
             setPredictionHistory={setPredictionHistory}
             onAIPredictionClick={handleAIPredictionTransition}
             onViewingLocationsClick={() => setIsViewingLocationsOpen(true)}
+            onRewardRulesClick={() => setIsRewardRulesOpen(true)}
           />
         );
       case 'schedule':
@@ -171,6 +174,11 @@ export default function App() {
           <ViewingLocationsPage
             isOpen={isViewingLocationsOpen}
             onClose={() => setIsViewingLocationsOpen(false)}
+          />
+
+          <RewardRulesPage
+            isOpen={isRewardRulesOpen}
+            onClose={() => setIsRewardRulesOpen(false)}
           />
 
           {showSplashAd && (
