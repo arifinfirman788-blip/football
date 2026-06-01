@@ -11,6 +11,20 @@ import { SquadPlayerResearch, TEAM_RESEARCH_DATA, getFallbackTeamResearch } from
 import { STAR_PLAYER_PRIORITY } from '../confirmedSquads';
 import { apiUrl } from '../utils/api';
 
+const POSITION_ORDER: Record<string, number> = {
+  '门将': 0,
+  '后卫': 1,
+  '边后卫': 1,
+  '中卫': 1,
+  '中场': 2,
+  '后腰': 2,
+  '前腰': 2,
+  '中前场': 2,
+  '前锋': 3,
+  '边锋': 3,
+  '中锋': 3,
+};
+
 interface TeamDetailProps {
   teamId: string;
   onBack: () => void;
@@ -25,7 +39,10 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
     const aPriority = STAR_PLAYER_PRIORITY[a.englishName || a.name] || 0;
     const bPriority = STAR_PLAYER_PRIORITY[b.englishName || b.name] || 0;
     if (aPriority !== bPriority) return bPriority - aPriority;
-    return (a.number || 99) - (b.number || 99);
+    const aPosition = POSITION_ORDER[a.position] ?? 99;
+    const bPosition = POSITION_ORDER[b.position] ?? 99;
+    if (aPosition !== bPosition) return aPosition - bPosition;
+    return (a.englishName || a.name).localeCompare(b.englishName || b.name);
   });
 
   const getGeneratedStats = (position: string) => {
@@ -64,7 +81,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
       profileStatus,
       profileSummary: profileStatus === 'loading' ? '正在联网检索球员资料。' : undefined,
       profileDataNote: profileStatus === 'pending' ? '球员未确认前不展示推测资料。' : undefined,
-      number: entry.number || index + 1,
+      number: entry.number,
       position: entry.position,
       photo: 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=500',
       teamName: team?.name || research.englishName,
@@ -96,7 +113,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
       id: profile.id || fallback.id,
       name: profile.name || fallback.name,
       englishName: profile.englishName || fallback.englishName,
-      number: profile.number || fallback.number,
+      number: profile.number ?? fallback.number,
       position: profile.position || fallback.position,
       photo: profile.photo || fallback.photo,
       teamName: profile.teamName || fallback.teamName,
@@ -355,7 +372,7 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
                       
                       <div className="flex items-center space-x-2 mt-1 flex-wrap">
                         <span className="bg-[#128a3a]/15 text-[#4ced74] text-[9px] font-bold px-1.5 py-0.5 rounded border border-[#1b3d58]">
-                          {entry.number ? `${entry.number}号` : '待补充'}
+                          {entry.number ? `${entry.number}号` : '号码待定'}
                         </span>
                         <span className="text-[10px] text-slate-400">{entry.position}</span>
                         <span className="text-[9px] text-[#ffd54f] font-mono">{entry.status || '待确认'}</span>

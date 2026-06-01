@@ -56,7 +56,7 @@ export interface Player {
   profileDataNote?: string;
   profileUpdatedAt?: string;
   profileSources?: Array<{ title: string; uri: string }>;
-  number: number;
+  number?: number;
   position: string;
   photo: string;
   teamName: string;

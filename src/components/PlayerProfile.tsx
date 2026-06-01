@@ -352,7 +352,7 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack }) 
             
             <div className="flex items-center space-x-1.5 pt-1">
               <span className="bg-[#128a3a] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-[#1b3d58]">
-                {player.number}号
+                {player.number ? `${player.number}号` : '号码待定'}
               </span>
               <span className="text-[10px] font-semibold text-slate-300">{player.position}</span>
             </div>

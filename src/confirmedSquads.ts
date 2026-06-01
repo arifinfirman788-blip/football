@@ -157,23 +157,129 @@ export const STAR_PLAYER_PRIORITY: Record<string, number> = {
   'Edin Dzeko': 37,
 };
 
-const parsePlayer = (raw: string, position: string, number: number): SquadPlayerResearch => {
+const normalizeLookupName = (name: string) => name
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[’'`.-]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .toLowerCase();
+
+// 只写入从 Wikipedia「2026 FIFA World Cup squads」No. 列可核验到的号码；
+// 没查到的球员保持为空，页面显示“号码待定”，避免把名单顺序误当球衣号。
+const WIKIPEDIA_SQUAD_NUMBERS: Record<string, Record<string, number>> = {
+  brazil: {
+    alisson: 1,
+    ederson: 23,
+    weverton: 12,
+    wesley: 2,
+    'douglas santos': 16,
+    'alex sandro': 6,
+    'gabriel magalhaes': 3,
+    marquinhos: 4,
+    danilo: 13,
+    bremer: 14,
+    ibanez: 24,
+    'roger ibanez': 24,
+    'leo pereira': 15,
+    'bruno guimaraes': 8,
+    casemiro: 5,
+    'danilo santos': 18,
+    fabinho: 17,
+    'lucas paqueta': 20,
+    raphinha: 11,
+    neymar: 10,
+    'vinicius junior': 7,
+    'vinicius jr': 7,
+    'luiz henrique': 21,
+    'matheus cunha': 9,
+    'gabriel martinelli': 22,
+    'igor thiago': 25,
+    endrick: 19,
+    rayan: 26,
+  },
+  france: {
+    'brice samba': 1,
+    'mike maignan': 16,
+    'robin risser': 23,
+    'malo gusto': 2,
+    'lucas digne': 3,
+    'dayot upamecano': 4,
+    'jules kounde': 5,
+    'manu kone': 6,
+    'ousmane dembele': 7,
+    'aurelien tchouameni': 8,
+    'marcus thuram': 9,
+    'kylian mbappe': 10,
+    'michael olise': 11,
+    'bradley barcola': 12,
+    'ngolo kante': 13,
+    'adrien rabiot': 14,
+    'ibrahima konate': 15,
+    'william saliba': 17,
+    'warren zaireemery': 18,
+    'theo hernandez': 19,
+    'desire doue': 20,
+    'lucas hernandez': 21,
+    'jeanphilippe mateta': 22,
+    'rayan cherki': 24,
+    'maghnes akliouche': 25,
+    'maxence lacroix': 26,
+  },
+  usa: {
+    'matt turner': 1,
+    'sergino dest': 2,
+    'chris richards': 3,
+    'tyler adams': 4,
+    'antonee robinson': 5,
+    'auston trusty': 6,
+    'gio reyna': 7,
+    'giovanni reyna': 7,
+    'weston mckennie': 8,
+    'ricardo pepi': 9,
+    'christian pulisic': 10,
+    'brenden aaronson': 11,
+    'miles robinson': 12,
+    'tim ream': 13,
+    'sebastian berhalter': 14,
+    'cristian roldan': 15,
+    'alex freeman': 16,
+    'malik tillman': 17,
+    'max arfsten': 18,
+    'maximilian arfsten': 18,
+    'haji wright': 19,
+    'folarin balogun': 20,
+    'tim weah': 21,
+    'timothy weah': 21,
+    'mark mckenzie': 22,
+    'joe scally': 23,
+    'matt freese': 24,
+    'chris brady': 25,
+    'alejandro zendejas': 26,
+  },
+};
+
+const getWikipediaNumber = (teamId: string, englishName: string) => (
+  WIKIPEDIA_SQUAD_NUMBERS[teamId]?.[normalizeLookupName(englishName)]
+);
+
+const parsePlayer = (teamId: string, raw: string, position: string): SquadPlayerResearch => {
   const match = raw.match(/^(.*?)\s*\((.*?)\)$/);
   const englishName = (match?.[1] || raw).trim();
+  const wikiNumber = getWikipediaNumber(teamId, englishName);
   return {
     name: PLAYER_CN[englishName] || englishName,
     englishName,
     club: match?.[2]?.trim(),
     position,
-    number,
+    ...(wikiNumber ? { number: wikiNumber } : {}),
     status: '官方'
   };
 };
 
-const buildSquad = (lines: SquadLine[]): SquadPlayerResearch[] => {
-  let number = 1;
+const buildSquad = (teamId: string, lines: SquadLine[]): SquadPlayerResearch[] => {
   return lines.flatMap(([position, players]) => (
-    players.map(player => parsePlayer(player, position, number++))
+    players.map(player => parsePlayer(teamId, player, position))
   ));
 };
 
@@ -215,85 +321,85 @@ export const CONFIRMED_COACHES: Record<string, string> = {
 };
 
 export const CONFIRMED_SQUADS: Record<string, SquadPlayerResearch[]> = {
-  austria: buildSquad([
+  austria: buildSquad('austria', [
     ['门将', ['Patrick Pentz (Brondby IF)', 'Alexander Schlager (RB Salzburg)', 'Florian Wiegele (Viktoria Plzeň)']],
     ['后卫', ['David Affengruber (Elche)', 'David Alaba (Real Madrid)', 'Kevin Danso (Tottenham Hotspur)', 'Marco Friedl (Werder Bremen)', 'Philipp Lienhart (SC Freiburg)', 'Phillipp Mwene (Mainz 05)', 'Stefan Posch (Mainz 05)', 'Alexander Prass (TSG Hoffenheim)', 'Michael Svoboda (Venezia)']],
     ['中场', ['Christoph Baumgartner (RB Leipzig)', 'Carney Chukwuemeka (Borussia Dortmund)', 'Florian Grillitsch (SC Braga)', 'Konrad Laimer (Bayern München)', 'Marcel Sabitzer (Borussia Dortmund)', 'Xaver Schlager (RB Leipzig)', 'Nicolas Seiwald (RB Leipzig)', 'Romano Schmid (Werder Bremen)', 'Alessandro Schöpf (Wolfsberger AC)', 'Paul Wanner (PSV Eindhoven)', 'Patrick Wimmer (VfL Wolfsburg)']],
     ['前锋', ['Marko Arnautovic (Crvena Zvezda)', 'Michael Gregoritsch (Augsburg)', 'Sasa Kalajdzic (LASK)']],
   ]),
-  belgium: buildSquad([
+  belgium: buildSquad('belgium', [
     ['门将', ['Thibaut Courtois (Real Madrid)', 'Senne Lammens (Manchester United)', 'Mike Penders (Strasbourg)']],
     ['后卫', ['Timothy Castagne (Fulham)', 'Zeno Debast (Sporting CP)', 'Maxim De Cuyper (Brighton)', 'Koni De Winter (AC Milan)', 'Brandon Mechele (Club Brugge)', 'Thomas Meunier (Lille)', 'Nathan Ngoy (Lille)', 'Joaquin Seys (Club Brugge)', 'Arthur Theate (Eintracht Frankfurt)']],
     ['中场', ['Kevin De Bruyne (Napoli)', 'Amadou Onana (Aston Villa)', 'Nicolas Raskin (Rangers)', 'Youri Tielemans (Aston Villa)', 'Hans Vanaken (Club Brugge)', 'Axel Witsel (Girona)']],
     ['前锋', ['Charles De Ketelaere (Atalanta)', 'Jeremy Doku (Manchester City)', 'Matias Fernandez Pardo (Lille)', 'Romelu Lukaku (Napoli)', 'Dodi Lukebakio (Benfica)', 'Diego Moreira (Strasbourg)', 'Alexis Saelemaekers (AC Milan)', 'Leandro Trossard (Arsenal)']],
   ]),
-  bosnia: buildSquad([
+  bosnia: buildSquad('bosnia', [
     ['门将', ['Nikola Vasilj (FC St. Pauli)', 'Martin Zlomislic (HNK Rijeka)', 'Osman Hadzikic (Slaven Belupo)']],
     ['后卫', ['Sead Kolasinac (Atalanta BC)', 'Amar Dedic (SL Benfica)', 'Nihad Mujakic (Gaziantep FK)', 'Nikola Katic (Schalke 04)', 'Tarik Muharemovic (US Sassuolo)', 'Stjepan Radeljic (HNK Rijeka)', 'Dennis Hadzikadunic (UC Sampdoria)', 'Nidal Celik (Lens)']],
     ['中场', ['Amir Hadžiahmetović (Hull City)', 'Ivan Sunjic (Pafos FC)', 'Ivan Basic (FC Astana)', 'Dzenis Burnic (Karlsruher SC)', 'Ermin Mahmic (FC Slovan Liberec)', 'Benjamin Tahirovic (Brondby IF)', 'Amar Memic (FC Viktoria Plzen)', 'Armin Gigovic (BSC Young Boys)']],
     ['前锋', ['Kerim Alajbegovic (RB Salzburg)', 'Esmir Bajraktarevic (PSV Eindhoven)', 'Ermedin Demirović (VfB Stuttgart)', 'Jovo Lukic (FC Universitatea Cluj)', 'Samed Bazdar (Jagiellonia Bialystok)', 'Haris Tabakovic (Borussia Monchengladbach)', 'Edin Dzeko (Schalke 04)']],
   ]),
-  brazil: buildSquad([
+  brazil: buildSquad('brazil', [
     ['门将', ['Alisson (Liverpool)', 'Ederson (Fenerbahce)', 'Weverton (Gremio)']],
     ['后卫', ['Wesley (Roma)', 'Douglas Santos (Zenit)', 'Alex Sandro (Flamengo)', 'Gabriel Magalhaes (Arsenal)', 'Marquinhos (PSG)', 'Danilo (Flamengo)', 'Bremer (Juventus)', 'Ibanez (Al-Ahli)', 'Leo Pereira (Flamengo)']],
     ['中场', ['Bruno Guimaraes (Newcastle)', 'Casemiro (Manchester United)', 'Danilo Santos (Botafogo)', 'Fabinho (Al-Ittihad)', 'Lucas Paqueta (Flamengo)', 'Raphinha (Barcelona)', 'Neymar (Santos)']],
     ['前锋', ['Vinicius Junior (Real Madrid)', 'Luiz Henrique (Zenit)', 'Matheus Cunha (Manchester United)', 'Gabriel Martinelli (Arsenal)', 'Igor Thiago (Brentford)', 'Endrick (Lyon)', 'Rayan (Bournemouth)']],
   ]),
-  france: buildSquad([
+  france: buildSquad('france', [
     ['门将', ['Mike Maignan (AC Milan)', 'Brice Samba (Rennes)', 'Robin Risser (Lens)']],
     ['后卫', ['Dayot Upamecano (Bayern Munich)', 'William Saliba (Arsenal)', 'Lucas Digne (Aston Villa)', 'Theo Hernandez (Al-Hilal)', 'Lucas Hernandez (PSG)', 'Ibrahima Konate (Liverpool)', 'Jules Kounde (Barcelona)', 'Malo Gusto (Chelsea)', 'Maxence Lacroix (Crystal Palace)']],
     ['中场', ['N’Golo Kante (Fenerbahce)', 'Adrien Rabiot (AC Milan)', 'Manu Kone (Roma)', 'Aurelien Tchouameni (Real Madrid)', 'Warren Zaire-Emery (PSG)']],
     ['前锋', ['Maghnes Akliouche (Monaco)', 'Kylian Mbappe (Real Madrid)', 'Ousmane Dembele (PSG)', 'Michael Olise (Bayern Munich)', 'Desire Doue (PSG)', 'Bradley Barcola (PSG)', 'Rayan Cherki (Manchester City)', 'Marcus Thuram (Inter Milan)', 'Jean-Philippe Mateta (Crystal Palace)']],
   ]),
-  england: buildSquad([
+  england: buildSquad('england', [
     ['门将', ['Jordan Pickford (Everton)', 'Dean Henderson (Crystal Palace)', 'James Trafford (Manchester City)']],
     ['后卫', ['Reece James (Chelsea)', 'Tino Livramento (Newcastle)', 'Marc Guehi (Manchester City)', 'Ezri Konsa (Aston Villa)', 'John Stones (Manchester City)', 'Jarell Quansah (Bayer Leverkusen)', 'Nico O’Reilly (Manchester City)', 'Dan Burn (Newcastle)', 'Djed Spence (Tottenham Hotspur)']],
     ['中场', ['Declan Rice (Arsenal)', 'Elliot Anderson (Nottingham Forest)', 'Jude Bellingham (Real Madrid)', 'Jordan Henderson (Brentford)', 'Morgan Rogers (Aston Villa)', 'Kobbie Mainoo (Manchester United)', 'Eberechi Eze (Arsenal)']],
     ['前锋', ['Harry Kane (Bayern Munich)', 'Ivan Toney (Al-Ahli)', 'Ollie Watkins (Aston Villa)', 'Bukayo Saka (Arsenal)', 'Noni Madueke (Arsenal)', 'Marcus Rashford (Barcelona)', 'Anthony Gordon (Newcastle)']],
   ]),
-  germany: buildSquad([
+  germany: buildSquad('germany', [
     ['门将', ['Oliver Baumann (Hoffenheim)', 'Manuel Neuer (Bayern Munich)', 'Alexander Nubel (Monaco)']],
     ['后卫', ['Waldemar Anton (Borussia Dortmund)', 'Nathaniel Brown (Frankfurt)', 'Joshua Kimmich (Bayern Munich)', 'David Raum (RB Leipzig)', 'Antonio Rudiger (Real Madrid)', 'Nico Schlotterbeck (Borussia Dortmund)', 'Jonathan Tah (Bayern Munich)', 'Malick Thiaw (Newcastle)']],
     ['中场', ['Nadiem Amiri (Mainz)', 'Leon Goretzka (Bayern Munich)', 'Pascal Gross (Brighton)', 'Jamie Leweling (Stuttgart)', 'Lennart Karl (Bayern Munich)', 'Jamal Musiala (Bayern Munich)', 'Felix Nmecha (Borussia Dortmund)', 'Alexander Pavlovic (Bayern Munich)', 'Angelo Stiller (Stuttgart)', 'Florian Wirtz (Liverpool)']],
     ['前锋', ['Maximilian Beier (Borussia Dortmund)', 'Kai Havertz (Arsenal)', 'Leroy Sane (Galatasaray)', 'Denis Undav (Stuttgart)', 'Nick Woltemade (Newcastle)']],
   ]),
-  haiti: buildSquad([
+  haiti: buildSquad('haiti', [
     ['门将', ['Johnny Placide (SC Bastia)', 'Alexandre Pierre (FC Sochaux)', 'Josue Duverger (FC Cosmos Koblenz)']],
     ['后卫', ['Carlens Arcus (Angers SCO)', 'Wilguens Paugain (SV Zulte Waregem)', 'Duke Lacroix (Colorado Springs)', 'Martin Experience (AS Nancy-Lorraine)', 'Jean-Kevin Duverne (KAA Gent)', 'Ricardo Ade (LDU Quito)', 'Hannes Delcroix (FC Lugano)', 'Keeto Thermoncy (BSC Young Boys II)']],
     ['中场', ['Leverton Pierre (FC Vizela)', 'Carl-Fred Sainthe (El Paso Locomotive FC)', 'Jean-Jacques Danley (Philadelphia Union)', 'Jeanricner Bellegarde (Wolverhampton)', 'Pierre Woodenski (Violette AC)', 'Dominique Simon (FC Tatran Presov)']],
     ['前锋', ['Louicius Deedson (FC Dallas)', 'Ruben Providence (Almere City FC)', 'Josue Casimir (AJ Auxerre)', 'Derrick Etienne (Toronto FC)', 'Wilson Isidor (Sunderland AFC)', 'Duckens Nazon (Esteghlal FC)', 'Frantzdy Pierrot (Caykur Rizespor)', 'Yassin Fortune (FC Vizela)', 'Lenny Joseph (Ferencvaros TC)']],
   ]),
-  japan: buildSquad([
+  japan: buildSquad('japan', [
     ['门将', ['Hayakawa Tomoki (Kashima Antlers)', 'Suzuki Zion (Parma)', 'Osako Keisuke (Sanfrecce Hiroshima)']],
     ['后卫', ['Nagatomo Yuto (FC Tokyo)', 'Taniguchi Shogo (Sint-Truiden)', 'Tomiyasu Takehiro (Ajax)', 'Itakura Ko (Ajax)', 'Watanabe Tsuyoshi (Feyenoord)', 'Ito Hiroki (Bayern Munich)', 'Suzuki Junnosuke (København)', 'Seko Ayumu (Le Havre)', 'Sugawara Yukinari (Werder Bremen)']],
     ['中场', ['Kamada Daichi (Crystal Palace)', 'Sano Kaishu (Mainz)', 'Tanaka Ao (Leeds United)', 'Endo Wataru (Liverpool)', 'Nakamura Keito (Reims)', 'Doan Ritsu (Eintracht Frankfurt)']],
     ['前锋', ['Ito Junya (Genk)', 'Kubo Takefusa (Real Sociedad)', 'Suzuki Yuito (Freiburg)', 'Ueda Ayase (Feyenoord)', 'Ogawa Koki (Nijmegen)', 'Maeda Daizen (Celtic)', 'Shiogai Kento (Wolfsburg)', 'Goto Keisuke (Sint-Truiden)']],
   ]),
-  morocco: buildSquad([
+  morocco: buildSquad('morocco', [
     ['门将', ['Yassine Bounou (Al Hilal)', 'Munir El Kajoui (RS Berkane)', 'Ahmed Reda Tagnaouti (AS FAR)']],
     ['后卫', ['Noussair Mazraoui (Manchester United)', 'Anass Salah-Eddine (PSV Eindhoven)', 'Youssef Belammari (Al Ahly)', 'Nayef Aguerd (Olympique de Marseille)', 'Chadi Riad (Crystal Palace)', 'Issa Diop (Fulham)', 'Redouane Halhal (Mechelen)', 'Achraf Hakimi (PSG)', 'Zakaria El Ouahdi (Genk)']],
     ['中场', ['Samir El Mourabet (Strasbourg)', 'Ayyoub Bouaddi (Lille)', 'Neil El Aynaoui (AS Roma)', 'Sofyan Amrabat (Real Betis)', 'Azzedine Ounahi (Girone)', 'Bilal El Khannouss (Stuttgart)', 'Ismael Saibari (PSV Eindhoven)']],
     ['前锋', ['Abdessamad Ezzalzouli (Real Betis)', 'Chemsdine Talbi (Sunderland)', 'Soufiane Rahimi (Al Ain)', 'Ayoub El Kaabi (Olympiacos)', 'Brahim Díaz (Real Madrid)', 'Yassine Gessime (Strasbourg)', 'Ayoube Amaimouni (Eintracht Frankfurt)']],
   ]),
-  netherlands: buildSquad([
+  netherlands: buildSquad('netherlands', [
     ['门将', ['Mark Flekken (Bayer Leverkusen)', 'Robin Roefs (Sunderland)', 'Bart Verbruggen (Brighton & Hove Albion)']],
     ['后卫', ['Nathan Ake (Manchester City)', 'Jorrel Hato (Chelsea)', 'Denzel Dumfries (Inter Milan)', 'Jurrien Timber (Arsenal)', 'John Paul van Hecke (Brighton & Hove Albion)', 'Micky van de Ven (Tottenham Hotspur)', 'Virgil van Dijk (Liverpool)']],
     ['中场', ['Frenkie de Jong (Barcelona)', 'Marten de Roon (Atalanta)', 'Ryan Gravenberch (Liverpool)', 'Teun Koopmeiners (Juventus)', 'Noa Lang (Galatasaray)', 'Tijjani Reijnders (Manchester City)', 'Guus Til (PSV Eindhoven)', 'Quinten Timber (Marseille)', 'Mats Wieffer (Brighton & Hove Albion)']],
     ['前锋', ['Brian Brobbey (Sunderland)', 'Memphis Depay (Corinthians)', 'Cody Gakpo (Liverpool)', 'Justin Kluivert (Bournemouth)', 'Donyell Malen (AS Roma)', 'Crysencio Summerville (West Ham)', 'Wout Weghorst (Ajax)']],
   ]),
-  norway: buildSquad([
+  norway: buildSquad('norway', [
     ['门将', ['Orjan Nyland (Sevilla)', 'Egil Selvik (Watford)', 'Sander Tangvik (HSV)']],
     ['后卫', ['Julian Ryerson (Borussia Dortmund)', 'Kristoffer Ajer (Brentford)', 'Leo Skiri Ostigard (Genoa)', 'David Møller Wolfe (Wolverhampton Wanderers)', 'Marcus Holmgren Pedersen (Torino)', 'Torbjorn Heggem (Bologna)', 'Fredrik Bjorkan (Bodo/Glimt)', 'Henrik Falchener (Viking)', 'Sondre Langas (Derby County)']],
     ['中场', ['Martin Odegaard (Arsenal)', 'Sander Berge (Fulham)', 'Patrick Berg (Bodo/Glimt)', 'Kristian Thorstvedt (Sassuolo)', 'Morten Thorsby (Cremonese)', 'Thelo Aasgaard (Rangers)', 'Andreas Schjelderup (Benfica)', 'Jens Petter Hauge (Bodo/Glimt)', 'Fredrik Aursnes (Benfica)']],
     ['前锋', ['Erling Haaland (Manchester City)', 'Alexander Sorloth (Atletico Madrid)', 'Jorgen Strand Larsen (Crystal Palace)', 'Oscar Bobb (Fulham)', 'Antonio Nusa (RB Leipzig)']],
   ]),
-  spain: buildSquad([
+  spain: buildSquad('spain', [
     ['门将', ['Unai Simon (Athletic Bilbao)', 'David Raya (Arsenal)', 'Joan Garcia (Barcelona)']],
     ['后卫', ['Marc Cucurella (Chelsea)', 'Alejandro Grimaldo (Bayer Leverkusen)', 'Pau Cubarsi (Barcelona)', 'Aymeric Laporte (Athletic Bilbao)', 'Marc Pubill (Atletico Madrid)', 'Eric Garcia (Barcelona)', 'Marcos Llorente (Atletico Madrid)', 'Pedro Porro (Tottenham Hotspur)']],
     ['中场', ['Pedri (Barcelona)', 'Fabian Ruiz (PSG)', 'Martin Zubimendi (Arsenal)', 'Gavi (Barcelona)', 'Rodri (Manchester City)', 'Alex Baena (Atletico Madrid)', 'Mikel Merino (Spain)']],
     ['前锋', ['Mikel Oyarzabal (Real Sociedad)', 'Dani Olmo (Barcelona)', 'Nico Williams (Athletic Bilbao)', 'Yeremy Pino (Crystal Palace)', 'Ferran Torres (Barcelona)', 'Borja Iglesias (Celta de Vigo)', 'Victor Munoz (Osasuna)', 'Lamine Yamal (Barcelona)']],
   ]),
-  usa: buildSquad([
+  usa: buildSquad('usa', [
     ['门将', ['Chris Brady (Chicago Fire)', 'Matt Freese (New York City FC)', 'Matt Turner (New England Revolution)']],
     ['后卫', ['Max Arfsten (Columbus Crew)', 'Sergino Dest (PSV)', 'Alex Freeman (Villarreal)', 'Mark McKenzie (Toulouse)', 'Tim Ream (Charlotte FC)', 'Chris Richards (Crystal Palace)', 'Antonee Robinson (Fulham)', 'Miles Robinson (FC Cincinnati)', 'Joe Scally (Borussia Monchengladbach)', 'Auston Trusty (Celtic)']],
     ['中场', ['Brenden Aaronson (Leeds United)', 'Tyler Adams (AFC Bournemouth)', 'Sebastian Berhalter (Vancouver Whitecaps)', 'Weston McKennie (Juventus)', 'Christian Pulisic (AC Milan)', 'Gio Reyna (Borussia Monchengladbach)', 'Cristian Roldan (Seattle Sounders)', 'Malik Tillman (Bayer Leverkusen)', 'Tim Weah (Marseille)', 'Alejandro Zendejas (Club America)']],

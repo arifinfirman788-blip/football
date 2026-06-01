@@ -69,6 +69,10 @@ const officialSources = [
   {
     title: 'FIFA 参赛名单规则',
     url: 'https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/squad-lists-number-date'
+  },
+  {
+    title: 'Wikipedia 2026 FIFA World Cup squads',
+    url: 'https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_squads'
   }
 ];
 
@@ -206,13 +210,11 @@ const buildPlaceholderSquad = (teamName: string): SquadPlayerResearch[] => {
     ['中场', 8],
     ['前锋', 7],
   ] as const;
-  let number = 1;
   return plan.flatMap(([position, count]) => (
     Array.from({ length: count }, (_, idx) => ({
       name: `${teamName}${position}${idx + 1}`,
       englishName: `${teamName} ${position} ${idx + 1}`,
       position,
-      number: number++,
       status: '待确认' as const
     }))
   ));
