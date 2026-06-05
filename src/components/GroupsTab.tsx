@@ -3,20 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeft, HelpCircle } from 'lucide-react';
 import { assetUrl } from '../utils/assets';
 import { PredictionRecord } from '../types';
+import {
+  fetchMyRankingSummary,
+  fetchTotalLeaderboard,
+  fetchWeeklyLeaderboard,
+  getTodayDateKey,
+  MyRankingSummary,
+  RankingListUser,
+} from '../utils/rankingApi';
 
-interface LeaderboardUser {
-  rank: number;
-  name: string;
-  avatar: string;
-  level: number;
-  guesses: number;
-  accuracy: string;
-  points: number;
-}
+type LeaderboardUser = RankingListUser;
 
 interface GroupsTabProps {
   // 用户自己的竞猜记录，用于“我的排行”二级页计算已提交、积分、命中率。
@@ -66,120 +66,71 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   const [activeTab, setActiveTab] = useState<'daily' | 'all-time'>('daily');
   const [showRules, setShowRules] = useState<boolean>(false);
   const [showMyRankingDetail, setShowMyRankingDetail] = useState<boolean>(false);
+  const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [allTimeLeaderboard, setAllTimeLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [myWeeklyRanking, setMyWeeklyRanking] = useState<MyRankingSummary | null>(null);
+  const [myTotalRanking, setMyTotalRanking] = useState<MyRankingSummary | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const todayDateKey = getTodayDateKey();
 
-  /**
-   * TODO: 当前排行榜为演示数据。
-   * 正式版建议由后端分别提供“当日排行”和“总排行”，前端不要自行推算其他用户的积分。
-   */
-  const dailyLeaderboard: LeaderboardUser[] = [
-    {
-      rank: 1,
-      name: '绿茵达人',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=80',
-      level: 28,
-      guesses: 12,
-      accuracy: '85%',
-      points: 12
-    },
-    {
-      rank: 2,
-      name: '球场小诸葛',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=80',
-      level: 24,
-      guesses: 11,
-      accuracy: '78%',
-      points: 11
-    },
-    {
-      rank: 3,
-      name: '足球狂热者',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=80',
-      level: 22,
-      guesses: 10,
-      accuracy: '71%',
-      points: 10
-    },
-    {
-      rank: 4,
-      name: '进球机器',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=80',
-      level: 20,
-      guesses: 9,
-      accuracy: '69%',
-      points: 9
-    },
-    {
-      rank: 5,
-      name: '红黑传奇',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=80',
-      level: 18,
-      guesses: 8,
-      accuracy: '67%',
-      points: 8
-    },
-    {
-      rank: 6,
-      name: '战术大师',
-      avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=80',
-      level: 18,
-      guesses: 8,
-      accuracy: '62%',
-      points: 8
-    },
-    {
-      rank: 7,
-      name: '逆风翻盘',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=80',
-      level: 16,
-      guesses: 7,
-      accuracy: '58%',
-      points: 7
-    },
-    {
-      rank: 8,
-      name: '幸运星',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=80',
-      level: 15,
-      guesses: 7,
-      accuracy: '54%',
-      points: 7
-    },
-    {
-      rank: 9,
-      name: '蓝月亮',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=80',
-      level: 14,
-      guesses: 6,
-      accuracy: '50%',
-      points: 6
-    },
-    {
-      rank: 10,
-      name: '射手本色',
-      avatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=80',
-      level: 14,
-      guesses: 6,
-      accuracy: '46%',
-      points: 6
-    }
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const rawUserId = typeof window === 'undefined' ? null : window.localStorage.getItem('football.user-id');
+    const userId = rawUserId ? Number(rawUserId) : null;
 
-  const baseScoreLeaderboard: LeaderboardUser[] = dailyLeaderboard.map((user) => ({
-    ...user,
-    points: user.guesses
-  }));
+    const loadRankings = async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
 
-  const allTimeLeaderboard: LeaderboardUser[] = baseScoreLeaderboard.map((user) => {
-    const correctGuesses = Math.round(user.guesses * 8.2);
-    return {
-      ...user,
-      level: Math.round(user.level * 1.5),
-      guesses: correctGuesses,
-      points: correctGuesses
+        const [weeklyList, totalList] = await Promise.all([
+          fetchWeeklyLeaderboard(todayDateKey),
+          fetchTotalLeaderboard(),
+        ]);
+
+        if (cancelled) return;
+        setDailyLeaderboard(weeklyList);
+        setAllTimeLeaderboard(totalList);
+
+        if (userId && Number.isFinite(userId)) {
+          const [weeklyMine, totalMine] = await Promise.all([
+            fetchMyRankingSummary(userId, 'weekly', todayDateKey),
+            fetchMyRankingSummary(userId, 'total'),
+          ]);
+
+          if (cancelled) return;
+          setMyWeeklyRanking(weeklyMine);
+          setMyTotalRanking(totalMine);
+        } else if (!cancelled) {
+          setMyWeeklyRanking(null);
+          setMyTotalRanking(null);
+          setLoadError('未找到当前用户 ID，暂时无法加载“我的排行”。');
+        }
+      } catch (error) {
+        console.error(error);
+        if (cancelled) return;
+        setDailyLeaderboard([]);
+        setAllTimeLeaderboard([]);
+        setMyWeeklyRanking(null);
+        setMyTotalRanking(null);
+        setLoadError(error instanceof Error ? error.message : '排行榜接口加载失败。');
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
     };
-  }).sort((a,b) => b.points - a.points);
 
-  const activeLeaderboardList = activeTab === 'daily' ? baseScoreLeaderboard : allTimeLeaderboard;
+    loadRankings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [todayDateKey]);
+
+  const activeLeaderboardList = activeTab === 'daily' ? dailyLeaderboard : allTimeLeaderboard;
+  const activeMyRanking = activeTab === 'daily' ? myWeeklyRanking : myTotalRanking;
 
   // 当前用户统计：points 为 null 代表尚未结算，因此不计入命中率分母。
   const submittedCount = predictionHistory.length;
@@ -356,7 +307,18 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
 
       {/* 排行榜数据列表 */}
       <div className="flex-1 overflow-y-auto px-3.5 pt-2 pb-44 space-y-2 relative z-0 scrollbar-none">
-        {activeLeaderboardList.map((user) => {
+        {loadError && (
+          <div className="rounded-2xl border border-amber-400/15 bg-amber-500/8 px-3 py-2 text-[10px] text-amber-200">
+            {loadError}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="h-64 flex flex-col items-center justify-center text-slate-500 space-y-2">
+            <span className="text-2xl animate-pulse">🏆</span>
+            <span>排行榜加载中...</span>
+          </div>
+        ) : activeLeaderboardList.length > 0 ? activeLeaderboardList.map((user) => {
           const isRank1 = user.rank === 1;
           const isRank2 = user.rank === 2;
           const isRank3 = user.rank === 3;
@@ -444,7 +406,12 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
               </span>
             </div>
           );
-        })}
+        }) : (
+          <div className="h-64 flex flex-col items-center justify-center text-slate-500 space-y-2">
+            <span>📭</span>
+            <span>暂无排行榜数据</span>
+          </div>
+        )}
       </div>
 
       {/* 底部“我的排行”入口：点击后进入用户积分明细二级页 */}
@@ -459,20 +426,20 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
             <span className="text-xs">⚽</span>
           </div>
           <span className="text-[11px] font-bold">
-            我的排行 <strong className="text-sm font-black text-[#00e676] font-mono leading-none ml-0.5">15</strong>
+            我的排行 <strong className="text-sm font-black text-[#00e676] font-mono leading-none ml-0.5">{activeMyRanking?.rank ?? '-'}</strong>
           </span>
         </div>
 
         {/* 用户实时统计 */}
         <div className="flex items-center space-x-2 text-[10.5px]">
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
-          <span className="text-slate-300">提交 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">{submittedCount}</strong></span>
+          <span className="text-slate-300">提交 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">{activeMyRanking?.submittedCount ?? submittedCount}</strong></span>
           
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
-          <span className="text-slate-300">命中率 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">{accuracy}</strong></span>
+          <span className="text-slate-300">命中率 <strong className="text-[#00e676] font-mono font-extrabold ml-0.5">{activeMyRanking?.accuracy ?? accuracy}</strong></span>
           
           <span className="h-3.5 w-[1px] bg-slate-700/65"></span>
-          <span className="text-slate-300 font-medium">积分 <strong className="text-amber-400 font-mono font-extrabold ml-0.5">{earnedPoints}</strong></span>
+          <span className="text-slate-300 font-medium">积分 <strong className="text-amber-400 font-mono font-extrabold ml-0.5">{activeMyRanking?.points ?? earnedPoints}</strong></span>
         </div>
 
         {/* 进入二级页箭头 */}

@@ -15,6 +15,7 @@ import { ViewingLocationsPage } from './components/ViewingLocationsPage';
 import { RewardRulesPage } from './components/RewardRulesPage';
 
 import { Match, PredictionRecord } from './types';
+import { storage } from './utils/storage';
 
 /**
  * 当前前端实际入口说明：
@@ -24,6 +25,7 @@ import { Match, PredictionRecord } from './types';
  *   这些文件不会从 App.tsx 渲染，后续恢复对应页面时再重新引入。
  */
 export default function App() {
+  const predictionStorageKey = 'football.prediction-history';
   /**
    * 全局竞猜记录。
    * 当前保存在前端内存中，刷新页面后会清空。正式开发时建议替换为：
@@ -31,7 +33,9 @@ export default function App() {
    * 2. 提交竞猜时调用后端接口；
    * 3. 服务端在赛后写入 points 和 status，前端只负责展示。
    */
-  const [predictionHistory, setPredictionHistory] = useState<PredictionRecord[]>([]);
+  const [predictionHistory, setPredictionHistory] = useState<PredictionRecord[]>(() => (
+    storage.getJson<PredictionRecord[]>(predictionStorageKey, [])
+  ));
 
   // AI 预测页的比赛上下文。请求标识用于允许用户重复点击同一场比赛并重新发起分析。
   const [selectedMatchForAI, setSelectedMatchForAI] = useState<Match | null>(null);
@@ -173,6 +177,10 @@ export default function App() {
       window.clearTimeout(removeTimer);
     };
   }, [showSplashAd, isSplashReady]);
+
+  React.useEffect(() => {
+    storage.setJson(predictionStorageKey, predictionHistory);
+  }, [predictionHistory]);
 
   return (
     <div className="min-h-screen bg-[#030a0f] text-slate-100 flex items-center justify-center font-sans relative overflow-hidden antialiased">

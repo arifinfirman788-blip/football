@@ -4,11 +4,18 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const backendTarget = process.env.VITE_PROXY_TARGET || 'http://10.0.0.34:35800';
+  const arkTarget = process.env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
+
   return {
-    base: process.env.VITE_BASE_PATH || '/',
+    // 默认使用相对路径，适配小程序 web-view、静态子目录和任意嵌入场景。
+    // 如果明确部署在固定子路径下，例如 GitHub Pages /football/，再通过 VITE_BASE_PATH 覆盖。
+    base: process.env.VITE_BASE_PATH || './',
     build: {
-      target: 'safari13',
-      cssTarget: 'safari13'
+      outDir: 'football',
+      target: 'es2018',
+      cssTarget: 'safari13',
+      modulePreload: false,
     },
     plugins: [react(), tailwindcss()],
     resolve: {
@@ -22,6 +29,17 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      proxy: {
+        '/api': {
+          target: backendTarget,
+          changeOrigin: true,
+        },
+        '/ark-api': {
+          target: arkTarget,
+          changeOrigin: true,
+          rewrite: (pathValue) => pathValue.replace(/^\/ark-api/, ''),
+        },
+      },
     },
   };
 });

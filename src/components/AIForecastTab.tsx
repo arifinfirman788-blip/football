@@ -5,14 +5,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Match } from '../types';
-import { Sparkles, Send, RefreshCw, HelpCircle, CheckCircle2 } from 'lucide-react';
-import { apiUrl } from '../utils/api';
+import { Sparkles, Send } from 'lucide-react';
+import { ArkConversationMessage, LocalAiSource, streamArkPrediction } from '../utils/localAi';
+import { storage } from '../utils/storage';
 
 interface ChatMessage {
+  id: string;
   sender: 'user' | 'ai';
   text: string;
   timestamp: string;
-  sources?: Array<{ title: string; uri: string }>;
+  sources?: LocalAiSource[];
 }
 
 interface AIForecastTabProps {
@@ -27,6 +29,36 @@ interface AIForecastTabProps {
  * 组件切换后仍保留在模块级 Set 中，避免 React 重渲染导致同一场比赛重复发送两次问题。
  */
 const autoTriggeredRequestKeys = new Set<string>();
+const createMessageId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const chatSessionStorageKey = 'football.ai-forecast.messages';
+const createGreetingMessage = (): ChatMessage => ({
+  id: createMessageId(),
+  sender: 'ai',
+  text: '您好，我是黄小西，您的世界杯观赛搭子！有什么足球相关的问题都可以咨询我哦~',
+  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+});
+
+const toArkConversationMessages = (chatMessages: ChatMessage[]): ArkConversationMessage[] => {
+  let hasUserMessage = false;
+
+  return chatMessages.reduce<ArkConversationMessage[]>((conversation, message) => {
+    const content = message.text.trim();
+    if (!content) return conversation;
+
+    if (message.sender === 'user') {
+      hasUserMessage = true;
+      conversation.push({ role: 'user', content });
+      return conversation;
+    }
+
+    if (!hasUserMessage) {
+      return conversation;
+    }
+
+    conversation.push({ role: 'assistant', content });
+    return conversation;
+  }, []);
+};
 
 export const AIForecastTab: React.FC<AIForecastTabProps> = ({ 
   selectedMatch, 
@@ -34,17 +66,25 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   onSelectMatch,
   onBackToSchedule
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      sender: 'ai',
-      text: `您好，我是黄小西，您的世界杯观赛搭子！有什么足球相关的问题都可以咨询我哦~`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => (
+    storage.getSessionJson<ChatMessage[]>(chatSessionStorageKey, [createGreetingMessage()])
+  ));
 
   const [inputValue, setInputValue] = useState<string>('');
-  const [isTyping, setIsTyping] = useState<boolean>(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [showCopyToast, setShowCopyToast] = useState<boolean>(false);
+  const activeStreamAbortRef = useRef<AbortController | null>(null);
+  const copyToastTimerRef = useRef<number | null>(null);
+  const typewriterStateRef = useRef<{
+    messageId: string | null;
+    queue: string;
+    frameId: number | null;
+  }>({
+    messageId: null,
+    queue: '',
+    frameId: null,
+  });
 
   // 预测页快捷问题。运营需要调整推荐问法时，修改这里即可。
   const suggestedQuestions = [
@@ -59,145 +99,278 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     if (selectedMatch) {
       const triggerKey = selectedMatchRequestKey || selectedMatch.id;
       if (autoTriggeredRequestKeys.has(triggerKey)) return;
-      autoTriggeredRequestKeys.add(triggerKey);
-      triggerMatchChatPrediction(selectedMatch);
+
+      // 开发环境 StrictMode 会先执行一次“试挂载再卸载”。
+      // 延迟到当前页面真正稳定挂载后再发请求，避免第一轮假挂载把 SSE 先发出去又立刻 abort。
+      const timerId = window.setTimeout(() => {
+        if (autoTriggeredRequestKeys.has(triggerKey)) return;
+        autoTriggeredRequestKeys.add(triggerKey);
+        triggerMatchChatPrediction(selectedMatch);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timerId);
+      };
     }
   }, [selectedMatch, selectedMatchRequestKey]);
 
-  // 新消息或“正在输入”状态变化时，将对话滚动到底部。
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => {
+    storage.setSessionJson(chatSessionStorageKey, messages);
+  }, [messages]);
+
+  useEffect(() => () => {
+    activeStreamAbortRef.current?.abort();
+    if (typewriterStateRef.current.frameId !== null) {
+      window.cancelAnimationFrame(typewriterStateRef.current.frameId);
+    }
+    if (copyToastTimerRef.current !== null) {
+      window.clearTimeout(copyToastTimerRef.current);
+    }
+  }, []);
+
+  const upsertAiMessage = (messageId: string, updater: (message: ChatMessage) => ChatMessage) => {
+    setMessages(prev => prev.map((message) => (
+      message.id === messageId ? updater(message) : message
+    )));
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
+  const handleClearSessionMessages = () => {
+    activeStreamAbortRef.current?.abort();
+    resetTypewriterForMessage(null);
+    setIsStreaming(false);
+    setStreamingMessageId(null);
+    const greetingMessage = createGreetingMessage();
+    setMessages([greetingMessage]);
+    storage.removeSessionItem(chatSessionStorageKey);
+  };
+
+  const showCopiedLinkToast = () => {
+    setShowCopyToast(true);
+    if (copyToastTimerRef.current !== null) {
+      window.clearTimeout(copyToastTimerRef.current);
+    }
+
+    copyToastTimerRef.current = window.setTimeout(() => {
+      setShowCopyToast(false);
+      copyToastTimerRef.current = null;
+    }, 1800);
+  };
+
+  const copySourceLink = async (url: string) => {
+    if (!url) return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        textarea.setAttribute('readonly', 'true');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      showCopiedLinkToast();
+    } catch (error) {
+      console.error('复制参考资料链接失败:', error);
+    }
+  };
+
+  const flushTypewriterQueue = () => {
+    const state = typewriterStateRef.current;
+
+    if (!state.messageId) {
+      state.frameId = null;
+      state.queue = '';
+      return;
+    }
+
+    if (!state.queue) {
+      state.frameId = null;
+      return;
+    }
+
+    const nextChunkSize = Math.max(1, Math.ceil(state.queue.length / 18));
+    const nextTextSlice = state.queue.slice(0, nextChunkSize);
+    state.queue = state.queue.slice(nextChunkSize);
+
+    upsertAiMessage(state.messageId, (message) => ({
+      ...message,
+      text: `${message.text}${nextTextSlice}`,
+    }));
+
+    state.frameId = window.requestAnimationFrame(flushTypewriterQueue);
+  };
+
+  const enqueueTypewriterDelta = (messageId: string, delta: string) => {
+    const state = typewriterStateRef.current;
+    if (state.messageId !== messageId) {
+      state.messageId = messageId;
+      state.queue = '';
+      if (state.frameId !== null) {
+        window.cancelAnimationFrame(state.frameId);
+        state.frameId = null;
+      }
+    }
+
+    state.queue += delta;
+
+    if (state.frameId === null) {
+      state.frameId = window.requestAnimationFrame(flushTypewriterQueue);
+    }
+  };
+
+  const resetTypewriterForMessage = (messageId: string | null) => {
+    const state = typewriterStateRef.current;
+    state.messageId = messageId;
+    state.queue = '';
+    if (state.frameId !== null) {
+      window.cancelAnimationFrame(state.frameId);
+      state.frameId = null;
+    }
+  };
 
   const triggerMatchChatPrediction = async (match: Match) => {
     const userPromptText = `请帮我联网深度分析焦点战役【${match.homeTeam.flag} ${match.homeTeam.name} VS ${match.awayTeam.flag} ${match.awayTeam.name}】，评估双方近期状态、交手细节并预测可能胜平负比分！`;
-    
-    // 先把用户问题写入会话，再异步请求服务端。
-    setMessages(prev => [
-      ...prev,
+    const aiMessageId = createMessageId();
+    const nextConversationMessages: ChatMessage[] = [
+      ...messages,
       {
+        id: createMessageId(),
         sender: 'user',
         text: userPromptText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }
+      },
+    ];
+    
+    // 先把用户问题写入会话，再异步请求服务端。
+    setMessages([
+      ...nextConversationMessages,
+      {
+        id: aiMessageId,
+        sender: 'ai',
+        text: '',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
     ]);
-    setIsTyping(true);
+    setIsStreaming(true);
+    setStreamingMessageId(aiMessageId);
+    activeStreamAbortRef.current?.abort();
+    resetTypewriterForMessage(aiMessageId);
+    const abortController = new AbortController();
+    activeStreamAbortRef.current = abortController;
 
     try {
-      const resp = await fetch(apiUrl('/api/predict'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchId: match.id,
-          homeTeam: match.homeTeam,
-          awayTeam: match.awayTeam,
-          stage: match.stage,
-          time: match.time
-        })
+      await streamArkPrediction({
+        match,
+        messages: toArkConversationMessages(nextConversationMessages),
+        signal: abortController.signal,
+        onChunk: (delta) => {
+          enqueueTypewriterDelta(aiMessageId, delta);
+        },
+        onSources: (sources) => {
+          upsertAiMessage(aiMessageId, (message) => ({
+            ...message,
+            sources,
+          }));
+        },
       });
-      const data = await resp.json();
-      if (data.success) {
-        setMessages(prev => [
-          ...prev,
-          {
-            sender: 'ai',
-            text: data.prediction,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            sources: data.sources
-          }
-        ]);
-      } else {
-        throw new Error(data.error);
-      }
     } catch (err) {
       console.error(err);
-      // 前端离线兜底：服务端不可用时仍给出明确提示，避免聊天区空白。
-      const mockResult = `### 🏆 【AI 智能推荐落盘】 ${match.homeTeam.flag} ${match.homeTeam.name} VS ${match.awayTeam.flag} ${match.awayTeam.name}
-> ⚠️ *提示：当前离线状态，战术脑已启动本地语料沙盒进行离线拟合。*
+      const message = err instanceof Error ? err.message : 'Ark 接口调用失败，请稍后重试。';
+      resetTypewriterForMessage(aiMessageId);
+      const mockResult = `### 接口调用失败
+> ⚠️ ${message}
 
-#### 1. 双方近期状态与核心伤停
-* **${match.homeTeam.name}**：近期3轮保持全胜，边路套边极其强势。全队体能出色，主打 4-3-3 攻击型阵位。
-* **${match.awayTeam.name}**：防守中坚在上一场曾有轻微肌肉不适拉伤，中前场配合默契，但客场打法偏缓慢防守。
-
-#### 2. 大模型综合预测分析与推荐比分
-* **胜平负预测概率**：
-  * **主队胜**：**45%** | **两队打平**：**35%** | **客队胜**：**20%**
-* **推荐比分**：**2-1** 或 **1-1**`;
-
-      setMessages(prev => [
-        ...prev,
-        {
-          sender: 'ai',
-          text: mockResult,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }
-      ]);
+#### 本次请求未使用本地知识库兜底
+* 对阵：**${match.homeTeam.name} VS ${match.awayTeam.name}**
+* 接口：**Ark Bot**
+* 状态：**请求失败，未生成预测结果**`;
+      upsertAiMessage(aiMessageId, (currentMessage) => ({
+        ...currentMessage,
+        text: mockResult,
+      }));
     } finally {
-      setIsTyping(false);
+      setIsStreaming(false);
+      setStreamingMessageId((current) => (current === aiMessageId ? null : current));
+      if (activeStreamAbortRef.current === abortController) {
+        activeStreamAbortRef.current = null;
+      }
     }
   };
 
   const handleSendUserQuestion = async (queryText: string) => {
     if (!queryText.trim()) return;
     const finalQuery = queryText.trim();
-    setInputValue('');
-
-    // 普通问答与比赛自动分析共用 /api/predict。
-    setMessages(prev => [
-      ...prev,
+    const aiMessageId = createMessageId();
+    const nextConversationMessages: ChatMessage[] = [
+      ...messages,
       {
+        id: createMessageId(),
         sender: 'user',
         text: finalQuery,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }
+      },
+    ];
+    setInputValue('');
+
+    // 普通问答与比赛自动分析共用本地知识库生成逻辑。
+    setMessages([
+      ...nextConversationMessages,
+      {
+        id: aiMessageId,
+        sender: 'ai',
+        text: '',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
     ]);
-    setIsTyping(true);
+    setIsStreaming(true);
+    setStreamingMessageId(aiMessageId);
+    activeStreamAbortRef.current?.abort();
+    resetTypewriterForMessage(aiMessageId);
+    const abortController = new AbortController();
+    activeStreamAbortRef.current = abortController;
 
     try {
-      const resp = await fetch(apiUrl('/api/predict'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: finalQuery })
+      await streamArkPrediction({
+        question: finalQuery,
+        messages: toArkConversationMessages(nextConversationMessages),
+        signal: abortController.signal,
+        onChunk: (delta) => {
+          enqueueTypewriterDelta(aiMessageId, delta);
+        },
+        onSources: (sources) => {
+          upsertAiMessage(aiMessageId, (message) => ({
+            ...message,
+            sources,
+          }));
+        },
       });
-      const data = await resp.json();
-      if (data.success) {
-        setMessages(prev => [
-          ...prev,
-          {
-            sender: 'ai',
-            text: data.prediction,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            sources: data.sources
-          }
-        ]);
-      } else {
-        throw new Error(data.error);
-      }
     } catch (err) {
       console.error(err);
-      const mockPromptAnswer = `### ⚽ 【双星 AI 离线战术智库】
-> ⚠️ *提示：当前未检测到 valid GEMINI_API_KEY。沙盒大脑已从本地战术库中调用数据配合解答。*
+      const message = err instanceof Error ? err.message : 'Ark 接口调用失败，请稍后重试。';
+      resetTypewriterForMessage(aiMessageId);
+      const mockPromptAnswer = `### 接口调用失败
+> ⚠️ ${message}
 
-您好！关于您咨询的：**"${finalQuery}"**
-
-1. **基本面评估**：当前球队状态正针对淘汰赛紧密调整，后防在传控和长传打法博弈里容易扮演胜负手。
-2. **阵型推演**：该话题在足球阵位研究中比较经典，各主教练对于地面压迫或全场攻守平衡都有针对性特训。
-3. **模型建议**：配置火山方舟 Bot 环境变量后，即可激活联网实时足球预测。`;
-
-      setMessages(prev => [
-        ...prev,
-        {
-          sender: 'ai',
-          text: mockPromptAnswer,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }
-      ]);
+#### 本次请求未使用本地知识库兜底
+* 你的问题：**${finalQuery}**
+* 接口：**Ark Bot**
+* 状态：**请求失败，未生成回答内容**`;
+      upsertAiMessage(aiMessageId, (currentMessage) => ({
+        ...currentMessage,
+        text: mockPromptAnswer,
+      }));
     } finally {
-      setIsTyping(false);
+      setIsStreaming(false);
+      setStreamingMessageId((current) => (current === aiMessageId ? null : current));
+      if (activeStreamAbortRef.current === abortController) {
+        activeStreamAbortRef.current = null;
+      }
     }
   };
 
@@ -297,7 +470,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden relative select-none">
+    <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden relative select-none pb-[68px]">
       
       {/* 顶部标题栏 */}
       <div className="relative py-3.5 px-4 bg-[#081521]/60 border-b border-white/5 flex items-center justify-between z-10 shrink-0">
@@ -310,88 +483,93 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             <span className="text-[8px] text-emerald-400 font-mono block uppercase tracking-[1.5px] leading-none mt-0.5">WORLD CUP MATE</span>
           </div>
         </div>
-        <span className="text-[9px] bg-[#0d263b] text-slate-400 font-bold border border-white/5 py-0.5 px-2 rounded-md">
-          🟢 联网分析
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] bg-[#0d263b] text-slate-400 font-bold border border-white/5 py-0.5 px-2 rounded-md">
+            🟢 联网分析
+          </span>
+          <button
+            type="button"
+            onClick={handleClearSessionMessages}
+            className="text-[9px] bg-[#102030] text-slate-300 font-bold border border-white/8 py-0.5 px-2 rounded-md hover:text-white hover:border-[#00e676]/25 hover:bg-[#13283c] transition-all cursor-pointer"
+          >
+            清空记录
+          </button>
+        </div>
       </div>
 
       {/* 可滚动消息区 */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-none pb-48 relative z-0">
-        {messages.map((msg, idx) => {
-          const isUser = msg.sender === 'user';
-          return (
-            <div 
-              key={idx} 
-              className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-[85%] rounded-3xl p-3.5 shadow-md flex flex-col relative ${
-                isUser 
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-500 rounded-tr-none text-white' 
-                  : 'bg-[#0f2334]/95 border border-[#1b3c58]/35 rounded-tl-none text-slate-200'
-              }`}>
-                {/* 消息正文 */}
-                <div className="break-words">
-                  {isUser ? (
-                    <span className="text-xs font-semibold leading-relaxed font-sans">{msg.text}</span>
-                  ) : (
-                    renderAIPredictionMarkdown(msg.text)
-                  )}
-                </div>
+      <div
+        className="flex-1 overflow-y-auto px-4 py-4 scrollbar-none relative z-0 overscroll-contain [transform:rotate(180deg)]"
+      >
+        <div className="min-h-full flex flex-col">
+          <div className="flex-1 min-h-8" />
 
-                {/* 联网搜索来源 */}
-                {!isUser && msg.sources && msg.sources.length > 0 && (
-                  <div className="mt-3.5 pt-2 border-t border-white/5 flex flex-col space-y-1">
-                    <span className="text-[9px] text-[#00e676]/90 font-extrabold uppercase tracking-wider flex items-center space-x-1">
-                      <span>🌐</span>
-                      <span>网络检索参考源:</span>
-                    </span>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {msg.sources.slice(0, 3).map((src, srcIdx) => (
-                        <a
-                          key={srcIdx}
-                          href={src.uri}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="bg-[#0b1c2a] border border-white/5 rounded px-2 py-0.5 text-[8px] font-mono text-slate-300 hover:text-white hover:border-[#00e676]/35 transition-all max-w-[120px] truncate block"
-                        >
-                          🔗 {src.title}
-                        </a>
-                      ))}
-                    </div>
+          {[...messages].reverse().map((msg) => {
+            const isUser = msg.sender === 'user';
+            const showThinkingState = !isUser && isStreaming && streamingMessageId === msg.id && !msg.text.trim();
+            return (
+              <div 
+                key={msg.id} 
+                className={`flex w-full mb-4 [transform:rotate(180deg)] ${isUser ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`max-w-[85%] rounded-3xl p-3.5 shadow-md flex flex-col relative ${
+                  isUser 
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-500 rounded-tr-none text-white' 
+                    : 'bg-[#0f2334]/95 border border-[#1b3c58]/35 rounded-tl-none text-slate-200'
+                } ${!isUser && isStreaming && streamingMessageId === msg.id ? 'min-h-[84px]' : ''}`}>
+                  {/* 消息正文 */}
+                  <div className="break-words">
+                    {isUser ? (
+                      <span className="text-xs font-semibold leading-relaxed font-sans">{msg.text}</span>
+                    ) : showThinkingState ? (
+                      <div className="flex items-center gap-2 text-[11px] text-emerald-300/95 min-h-6">
+                        <span className="font-semibold tracking-wide">思考中</span>
+                        <div className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" />
+                        </div>
+                      </div>
+                    ) : (
+                      renderAIPredictionMarkdown(msg.text)
+                    )}
                   </div>
-                )}
 
-                {/* 消息时间 */}
-                <span className="text-[8px] text-slate-500 font-mono tracking-tight text-right mt-1.5 self-end block leading-none">
-                  {msg.timestamp}
-                </span>
+                  {/* 联网搜索来源 */}
+                  {!isUser && msg.sources && msg.sources.length > 0 && (
+                    <div className="mt-3.5 pt-2 border-t border-white/5 flex flex-col space-y-1">
+                      <span className="text-[9px] text-[#00e676]/90 font-extrabold uppercase tracking-wider flex items-center space-x-1">
+                        <span>🌐</span>
+                        <span>参考资料:</span>
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {msg.sources.slice(0, 3).map((src, srcIdx) => (
+                          <button
+                            type="button"
+                            key={srcIdx}
+                            onClick={() => copySourceLink(src.uri)}
+                            className="bg-[#0b1c2a] border border-white/5 rounded px-2 py-0.5 text-[8px] font-mono text-slate-300 hover:text-white hover:border-[#00e676]/35 transition-all max-w-[120px] truncate block"
+                          >
+                            🔗 {src.title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 消息时间 */}
+                  <span className="text-[8px] text-slate-500 font-mono tracking-tight text-right mt-1.5 self-end block leading-none">
+                    {msg.timestamp}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
-
-        {/* AI 输入中状态 */}
-        {isTyping && (
-          <div className="flex w-full justify-start">
-            <div className="bg-[#0f2334]/95 border border-[#1b3c58]/35 rounded-3xl rounded-tl-none p-3.5 shadow-md max-w-[70%] flex flex-col">
-              <span className="text-[10px] text-teal-300 font-semibold flex items-center space-x-1 animate-pulse mb-1">
-                <RefreshCw className="w-3 h-3 animate-spin text-teal-400" />
-                <span>黄小西正在检索最新战报并撰写分析中...</span>
-              </span>
-              <div className="flex space-x-1.5 mt-2 pl-3">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
+            );
+          })}
+        </div>
       </div>
 
       {/* 底部操作区：快捷问题 + 输入框 */}
-      <div className="absolute bottom-[68px] inset-x-0 bg-gradient-to-t from-[#050f17] via-[#050f17]/95 to-transparent pt-3 pb-3 px-3.5 z-10 border-t border-white/5 select-none shrink-0">
+      <div className="shrink-0 bg-gradient-to-t from-[#050f17]/92 via-[#050f17]/72 to-transparent backdrop-blur-xl pt-3 pb-3 px-3.5 border-t border-white/5 select-none">
         
         {/* 横向滚动快捷问题 */}
         <div className="mb-2">
@@ -404,7 +582,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
                 key={idx}
                 type="button"
                 onClick={() => handleSendUserQuestion(q.prompt)}
-                className="px-2.5 py-1 text-[9.5px] bg-[#0f2334]/80 text-teal-300 border border-[#1b3c58]/35 rounded-full hover:bg-emerald-500/10 hover:text-[#00e676] hover:border-[#00e676]/35 transition-all shrink-0 cursor-pointer"
+                className="px-2.5 py-1 text-[9.5px] text-teal-200/88 border border-white/12 rounded-full bg-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] hover:bg-white/6 hover:text-[#00e676] hover:border-[#00e676]/28 transition-all shrink-0 cursor-pointer"
               >
                 {q.text}
               </button>
@@ -426,13 +604,23 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
           />
           <button
             type="submit"
-            disabled={!inputValue.trim() || isTyping}
+            disabled={!inputValue.trim() || isStreaming}
             className="w-8 h-8 rounded-xl bg-[#00e676] text-slate-950 flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-[#00e676]/10"
           >
             <Send className="w-3.5 h-3.5" />
           </button>
         </form>
       </div>
+
+      {showCopyToast && (
+        <div className="absolute top-1/2 left-1/2 z-50 w-64 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[#00e676]/45 bg-[#061421]/95 px-5 py-4 text-center shadow-[0_12px_30px_rgba(0,0,0,0.85)] select-none">
+          <div className="mb-2 text-lg">🔗</div>
+          <div className="text-xs font-black tracking-wide text-white uppercase">链接已复制</div>
+          <div className="mt-1.5 text-[10.5px] leading-relaxed text-slate-300">
+            请前往系统外浏览器粘贴链接后打开
+          </div>
+        </div>
+      )}
 
     </div>
   );

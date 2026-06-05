@@ -9,7 +9,6 @@ import { Player } from '../types';
 import { TrophySvg } from './Svgs';
 import { SquadPlayerResearch, TEAM_RESEARCH_DATA, getFallbackTeamResearch } from '../researchData';
 import { STAR_PLAYER_PRIORITY } from '../confirmedSquads';
-import { apiUrl } from '../utils/api';
 
 /**
  * 【当前未在前端使用】
@@ -111,74 +110,30 @@ export const TeamDetail: React.FC<TeamDetailProps> = ({ teamId, onBack, onPlayer
     };
   };
 
-  const normalizeRemotePlayer = (profile: Partial<Player>, entry: SquadPlayerResearch, index: number): Player => {
+  const getLocalDetailedPlayerProfile = (entry: SquadPlayerResearch, index: number): Player => {
     const fallback = getPlayerProfile(entry, index, 'confirmed');
     return {
       ...fallback,
-      ...profile,
-      profileStatus: 'confirmed',
-      id: profile.id || fallback.id,
-      name: profile.name || fallback.name,
-      englishName: profile.englishName || fallback.englishName,
-      number: profile.number ?? fallback.number,
-      position: profile.position || fallback.position,
-      photo: profile.photo || fallback.photo,
-      teamName: profile.teamName || fallback.teamName,
-      flag: profile.flag || fallback.flag,
-      worldRank: profile.worldRank || fallback.worldRank,
-      age: profile.age || fallback.age,
-      height: profile.height || fallback.height,
-      weight: profile.weight || fallback.weight,
-      club: profile.club || fallback.club,
-      nationality: profile.nationality || fallback.nationality,
-      stats: profile.stats || fallback.stats,
-      starRatings: profile.starRatings || fallback.starRatings,
-      transfers: profile.transfers || fallback.transfers,
-      profileSources: profile.profileSources || fallback.profileSources,
+      profileSummary: `${entry.name} 当前以本地静态资料展示。页面已保留球队、位置、基础能力和俱乐部信息，适合纯前端演示场景。`,
+      profileDataNote: entry.status === '官方'
+        ? '当前为前端内置球员档案，无需依赖服务端生成。后续可按需接入真实球员数据库。'
+        : '该球员仍处于待确认或预测名单状态，因此仅展示本地基础信息。',
+      profileUpdatedAt: research.updatedAt,
+      profileSources: research.sources.map((source) => ({
+        title: source.title,
+        uri: source.url,
+      })),
     };
   };
 
-  const handleSquadPlayerClick = async (entry: SquadPlayerResearch, index: number) => {
+  const handleSquadPlayerClick = (entry: SquadPlayerResearch, index: number) => {
     // 非官方名单不做联网详情，避免为未确认球员生成不可靠档案。
     if (entry.status !== '官方') {
       onPlayerSelect(getPlayerProfile(entry, index, 'pending'));
       return;
     }
 
-    onPlayerSelect(getPlayerProfile(entry, index, 'loading'));
-
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 8000);
-
-    try {
-      const response = await fetch(apiUrl('/api/player-profile'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          player: entry,
-          team,
-          teamResearch: {
-            englishName: research.englishName,
-            fifaRank: research.fifaRank,
-            coach: research.coach,
-          },
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || '球员资料检索失败');
-      }
-      onPlayerSelect(normalizeRemotePlayer(data.profile, entry, index));
-    } catch (error) {
-      console.error(error);
-      onPlayerSelect({
-        ...getPlayerProfile(entry, index, 'confirmed'),
-        profileDataNote: '联网资料暂时不可用，当前显示本地已知基础信息；请稍后重试。',
-      });
-    } finally {
-      window.clearTimeout(timeout);
-    }
+    onPlayerSelect(getLocalDetailedPlayerProfile(entry, index));
   };
 
   return (

@@ -3,39 +3,109 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
-import { MATCHES_DATA, GROUPS_DATA } from '../data';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Match } from '../types';
 import { assetUrl } from '../utils/assets';
+import {
+  fetchGroupTeams,
+  fetchMyPredictionMatches,
+  fetchScheduleMatches,
+  getScheduleFallbackMatches,
+  ScheduleGroupData,
+} from '../utils/scheduleApi';
 
 interface ScheduleTabProps {
   onTeamSelect: (teamId: string) => void;
   onAIPredictionClick: (match: Match) => void;
 }
 
-export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPredictionClick }) => {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'group' | 'knockout' | 'follow'>('all');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
-  /**
-   * 我的关注目前是前端演示状态。
-   * 正式版建议登录后从后端读取，并在 toggleStar 中调用收藏/取消收藏接口。
-   */
-  const [starredMatches, setStarredMatches] = useState<string[]>(['m1', 'm3']);
+const DEFAULT_GROUP_OPTIONS = [
+  { id: 'A', numericId: 1, name: 'A组' },
+  { id: 'B', numericId: 2, name: 'B组' },
+  { id: 'C', numericId: 3, name: 'C组' },
+  { id: 'D', numericId: 4, name: 'D组' },
+  { id: 'E', numericId: 5, name: 'E组' },
+  { id: 'F', numericId: 6, name: 'F组' },
+  { id: 'G', numericId: 7, name: 'G组' },
+  { id: 'H', numericId: 8, name: 'H组' },
+  { id: 'I', numericId: 9, name: 'I组' },
+  { id: 'J', numericId: 10, name: 'J组' },
+  { id: 'K', numericId: 11, name: 'K组' },
+  { id: 'L', numericId: 12, name: 'L组' },
+] as const;
 
-  const toggleStar = (e: React.MouseEvent, matchId: string) => {
-    e.stopPropagation();
-    setStarredMatches(prev => 
-      prev.includes(matchId) ? prev.filter(id => id !== matchId) : [...prev, matchId]
-    );
-  };
+export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPredictionClick }) => {
+  const [activeCategory, setActiveCategory] = useState<'all' | 'group' | 'knockout' | 'mine'>('all');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
+  const [matches, setMatches] = useState<Match[]>(() => getScheduleFallbackMatches());
+  const [myPredictionMatches, setMyPredictionMatches] = useState<Match[]>([]);
+  const [groupDataList, setGroupDataList] = useState<ScheduleGroupData[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [myPredictionError, setMyPredictionError] = useState<string | null>(null);
 
   const getBeijingKickoffLabel = (match: Match) => {
     const dateLabel = match.time.replace(/^北京时间\s*/, '');
     return `${dateLabel} ${match.timestamp}`;
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const rawUserId = typeof window === 'undefined' ? null : window.localStorage.getItem('football.user-id');
+    const userId = rawUserId ? Number(rawUserId) : null;
+
+    const loadMatches = async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const nextMatches = await fetchScheduleMatches();
+        if (cancelled) return;
+        setMatches(nextMatches);
+
+        const nextGroupResults = await Promise.allSettled(
+          DEFAULT_GROUP_OPTIONS.map((group) => fetchGroupTeams(group.numericId))
+        );
+        if (cancelled) return;
+
+        const nextGroupDataList = nextGroupResults
+          .filter((result): result is PromiseFulfilledResult<ScheduleGroupData> => result.status === 'fulfilled')
+          .map((result) => result.value)
+          .sort((a, b) => a.sortNo - b.sortNo || a.id.localeCompare(b.id));
+
+        setGroupDataList(nextGroupDataList);
+
+        if (userId && Number.isFinite(userId)) {
+          setMyPredictionError(null);
+          const myMatches = await fetchMyPredictionMatches(userId);
+          if (cancelled) return;
+          setMyPredictionMatches(myMatches);
+        } else if (!cancelled) {
+          setMyPredictionMatches([]);
+          setMyPredictionError('未找到当前用户 ID，暂时无法加载“我的竞猜”。');
+        }
+      } catch (error) {
+        console.error(error);
+        if (cancelled) return;
+        setMatches(getScheduleFallbackMatches());
+        setGroupDataList([]);
+        setMyPredictionMatches([]);
+        setLoadError(error instanceof Error ? `${error.message}，已展示默认赛程数据。` : '赛程接口加载失败，已展示默认赛程数据。');
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // “全部赛程 / 小组赛 / 淘汰赛”的一级筛选。
-  const filteredMatches = MATCHES_DATA.filter((match) => {
+  const filteredMatches = matches.filter((match) => {
     if (activeCategory === 'group') {
       return match.stage.includes('小组赛');
     }
@@ -54,15 +124,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
     daysMap[match.time].push(match);
   });
 
-  const followMatches = useMemo(
-    () => MATCHES_DATA.filter(match => starredMatches.includes(match.id)),
-    [starredMatches]
-  );
-
   const groupMatchesMap = useMemo(() => {
-    // 小组赛页同时展示小组积分表和本组赛程，预先构造 group -> matches 映射。
     const map: Record<string, Match[]> = {};
-    MATCHES_DATA.forEach((match) => {
+    matches.forEach((match) => {
       if (!match.group) return;
       if (!map[match.group]) {
         map[match.group] = [];
@@ -70,14 +134,21 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
       map[match.group].push(match);
     });
     return map;
-  }, []);
+  }, [matches]);
 
-  const visibleGroups = useMemo(() => {
-    // 顶部筛选只负责切组，不做侧边定位，避免滚动后按钮消失
-    return selectedGroupId === 'all'
-      ? GROUPS_DATA
-      : GROUPS_DATA.filter(group => group.id === selectedGroupId);
-  }, [selectedGroupId]);
+  const allGroupIds = useMemo(
+    () => DEFAULT_GROUP_OPTIONS.map((group) => group.id),
+    []
+  );
+
+  const visibleGroupIds = useMemo(() => (
+    selectedGroupId === 'all' ? allGroupIds : allGroupIds.filter((groupId) => groupId === selectedGroupId)
+  ), [allGroupIds, selectedGroupId]);
+
+  const groupStandingsMap = useMemo(
+    () => Object.fromEntries(groupDataList.map((group) => [group.id, group.standings])),
+    [groupDataList]
+  );
 
   return (
     <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden select-none">
@@ -141,14 +212,14 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
             <div className="schedule-filter-divider"></div>
 
             <button
-              onClick={() => setActiveCategory('follow')}
+              onClick={() => setActiveCategory('mine')}
               className={`schedule-filter-button ${
-                activeCategory === 'follow'
+                activeCategory === 'mine'
                   ? 'schedule-filter-button--active'
                   : 'schedule-filter-button--idle'
               }`}
             >
-              我的关注
+              我的竞猜
             </button>
           </div>
         </div>
@@ -156,10 +227,26 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
 
       {/* 内容区：根据筛选展示我的关注、小组赛或按日期分组的赛程列表 */}
       <div className="flex-1 overflow-y-auto px-3.5 pb-28 pt-2 space-y-4 relative z-0">
-        {activeCategory === 'follow' ? (
+        {loadError && (
+          <div className="mx-1 rounded-2xl border border-amber-400/15 bg-amber-500/8 px-3 py-2 text-[10px] text-amber-200">
+            {loadError}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="h-64 flex flex-col items-center justify-center text-slate-500 space-y-2">
+            <span className="text-2xl animate-pulse">⚽</span>
+            <span>赛程加载中...</span>
+          </div>
+        ) : activeCategory === 'mine' ? (
           <div className="space-y-2 pb-12">
-            {followMatches.length > 0 ? (
-              followMatches.map((match) => (
+            {myPredictionError && (
+              <div className="rounded-2xl border border-amber-400/15 bg-amber-500/8 px-3 py-2 text-[10px] text-amber-200">
+                {myPredictionError}
+              </div>
+            )}
+            {myPredictionMatches.length > 0 ? (
+              myPredictionMatches.map((match) => (
                 <div
                   key={match.id}
                   className="sport-glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/5 shadow-[0_10px_22px_rgba(0,0,0,0.35)]"
@@ -202,16 +289,19 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                   </div>
 
                   <button
-                    onClick={(e) => toggleStar(e, match.id)}
-                    className="w-8 h-8 shrink-0 flex items-center justify-center text-[#ffd54f] hover:scale-105 transition-transform"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAIPredictionClick(match);
+                    }}
+                    className="ml-3 shrink-0 px-2.5 py-1 rounded-full text-[9px] font-bold text-[#00e676] border border-[#00e676]/20 bg-[#00e676]/10"
                   >
-                    <span className="text-base">{starredMatches.includes(match.id) ? '★' : '☆'}</span>
+                    AI分析
                   </button>
                 </div>
               ))
             ) : (
               <div className="sport-glass-card rounded-2xl p-6 text-center text-slate-400 border border-white/5">
-                暂无关注比赛
+                暂无我的竞猜记录
               </div>
             )}
           </div>
@@ -235,17 +325,17 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                 </div>
 
                 <div className="grid grid-cols-6 gap-1.5">
-                  {GROUPS_DATA.map((group) => (
+                  {allGroupIds.map((groupId) => (
                     <button
-                      key={group.id}
-                      onClick={() => setSelectedGroupId(group.id)}
+                      key={groupId}
+                      onClick={() => setSelectedGroupId(groupId)}
                       className={`h-8 rounded-full text-[11px] font-black transition-all ${
-                        selectedGroupId === group.id
+                        selectedGroupId === groupId
                           ? 'bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_4px_10px_rgba(18,128,43,0.28)]'
                           : 'bg-white/[0.04] text-slate-300 hover:text-white hover:bg-white/8'
                       }`}
                     >
-                      {group.id}
+                      {groupId}
                     </button>
                   ))}
                 </div>
@@ -253,57 +343,65 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
             </div>
 
             <div className="space-y-4">
-              {visibleGroups.map((group) => {
-                const groupMatches = groupMatchesMap[group.id] || [];
+              {visibleGroupIds.map((groupId) => {
+                const groupMatches = groupMatchesMap[groupId] || [];
+                const groupStandings = groupStandingsMap[groupId] || [];
+                const groupMeta = groupDataList.find((group) => group.id === groupId)
+                  || DEFAULT_GROUP_OPTIONS.find((group) => group.id === groupId);
 
                 return (
                   <div
-                    key={group.id}
+                    key={groupId}
                     className="sport-glass-card rounded-2xl overflow-hidden shadow-[0_10px_22px_rgba(0,0,0,0.36)] border border-white/5"
                   >
                     <div className="px-4 py-2.5 bg-gradient-to-r from-[#173045] to-[#081521] flex items-center justify-between border-b border-white/5">
                       <span className="text-sm font-semibold text-[#00e676] tracking-wide font-display">
-                        {group.id} 组
+                        {groupMeta?.name || `${groupId}组`}
                       </span>
                       <span className="text-[10px] font-mono text-slate-400">
-                        {groupMatches.length ? `${groupMatches.length} 场赛程` : '暂无赛程'}
+                        {groupStandings.length ? `${groupStandings.length} 支球队` : '暂无球队'}
                       </span>
                     </div>
 
+                    <div className="px-4 py-2 text-[9px] font-bold text-slate-500 uppercase tracking-wide border-b border-white/5 flex items-center justify-between bg-black/10">
+                      <span>球队</span>
+                      <div className="flex items-center font-mono space-x-3">
+                        <span className="w-7 text-center">场</span>
+                        <span className="w-10 text-center">胜平负</span>
+                        <span className="w-8 text-center">净胜</span>
+                        <span className="w-7 text-center">分</span>
+                        <span className="w-5 text-center">排</span>
+                      </div>
+                    </div>
+
                     <div className="divide-y divide-white/5">
-                      {group.teams.map((groupTeam) => (
+                      {groupStandings.map((standing) => (
                         <div
-                          key={groupTeam.team.id}
-                          onClick={() => onTeamSelect(groupTeam.team.id)}
+                          key={standing.team.id}
+                          onClick={() => onTeamSelect(standing.team.id)}
                           className="px-4 py-2.5 flex items-center justify-between hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center space-x-3">
-                            <span className="text-xl filter drop-shadow">{groupTeam.team.flag}</span>
+                            <span className="text-xl filter drop-shadow">{standing.team.flag}</span>
                             <span className="text-xs font-bold tracking-wide text-slate-100">
-                              {groupTeam.team.name}
+                              {standing.team.name}
                             </span>
                           </div>
 
-                          <div className="flex items-center text-xs text-slate-300 font-mono space-x-6">
-                            <span className="w-8 text-center font-bold text-white">{groupTeam.points}</span>
-                            <span className={`w-10 text-center font-medium ${
-                              groupTeam.goalDiff.startsWith('+')
-                                ? 'text-[#00e676]'
-                                : groupTeam.goalDiff.startsWith('-')
-                                  ? 'text-rose-400'
-                                  : 'text-slate-400'
-                            }`}>
-                              {groupTeam.goalDiff}
+                          <div className="flex items-center text-[10px] text-slate-300 font-mono space-x-3">
+                            <span className="w-7 text-center">{standing.played}</span>
+                            <span className="w-10 text-center">{standing.wins}/{standing.draws}/{standing.losses}</span>
+                            <span className={`w-8 text-center ${standing.goalDiffValue > 0 ? 'text-[#00e676]' : standing.goalDiffValue < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                              {standing.goalDiff}
                             </span>
-                            <div className="w-8 flex justify-center">
-                              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10.5px] font-bold ${
-                                groupTeam.rank <= 2
-                                  ? 'bg-[#00e676]/15 text-[#00e676] border border-[#00e676]/35'
-                                  : 'text-slate-500'
-                              }`}>
-                                {groupTeam.rank}
-                              </span>
-                            </div>
+                            <span className="w-7 text-center font-bold text-white">{standing.points}</span>
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10.5px] font-bold ${
+                              standing.rank <= 2
+                                ? 'bg-[#00e676]/15 text-[#00e676] border border-[#00e676]/35'
+                                : 'text-slate-500'
+                            }`}>
+                              {standing.rank}
+                            </span>
                           </div>
                         </div>
                       ))}
@@ -358,7 +456,6 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
               {/* 当天比赛卡片 */}
               <div className="space-y-2">
                 {daysMap[dayName].map((match) => {
-                  const isStarred = starredMatches.includes(match.id);
                   return (
                     <div
                       key={match.id}
@@ -418,14 +515,6 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
 
                       {/* 右侧：关注按钮、比赛状态、AI 预测入口 */}
                       <div className="flex items-center space-x-2 shrink-0">
-                        {/* 关注比赛 */}
-                        <button 
-                          onClick={(e) => toggleStar(e, match.id)}
-                          className="p-1 text-slate-400 hover:text-amber-450 transition-colors"
-                        >
-                          <span className="text-xs">{isStarred ? '★' : '☆'}</span>
-                        </button>
-
                         <div className="flex flex-col items-end space-y-1">
                           {match.status === 'conducting' && (
                             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded border border-blue-400/40 shadow-sm animate-pulse select-none">

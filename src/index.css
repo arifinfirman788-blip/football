@@ -14,10 +14,13 @@ body,
   min-height: 100%;
   margin: 0;
   background: #030a0f;
+  touch-action: pan-x pan-y;
 }
 
 body {
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* H5 主画布：桌面按 390x844 居中预览，真机访问时铺满视口，避免出现手机框和黑边。 */

@@ -4,10 +4,17 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ACTIVE_BET_MATCH, MATCHES_DATA } from '../data';
-import { Match, PredictionRecord } from '../types';
+import { Match, PredictionRecord, WechatUserProfile } from '../types';
 import { assetUrl } from '../utils/assets';
 import { Gift } from 'lucide-react';
+import { getCachedWechatUser, requestWechatUserProfile } from '../utils/wechatBridge';
+import {
+  fetchUserPredictionRecords,
+  getStoredUserId,
+  resolveFirstPredictableDate,
+  submitPrediction,
+  upsertUserProfile,
+} from '../utils/predictionApi';
 
 interface PredictionTabProps {
   // 当前版本不再进入球队详情页，保留回调是为了后续需要恢复下钻时改动更小。
@@ -29,6 +36,13 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   onRewardRulesClick
 }) => {
   const [now, setNow] = useState(() => new Date());
+  const [predictableMatches, setPredictableMatches] = useState<Match[]>([]);
+  const [matchCanPredictMap, setMatchCanPredictMap] = useState<Record<string, boolean>>({});
+  const [displayDateKey, setDisplayDateKey] = useState<string>('');
+  const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
+  const [isPageLoading, setIsPageLoading] = useState<boolean>(true);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(() => getStoredUserId());
 
   const getDateKey = (date: Date) => {
     const year = date.getFullYear();
@@ -39,43 +53,18 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
 
   const getMatchDate = (match: Match) => new Date(match.kickoffUtc || `${match.dateKey}T${match.timestamp}:00+08:00`);
 
-  const todayKey = getDateKey(now);
-  const unstartedMatches = MATCHES_DATA.filter(m => m.status === 'unstarted');
-  const openingPredictionDate = [...unstartedMatches]
-    .sort((a, b) => getMatchDate(a).getTime() - getMatchDate(b).getTime())[0]?.dateKey || '2026-06-12';
-  const displayDateKey = todayKey < openingPredictionDate
-    ? openingPredictionDate
-    : (
-      unstartedMatches.some(match => match.dateKey === todayKey)
-        ? todayKey
-        : [...unstartedMatches]
-          .sort((a, b) => getMatchDate(a).getTime() - getMatchDate(b).getTime())
-          .find(match => match.dateKey > todayKey)?.dateKey || todayKey
-    );
-
-  /**
-   * 竞猜页只展示一个竞猜日：
-   * - 活动开始前，展示最早开赛日；
-   * - 活动期间，优先展示当天；
-   * - 当天无比赛时，自动跳到下一个有比赛的日期。
-   */
-  const predictableMatches: Match[] = unstartedMatches.filter(match => match.dateKey === displayDateKey);
-
-  // 横向比赛选择器当前选中的比赛。
-  const [currentMatch, setCurrentMatch] = useState<Match>(predictableMatches[0] || ACTIVE_BET_MATCH);
-
   // 尚未提交的临时选择。提交后以 predictionHistory 为唯一可信记录。
-  const [predictions, setPredictions] = useState<Record<string, 'home' | 'draw' | 'away' | null>>({
-    [ACTIVE_BET_MATCH.id]: 'draw', // 首页主推比赛默认预选“平局”，后续可按运营策略调整。
-  });
+  const [predictions, setPredictions] = useState<Record<string, 'home' | 'draw' | 'away' | null>>({});
 
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
+  const [isSubmittingPrediction, setIsSubmittingPrediction] = useState<boolean>(false);
+  const [wechatUser, setWechatUser] = useState<WechatUserProfile | null>(() => getCachedWechatUser());
 
   const submittedPredictions = useMemo(() => (
-    predictionHistory.reduce<Record<string, 'home' | 'draw' | 'away'>>((acc, record) => {
+    predictionHistory.reduce((acc, record) => {
       acc[record.matchId] = record.outcome;
       return acc;
-    }, {})
+    }, {} as Record<string, 'home' | 'draw' | 'away'>)
   ), [predictionHistory]);
 
   const todayPredictionRecords = useMemo(() => (
@@ -83,6 +72,25 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       .filter(record => record.dateKey === displayDateKey)
       .sort((a, b) => `${a.dateKey} ${a.timestamp}`.localeCompare(`${b.dateKey} ${b.timestamp}`))
   ), [displayDateKey, predictionHistory]);
+
+  const refreshPredictionPage = async (resolvedUserId: number, resolvedWechatUser: WechatUserProfile) => {
+    const [{ date, matches, canPredictMap }, predictionRecords] = await Promise.all([
+      resolveFirstPredictableDate(resolvedUserId, new Date()),
+      fetchUserPredictionRecords(resolvedUserId, resolvedWechatUser),
+    ]);
+
+    setDisplayDateKey(date);
+    setPredictableMatches(matches);
+    setMatchCanPredictMap(canPredictMap);
+    setPredictionHistory(predictionRecords);
+    setPredictions(
+      matches.reduce<Record<string, 'home' | 'draw' | 'away' | null>>((acc, match) => {
+        acc[match.id] = match.userChoice || null;
+        return acc;
+      }, {})
+    );
+    setCurrentMatch((prev) => matches.find((match) => match.id === prev?.id) || matches[0] || null);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -97,10 +105,48 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!predictableMatches.some(match => match.id === currentMatch.id)) {
-      setCurrentMatch(predictableMatches[0] || ACTIVE_BET_MATCH);
+    let cancelled = false;
+
+    const loadPredictionPage = async () => {
+      try {
+        setIsPageLoading(true);
+        setPageError(null);
+
+        const resolvedWechatUser = await requestWechatUserProfile();
+        if (cancelled) return;
+        setWechatUser(resolvedWechatUser);
+
+        const resolvedUserId = await upsertUserProfile(resolvedWechatUser);
+        if (cancelled) return;
+        setUserId(resolvedUserId);
+
+        await refreshPredictionPage(resolvedUserId, resolvedWechatUser);
+      } catch (error) {
+        console.error(error);
+        if (cancelled) return;
+        setPredictableMatches([]);
+        setCurrentMatch(null);
+        setPredictionHistory([]);
+        setPageError(error instanceof Error ? error.message : '竞猜页接口加载失败。');
+      } finally {
+        if (!cancelled) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    loadPredictionPage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (currentMatch && !predictableMatches.some(match => match.id === currentMatch.id)) {
+      setCurrentMatch(predictableMatches[0] || null);
     }
-  }, [displayDateKey]);
+  }, [predictableMatches, currentMatch]);
 
   const getMatchTimeLabel = (match: Match) => {
     const date = match.dateKey.slice(5).replace('-', '/');
@@ -125,67 +171,67 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   const remainingSubmissions = predictableMatches.filter(match => !submittedPredictions[match.id]).length;
 
   const handleOutcomeClick = (outcome: 'home' | 'draw' | 'away') => {
+    if (!currentMatch) return;
     // 已提交后锁定，不允许用户在前端直接改选；正式版还需由后端再次校验。
-    if (submittedPredictions[currentMatch.id]) return;
+    if (submittedPredictions[currentMatch.id] || matchCanPredictMap[currentMatch.id] === false) return;
     setPredictions(prev => ({
       ...prev,
       [currentMatch.id]: outcome
     }));
   };
 
-  const handleSubmitPrediction = () => {
+  const handleSubmitPrediction = async () => {
+    if (!currentMatch || !userId) return;
     const selectedOutcome = predictions[currentMatch.id];
-    if (!selectedOutcome) return;
+    if (!selectedOutcome || isSubmittingPrediction) return;
     if (remainingSubmissions <= 0) {
       alert('今日提交机会已用完！');
       return;
     }
 
-    setShowSuccessToast(true);
+    setIsSubmittingPrediction(true);
 
-    const choiceLabel = selectedOutcome === 'home'
-      ? `主胜（${currentMatch.homeTeam.name}胜）`
-      : selectedOutcome === 'draw'
-        ? '平局（两队打平）'
-        : `客胜（${currentMatch.awayTeam.name}胜）`;
+    let resolvedWechatUser: WechatUserProfile;
+    try {
+      resolvedWechatUser = await requestWechatUserProfile();
+      setWechatUser(resolvedWechatUser);
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : '当前无法获取微信用户信息，请稍后重试。';
+      alert(message);
+      setIsSubmittingPrediction(false);
+      return;
+    }
 
-    // 待接后端：正式版应先提交到竞猜接口，成功后再写入前端记录。
-    const record: PredictionRecord = {
-      matchId: currentMatch.id,
-      fixture: `${currentMatch.homeTeam.name} VS ${currentMatch.awayTeam.name}`,
-      choice: choiceLabel,
-      outcome: selectedOutcome,
-      time: currentMatch.time,
-      dateKey: currentMatch.dateKey,
-      timestamp: currentMatch.timestamp,
-      stage: currentMatch.stage,
-      status: '待开奖',
-      points: null,
-    };
-
-    setPredictionHistory(prev => [
-      record,
-      ...prev.filter(item => item.matchId !== currentMatch.id)
-    ]);
-
-    setPredictions(prev => ({
-      ...prev,
-      [currentMatch.id]: selectedOutcome
-    }));
-
-    setTimeout(() => {
-      setShowSuccessToast(false);
-    }, 2800);
+    try {
+      const resolvedUserId = await upsertUserProfile(resolvedWechatUser);
+      setUserId(resolvedUserId);
+      await submitPrediction(resolvedUserId, currentMatch.id, selectedOutcome);
+      await refreshPredictionPage(resolvedUserId, resolvedWechatUser);
+      setShowSuccessToast(true);
+      window.setTimeout(() => {
+        setShowSuccessToast(false);
+      }, 2800);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '提交竞猜失败，请稍后重试。';
+      alert(message);
+    } finally {
+      setIsSubmittingPrediction(false);
+    }
   };
 
   // 已提交选择优先于临时选择，用于回显和禁用按钮。
-  const currentOutcome = submittedPredictions[currentMatch.id] || predictions[currentMatch.id] || null;
-  const isCurrentMatchSubmitted = !!submittedPredictions[currentMatch.id];
+  const currentOutcome = currentMatch
+    ? submittedPredictions[currentMatch.id] || predictions[currentMatch.id] || null
+    : null;
+  const isCurrentMatchSubmitted = currentMatch ? !!submittedPredictions[currentMatch.id] : false;
+  const canCurrentMatchPredict = currentMatch ? matchCanPredictMap[currentMatch.id] !== false : false;
 
   const choiceMap = {
-    home: `主胜 (${currentMatch.homeTeam.name}胜)`,
+    home: currentMatch ? `主胜 (${currentMatch.homeTeam.name}胜)` : '主胜',
     draw: '平局 (双方打平)',
-    away: `客胜 (${currentMatch.awayTeam.name}胜)`,
+    away: currentMatch ? `客胜 (${currentMatch.awayTeam.name}胜)` : '客胜',
   };
 
   const getRecordChoiceClass = (outcome: 'home' | 'draw' | 'away') => (
@@ -196,11 +242,34 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
 
   const isTodayCompleted = dailySubmissionLimit > 0 && remainingSubmissions === 0;
 
+  if (isPageLoading) {
+    return (
+      <div className="prediction-green-bg flex-1 flex flex-col items-center justify-center text-slate-300 space-y-3">
+        <span className="text-3xl animate-pulse">⚽</span>
+        <span className="text-sm font-bold">竞猜页加载中...</span>
+      </div>
+    );
+  }
+
+  if (!currentMatch) {
+    return (
+      <div className="prediction-green-bg flex-1 flex flex-col items-center justify-center text-slate-300 px-6 text-center space-y-3">
+        <span className="text-3xl">📭</span>
+        <span className="text-sm font-bold">{pageError || '当前暂无可竞猜比赛'}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="prediction-green-bg flex-1 flex flex-col text-white overflow-hidden relative">
 
       {/* 主内容滚动区：预留底导高度，避免内容被底部导航遮挡 */}
       <div className="flex-1 overflow-y-auto pb-36 relative z-0">
+        {pageError && (
+          <div className="mx-4 mt-3 rounded-2xl border border-amber-400/15 bg-amber-500/8 px-3 py-2 text-[10px] text-amber-200">
+            {pageError}
+          </div>
+        )}
         
         {/* 竞猜头图：等比例放大切图，保证左右贴紧手机屏幕边缘 */}
         <div className="guess-hero relative w-full aspect-[390/323] overflow-hidden">
@@ -311,7 +380,9 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
               <div className="flex justify-between items-center w-full">
                 <span className="bg-[#00e676]/15 text-[#00e676] text-[9.5px] font-extrabold px-2.5 py-0.5 rounded border border-[#00e676]/30 flex items-center space-x-1 shrink-0">
                   <span className="w-1.5 h-1.5 bg-[#00e676] rounded-full animate-pulse"></span>
-                  <span className="whitespace-nowrap">{isCurrentMatchSubmitted ? '已提交竞猜' : '火热竞猜中'}</span>
+                  <span className="whitespace-nowrap">
+                    {isCurrentMatchSubmitted ? '已提交竞猜' : canCurrentMatchPredict ? '火热竞猜中' : '竞猜已截止'}
+                  </span>
                 </span>
                 
                 <div
@@ -403,12 +474,12 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 {/* 主胜 */}
                 <button
                   onClick={() => handleOutcomeClick('home')}
-                  disabled={isCurrentMatchSubmitted}
+                  disabled={isCurrentMatchSubmitted || !canCurrentMatchPredict}
                   className={`relative py-3.5 rounded-xl flex flex-col items-center justify-center transition-all border cursor-pointer ${
                     currentOutcome === 'home'
                       ? 'bg-gradient-to-b from-emerald-600 to-emerald-800 border-emerald-400 text-white shadow-[0_4px_12px_rgba(16,185,129,0.25)] scale-[1.02]'
                       : 'bg-[#0b1723]/90 border-slate-700/50 hover:bg-[#112335]/90 text-slate-200'
-                  } ${isCurrentMatchSubmitted ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'}`}
+                  } ${isCurrentMatchSubmitted || !canCurrentMatchPredict ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'}`}
                 >
                   <span className="text-xs font-extrabold font-sans">主胜</span>
                   <span className="text-[9px] mt-0.5 opacity-85 font-mono">{currentMatch.homeTeam.name}胜</span>
@@ -420,12 +491,12 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 {/* 平局 */}
                 <button
                   onClick={() => handleOutcomeClick('draw')}
-                  disabled={isCurrentMatchSubmitted}
+                  disabled={isCurrentMatchSubmitted || !canCurrentMatchPredict}
                   className={`relative py-3.5 rounded-xl flex flex-col items-center justify-center transition-all border cursor-pointer ${
                     currentOutcome === 'draw'
                       ? 'bg-gradient-to-b from-[#dfab13] to-[#b47a05] border-yellow-400 text-white shadow-[0_4px_12px_rgba(245,158,11,0.25)] scale-[1.02]'
                       : 'bg-[#0b1723]/90 border-slate-700/50 hover:bg-[#112335]/90 text-slate-200'
-                  } ${isCurrentMatchSubmitted ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'}`}
+                  } ${isCurrentMatchSubmitted || !canCurrentMatchPredict ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'}`}
                 >
                   <span className="text-xs font-extrabold font-sans">平局</span>
                   <span className="text-[9px] mt-0.5 opacity-85 font-mono">两队打平</span>
@@ -437,12 +508,12 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 {/* 客胜 */}
                 <button
                   onClick={() => handleOutcomeClick('away')}
-                  disabled={isCurrentMatchSubmitted}
+                  disabled={isCurrentMatchSubmitted || !canCurrentMatchPredict}
                   className={`relative py-3.5 rounded-xl flex flex-col items-center justify-center transition-all border cursor-pointer ${
                     currentOutcome === 'away'
                       ? 'bg-gradient-to-b from-emerald-600 to-emerald-800 border-emerald-400 text-white shadow-[0_4px_12px_rgba(16,185,129,0.25)] scale-[1.02]'
                       : 'bg-[#0b1723]/90 border-slate-700/50 hover:bg-[#112335]/90 text-slate-200'
-                  } ${isCurrentMatchSubmitted ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'}`}
+                  } ${isCurrentMatchSubmitted || !canCurrentMatchPredict ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'}`}
                 >
                   <span className="text-xs font-extrabold font-sans">客胜</span>
                   <span className="text-[9px] mt-0.5 opacity-85 font-mono">{currentMatch.awayTeam.name}胜</span>
@@ -459,12 +530,18 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
         <div className="px-4 mt-4">
           <button
             onClick={handleSubmitPrediction}
-            disabled={!currentOutcome || isCurrentMatchSubmitted || remainingSubmissions <= 0}
+            disabled={!currentOutcome || isCurrentMatchSubmitted || !canCurrentMatchPredict || remainingSubmissions <= 0 || isSubmittingPrediction}
             className="w-full max-w-[318px] mx-auto h-[76px] bg-no-repeat bg-center bg-contain flex items-center justify-center text-[#5d3300] font-display font-black text-[16px] tracking-[3px] cursor-pointer hover:brightness-105 active:scale-98 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundImage: `url('${assetUrl('assets/prediction/submit-frame-wide.png')}')` }}
           >
             <span className="translate-y-[1px] drop-shadow-[0_1px_0_rgba(255,244,184,0.55)]">
-              {isCurrentMatchSubmitted ? '已 提 交 成 功' : '确 定 提 交 竞 猜'}
+              {isCurrentMatchSubmitted
+                ? '已 提 交 成 功'
+                : !canCurrentMatchPredict
+                  ? '本 场 已 截 止 竞 猜'
+                : isSubmittingPrediction
+                  ? '获 取 微 信 身 份 中'
+                  : '确 定 提 交 竞 猜'}
             </span>
           </button>
           
@@ -472,6 +549,29 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
             <span>⚽ 当日竞猜资格：{dailySubmissionLimit}场</span>
             <span>剩余可用：{remainingSubmissions} 次</span>
           </div>
+
+          {wechatUser && (
+            <div className="mt-2.5 rounded-2xl border border-[#00e676]/12 bg-[#061a11]/70 px-3 py-2 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <img
+                  src={wechatUser.avatarUrl}
+                  alt={wechatUser.nickname}
+                  className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                />
+                <div className="min-w-0">
+                  <span className="block text-[10.5px] text-white font-bold truncate">
+                    {wechatUser.nickname}
+                  </span>
+                  <span className="block text-[9px] text-slate-500 font-mono truncate">
+                    unionId: {`${wechatUser.unionId.slice(0, 6)}...${wechatUser.unionId.slice(-4)}`}
+                  </span>
+                </div>
+              </div>
+              <span className="text-[9px] text-[#00e676] font-bold shrink-0">
+                已绑定微信身份
+              </span>
+            </div>
+          )}
         </div>
 
         {todayPredictionRecords.length > 0 && (

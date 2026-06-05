@@ -25,6 +25,7 @@ export interface Match {
   awayScore?: number;
   status: 'conducting' | 'unstarted' | 'ended'; // 进行中 / 未开始 / 已结束。
   userChoice?: 'home' | 'draw' | 'away';        // 可选：用户对该场比赛的本地选择。
+  groupId?: number;    // 后端分组 ID，例如 1、2、3。
   group?: string;      // 小组编号，例如 A、B、C。
 }
 
@@ -98,6 +99,13 @@ export interface PredictionSlip {
   status: 'pending' | 'submitted' | 'settled';
 }
 
+export interface WechatUserProfile {
+  unionId: string;
+  nickname: string;
+  avatarUrl: string;
+  source?: 'mini-program' | 'injected' | 'cache' | 'mock';
+}
+
 export interface PredictionRecord {
   // 用户提交后的竞猜明细。正式版建议与服务端竞猜订单结构保持一致。
   matchId: string;
@@ -110,4 +118,5 @@ export interface PredictionRecord {
   stage: string;
   status: '待开奖' | '猜对 +1' | '猜错 +0';
   points: number | null; // 空值代表赛后尚未结算；0 和 1 分别代表猜错、猜对。
+  wechatUser?: WechatUserProfile;
 }
