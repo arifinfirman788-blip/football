@@ -35,10 +35,13 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   onViewingLocationsClick,
   onRewardRulesClick
 }) => {
+  const NEAREST_MATCH_DAY_COUNT = 2;
   const [now, setNow] = useState(() => new Date());
   const [predictableMatches, setPredictableMatches] = useState<Match[]>([]);
   const [matchCanPredictMap, setMatchCanPredictMap] = useState<Record<string, boolean>>({});
   const [displayDateKey, setDisplayDateKey] = useState<string>('');
+  const [availableDateKeys, setAvailableDateKeys] = useState<string[]>([]);
+  const [groupedPredictableMatches, setGroupedPredictableMatches] = useState<Record<string, { matches: Match[]; canPredictMap: Record<string, boolean> }>>({});
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
   const [isPageLoading, setIsPageLoading] = useState<boolean>(true);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -73,23 +76,53 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       .sort((a, b) => `${a.dateKey} ${a.timestamp}`.localeCompare(`${b.dateKey} ${b.timestamp}`))
   ), [displayDateKey, predictionHistory]);
 
+  const predictionRecordMap = useMemo(
+    () => predictionHistory.reduce((acc, record) => {
+      acc[record.matchId] = record;
+      return acc;
+    }, {} as Record<string, PredictionRecord>),
+    [predictionHistory]
+  );
+
   const refreshPredictionPage = async (resolvedUserId: number, resolvedWechatUser: WechatUserProfile) => {
-    const [{ date, matches, canPredictMap }, predictionRecords] = await Promise.all([
+    const [{ date, dates, matches, canPredictMap, groupedMatches }, predictionRecords] = await Promise.all([
       resolveFirstPredictableDate(resolvedUserId, new Date()),
       fetchUserPredictionRecords(resolvedUserId, resolvedWechatUser),
     ]);
+    const defaultDateGroup = groupedMatches[date];
+    const initialMatches = defaultDateGroup?.matches || matches;
+    const initialCanPredictMap = defaultDateGroup?.canPredictMap || canPredictMap;
 
     setDisplayDateKey(date);
-    setPredictableMatches(matches);
-    setMatchCanPredictMap(canPredictMap);
+    setAvailableDateKeys(dates);
+    setGroupedPredictableMatches(groupedMatches);
+    setPredictableMatches(initialMatches);
+    setMatchCanPredictMap(initialCanPredictMap);
     setPredictionHistory(predictionRecords);
     setPredictions(
-      matches.reduce<Record<string, 'home' | 'draw' | 'away' | null>>((acc, match) => {
+      initialMatches.reduce<Record<string, 'home' | 'draw' | 'away' | null>>((acc, match) => {
         acc[match.id] = match.userChoice || null;
         return acc;
       }, {})
     );
-    setCurrentMatch((prev) => matches.find((match) => match.id === prev?.id) || matches[0] || null);
+    setCurrentMatch((prev) => initialMatches.find((match) => match.id === prev?.id) || initialMatches[0] || null);
+  };
+
+  const switchPredictableDate = (dateKey: string) => {
+    const targetGroup = groupedPredictableMatches[dateKey];
+    const nextMatches = targetGroup?.matches || [];
+    const nextCanPredictMap = targetGroup?.canPredictMap || {};
+
+    setDisplayDateKey(dateKey);
+    setPredictableMatches(nextMatches);
+    setMatchCanPredictMap(nextCanPredictMap);
+    setCurrentMatch(nextMatches[0] || null);
+    setPredictions((prev) => (
+      nextMatches.reduce<Record<string, 'home' | 'draw' | 'away' | null>>((acc, match) => {
+        acc[match.id] = prev[match.id] ?? match.userChoice ?? null;
+        return acc;
+      }, {})
+    ));
   };
 
   useEffect(() => {
@@ -147,6 +180,13 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       setCurrentMatch(predictableMatches[0] || null);
     }
   }, [predictableMatches, currentMatch]);
+
+  useEffect(() => {
+    if (!displayDateKey || !groupedPredictableMatches[displayDateKey]) return;
+    const currentDateGroup = groupedPredictableMatches[displayDateKey];
+    setPredictableMatches(currentDateGroup.matches);
+    setMatchCanPredictMap(currentDateGroup.canPredictMap);
+  }, [displayDateKey, groupedPredictableMatches]);
 
   const getMatchTimeLabel = (match: Match) => {
     const date = match.dateKey.slice(5).replace('-', '/');
@@ -227,6 +267,13 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     : null;
   const isCurrentMatchSubmitted = currentMatch ? !!submittedPredictions[currentMatch.id] : false;
   const canCurrentMatchPredict = currentMatch ? matchCanPredictMap[currentMatch.id] !== false : false;
+  const currentMatchRecord = currentMatch ? predictionRecordMap[currentMatch.id] : null;
+  const currentMatchScore = currentMatch
+    ? currentMatch.homeScore !== undefined && currentMatch.awayScore !== undefined
+      ? `${currentMatch.homeScore} : ${currentMatch.awayScore}`
+      : currentMatchRecord?.score || '--'
+    : '--';
+  const currentMatchActualResult = currentMatchRecord?.actualResult || '待开奖';
 
   const choiceMap = {
     home: currentMatch ? `主胜 (${currentMatch.homeTeam.name}胜)` : '主胜',
@@ -239,6 +286,12 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       ? 'text-[#ffd54f] bg-[#ffd54f]/10 border-[#ffd54f]/20'
       : 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/20'
   );
+
+  const getPredictionMatchStatusLabel = (status: PredictionRecord['matchStatus']) => {
+    if (status === 'conducting') return '进行中';
+    if (status === 'ended') return '已结束';
+    return '未开始';
+  };
 
   const isTodayCompleted = dailySubmissionLimit > 0 && remainingSubmissions === 0;
 
@@ -271,19 +324,13 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
           </div>
         )}
         
-        {/* 竞猜头图：等比例放大切图，保证左右贴紧手机屏幕边缘 */}
-        <div className="guess-hero relative w-full aspect-[390/323] overflow-hidden">
-          <div
-            className="guess-hero__image absolute -inset-[3px] bg-no-repeat"
-            style={{
-              backgroundImage: `url('${assetUrl('assets/header/guess-hero-full.png')}')`,
-              backgroundPosition: 'center -12px',
-              backgroundSize: '118% auto',
-              transform: 'scale(1.02)',
-              transformOrigin: 'center top'
-            }}
+        {/* 竞猜头图：整张海报完整展示，不做裁切 */}
+        <div className="guess-hero relative w-full overflow-hidden">
+          <img
+            src={assetUrl('assets/header/guess-hero-full.jpg')}
+            alt="竞猜活动海报"
+            className="guess-hero__image block w-full min-w-full h-auto align-top"
           />
-          <div className="absolute inset-x-0 bottom-0 h-2 bg-[#00160c] pointer-events-none z-10" />
           {/* 奖励兑换入口：原用户头像位置改为规则页二级入口 */}
           <button
             onClick={onRewardRulesClick}
@@ -330,6 +377,28 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
             </span>
           </div>
 
+          {availableDateKeys.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-2">
+              {availableDateKeys.map((dateKey) => {
+                const matchCount = groupedPredictableMatches[dateKey]?.matches.length ?? 0;
+                const isActive = dateKey === displayDateKey;
+                return (
+                  <button
+                    key={dateKey}
+                    onClick={() => switchPredictableDate(dateKey)}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all ${
+                      isActive
+                        ? 'bg-[#00e676]/14 border-[#00e676]/35 text-[#00e676]'
+                        : 'bg-[#091521] border-white/8 text-slate-400 hover:text-white hover:border-white/15'
+                    }`}
+                  >
+                    {dateKey.slice(5).replace('-', '/')} ({matchCount})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div className="flex items-center space-x-2.5 overflow-x-auto scrollbar-none py-1 select-none">
             {predictableMatches.map((m) => {
               const isSelected = m.id === currentMatch.id;
@@ -357,13 +426,23 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                   
                   {/* 比赛状态指示 */}
                   {hasPredicted ? (
-                    <span className="text-[8.5px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md border border-emerald-500/20 mt-1.5">
-                      ✓ 已预测 ({submittedPredictions[m.id] === 'home' ? '主胜' : submittedPredictions[m.id] === 'draw' ? '平' : '客胜'})
-                    </span>
+                    <div className="mt-1.5 flex flex-col items-center gap-1">
+                      <span className="text-[8.5px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md border border-emerald-500/20">
+                        ✓ 已预测 ({submittedPredictions[m.id] === 'home' ? '主胜' : submittedPredictions[m.id] === 'draw' ? '平' : '客胜'})
+                      </span>
+                      <span className="text-[8px] text-slate-300 font-mono">
+                        比分 {predictionRecordMap[m.id]?.score || '--'} · {predictionRecordMap[m.id]?.actualResult || '待开奖'}
+                      </span>
+                    </div>
                   ) : (
-                    <span className="text-[8.5px] font-mono text-amber-500 font-bold tracking-tight mt-1.5">
-                      ⏳ {getMatchTimeLabel(m)}
-                    </span>
+                    <div className="mt-1.5 flex flex-col items-center gap-1">
+                      <span className="text-[8.5px] font-mono text-amber-500 font-bold tracking-tight">
+                        ⏳ {getMatchTimeLabel(m)}
+                      </span>
+                      <span className="text-[8px] text-slate-500 font-mono">
+                        比分 {m.homeScore !== undefined && m.awayScore !== undefined ? `${m.homeScore} : ${m.awayScore}` : '--'}
+                      </span>
+                    </div>
                   )}
                 </button>
               );
@@ -403,6 +482,17 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                   {currentMatch.stage} {currentMatch.group && `• ${currentMatch.group}组`}
                 </span>
               </div>
+
+              <div className="grid grid-cols-2 gap-2 w-full">
+                <div className="rounded-lg bg-black/18 border border-white/5 px-3 py-2 text-center">
+                  <div className="text-[8.5px] text-slate-500 font-medium">比赛比分</div>
+                  <div className="mt-1 text-[12px] font-black text-white">{currentMatchScore}</div>
+                </div>
+                <div className="rounded-lg bg-black/18 border border-white/5 px-3 py-2 text-center">
+                  <div className="text-[8.5px] text-slate-500 font-medium">比赛结果</div>
+                  <div className="mt-1 text-[12px] font-black text-white">{currentMatchActualResult}</div>
+                </div>
+              </div>
             </div>
 
             {/* 主客队信息 */}
@@ -426,8 +516,15 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
 
               {/* VS 与开赛时间 */}
               <div className="flex flex-col items-center justify-center shrink-0 px-3 min-w-[70px]">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-b from-[#112437] to-[#040e15] border border-[#1b3d58] flex items-center justify-center shadow-inner">
-                  <span className="text-xs font-display font-black text-slate-400 tracking-wider">VS</span>
+                <div className="min-w-[56px] rounded-2xl bg-gradient-to-b from-[#112437] to-[#040e15] border border-[#1b3d58] flex flex-col items-center justify-center shadow-inner px-2 py-1.5">
+                  <span className="text-[13px] font-display font-black text-white tracking-wide">
+                    {currentMatch.homeScore !== undefined && currentMatch.awayScore !== undefined
+                      ? `${currentMatch.homeScore} : ${currentMatch.awayScore}`
+                      : 'VS'}
+                  </span>
+                  <span className="text-[8px] text-slate-400 mt-0.5">
+                    {currentMatchRecord?.actualResult || (currentMatch.status === 'ended' ? '已结束' : currentMatch.status === 'conducting' ? '进行中' : '未开始')}
+                  </span>
                 </div>
                 {/* 开赛时间 */}
                 <span className="text-[9px] font-mono bg-black/40 text-slate-300 px-2.5 py-0.5 rounded-full border border-white/5 mt-3 whitespace-nowrap">
@@ -562,9 +659,6 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                   <span className="block text-[10.5px] text-white font-bold truncate">
                     {wechatUser.nickname}
                   </span>
-                  <span className="block text-[9px] text-slate-500 font-mono truncate">
-                    unionId: {`${wechatUser.unionId.slice(0, 6)}...${wechatUser.unionId.slice(-4)}`}
-                  </span>
                 </div>
               </div>
               <span className="text-[9px] text-[#00e676] font-bold shrink-0">
@@ -597,23 +691,69 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 {todayPredictionRecords.map((record) => (
                   <div
                     key={record.matchId}
-                    className="rounded-xl bg-black/18 border border-white/5 px-3 py-2 flex items-center justify-between gap-3"
+                    className="rounded-xl bg-black/18 border border-white/5 px-3 py-2.5"
                   >
-                    <div className="min-w-0">
-                      <span className="block text-[11px] font-bold text-slate-100 truncate">
-                        {record.fixture}
-                      </span>
-                      <span className="block text-[9px] text-slate-500 font-mono mt-0.5">
-                        {record.dateKey.slice(5).replace('-', '/')} {record.timestamp} · {record.stage}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="block text-[11px] font-bold text-slate-100 truncate">
+                          {record.fixture}
+                        </span>
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-300">
+                          <span>{record.homeTeamFlag}</span>
+                          <span className="truncate">{record.homeTeamName}</span>
+                          <span className="text-slate-500">vs</span>
+                          <span>{record.awayTeamFlag}</span>
+                          <span className="truncate">{record.awayTeamName}</span>
+                        </div>
+                        <span className="block text-[9px] text-slate-500 font-mono mt-0.5">
+                          {record.dateKey.slice(5).replace('-', '/')} {record.timestamp} · {record.stage}
+                        </span>
+                      </div>
+
+                      <span className={`shrink-0 text-[8.5px] font-bold rounded-full border px-2 py-0.5 ${
+                        record.matchStatus === 'conducting'
+                          ? 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/20'
+                          : record.matchStatus === 'ended'
+                            ? 'text-slate-300 bg-slate-700/30 border-slate-600/30'
+                            : 'text-slate-400 bg-[#1e2d3b] border-slate-700/30'
+                      }`}>
+                        {getPredictionMatchStatusLabel(record.matchStatus)}
                       </span>
                     </div>
 
-                    <div className="flex flex-col items-end shrink-0 gap-1">
-                      <span className={`text-[9.5px] font-bold rounded-full border px-2 py-0.5 ${getRecordChoiceClass(record.outcome)}`}>
-                        {record.choice}
+                    <div className="grid grid-cols-3 gap-2 mt-2.5">
+                      <div className="rounded-lg bg-black/18 border border-white/5 px-2.5 py-2">
+                        <div className="text-[8.5px] text-slate-500">竞猜结果</div>
+                        <div className={`mt-1 inline-flex text-[9.5px] font-bold rounded-full border px-2 py-0.5 ${getRecordChoiceClass(record.outcome)}`}>
+                          {record.choice}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-black/18 border border-white/5 px-2.5 py-2">
+                        <div className="text-[8.5px] text-slate-500">真实结果</div>
+                        <div className="mt-1 text-[10px] font-bold text-white">
+                          {record.actualResult || '待开奖'}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-black/18 border border-white/5 px-2.5 py-2">
+                        <div className="text-[8.5px] text-slate-500">比赛比分</div>
+                        <div className="mt-1 text-[10px] font-bold text-white">
+                          {record.score || '--'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-2">
+                      <span className={`text-[9px] font-bold rounded-full border px-2 py-0.5 ${
+                        record.status === '猜对 +1'
+                          ? 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/20'
+                          : record.status === '猜错 +0'
+                            ? 'text-[#ff8a80] bg-[#ff8a80]/10 border-[#ff8a80]/20'
+                            : 'text-[#ffd54f] bg-[#ffd54f]/10 border-[#ffd54f]/20'
+                      }`}>
+                        {record.status}
                       </span>
                       <span className="text-[9px] text-slate-500 font-mono">
-                        {record.points === null ? '待结算' : `+${record.points}分`}
+                        {record.points === null ? '待结算' : `积分 +${record.points}`}
                       </span>
                     </div>
                   </div>

@@ -11,7 +11,8 @@
     "build": "vite build && node scripts/inline-dist-assets.mjs",
     "preview": "vite preview",
     "clean": "rm -rf football",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "zip": "find football \\( -name '__MACOSX' -o -name '.DS_Store' \\) -exec rm -rf {} + && rm -f football.zip && zip -r football.zip football -x '__MACOSX/*' '*.DS_Store'"
   },
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",

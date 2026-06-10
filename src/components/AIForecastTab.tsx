@@ -599,7 +599,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="向AI咨询任何世界杯战术、赔率预测..."
+            placeholder="向AI咨询任何世界杯战术"
             className="flex-1 bg-transparent border-none text-[11.5px] text-white focus:outline-hidden placeholder-slate-500"
           />
           <button

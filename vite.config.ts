@@ -4,13 +4,15 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
-  const backendTarget = process.env.VITE_PROXY_TARGET || 'http://10.0.0.34:35800';
+  const backendTarget = process.env.VITE_PROXY_TARGET || 'https://huangxiaoxi.rxhui.com/football';
   const arkTarget = process.env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
+  const basePath = process.env.VITE_BASE_PATH || '/football/';
+  const normalizedBasePath = basePath.replace(/\/+$/, '');
 
   return {
-    // 默认使用相对路径，适配小程序 web-view、静态子目录和任意嵌入场景。
-    // 如果明确部署在固定子路径下，例如 GitHub Pages /football/，再通过 VITE_BASE_PATH 覆盖。
-    base: process.env.VITE_BASE_PATH || './',
+    // 当前默认部署在 /football/ 二级路径下。
+    // 如果后续切回根路径或其他子路径，再通过 VITE_BASE_PATH 覆盖。
+    base: basePath,
     build: {
       outDir: 'football',
       target: 'es2018',
@@ -34,10 +36,20 @@ export default defineConfig(() => {
           target: backendTarget,
           changeOrigin: true,
         },
+        [`${normalizedBasePath}/api`]: {
+          target: backendTarget,
+          changeOrigin: true,
+          rewrite: (pathValue) => pathValue.replace(new RegExp(`^${normalizedBasePath}`), ''),
+        },
         '/ark-api': {
           target: arkTarget,
           changeOrigin: true,
           rewrite: (pathValue) => pathValue.replace(/^\/ark-api/, ''),
+        },
+        [`${normalizedBasePath}/ark-api`]: {
+          target: arkTarget,
+          changeOrigin: true,
+          rewrite: (pathValue) => pathValue.replace(new RegExp(`^${normalizedBasePath}\/ark-api`), ''),
         },
       },
     },

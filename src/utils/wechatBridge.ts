@@ -4,6 +4,11 @@ import { storage } from './storage';
 const USER_CACHE_KEY = 'football.wechat-user-profile';
 const REQUEST_EVENT = 'football:request-wechat-user';
 const RESPONSE_EVENT = 'football:wechat-user-response';
+const ENTERPRISE_CUSTOMER_SERVICE_WECHAT_ID = 'hxxVIP01';
+const MINI_PROGRAM_CUSTOMER_SERVICE_PAGE = '/pages/customerService/customerService';
+const WECHAT_SDK_URL = 'https://res.wx.qq.com/open/js/jweixin-1.6.0.js';
+const WECHAT_SDK_TIMEOUT_MS = 4000;
+const MINI_PROGRAM_ENV_TIMEOUT_MS = 1500;
 
 /**
  * H5 <-> 小程序宿主通信约定
@@ -19,16 +24,72 @@ type MiniProgramEnv = {
   miniprogram?: boolean;
 };
 
-type WechatBridgeWindow = Window & {
-  wx?: {
-    miniProgram?: {
-      getEnv?: (callback: (result: MiniProgramEnv) => void) => void;
-      postMessage?: (payload: { data: unknown }) => void;
+declare global {
+  interface Window {
+    wx?: {
+      miniProgram?: {
+        getEnv?: (callback: (result: MiniProgramEnv) => void) => void;
+        navigateTo?: (payload: { url: string }) => void;
+        postMessage?: (payload: { data: unknown }) => void;
+      };
     };
-  };
-  __FOOTBALL_WECHAT_USER__?: Partial<WechatUserProfile>;
-  __FOOTBALL_GET_WECHAT_USER__?: () => Promise<Partial<WechatUserProfile> | null> | Partial<WechatUserProfile> | null;
-  __FOOTBALL_RESOLVE_WECHAT_USER__?: (payload: Partial<WechatUserProfile>) => void;
+    __FOOTBALL_WECHAT_USER__?: Partial<WechatUserProfile>;
+    __FOOTBALL_GET_WECHAT_USER__?: () => Promise<Partial<WechatUserProfile> | null> | Partial<WechatUserProfile> | null;
+    __FOOTBALL_RESOLVE_WECHAT_USER__?: (payload: Partial<WechatUserProfile>) => void;
+    __FOOTBALL_OPEN_CUSTOMER_SERVICE__?: () => Promise<void> | void;
+    __FOOTBALL_WECHAT_SDK_LOADING__?: Promise<void>;
+  }
+}
+
+const getMiniProgramApi = () => window.wx?.miniProgram;
+
+const ensureWechatSdkLoaded = async () => {
+  if (getMiniProgramApi()) return;
+
+  if (!window.__FOOTBALL_WECHAT_SDK_LOADING__) {
+    window.__FOOTBALL_WECHAT_SDK_LOADING__ = new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        reject(new Error('微信 JS-SDK 加载超时。'));
+      }, WECHAT_SDK_TIMEOUT_MS);
+
+      const resolveOnce = () => {
+        window.clearTimeout(timeout);
+        resolve();
+      };
+
+      const rejectOnce = () => {
+        window.clearTimeout(timeout);
+        reject(new Error('微信 JS-SDK 加载失败。'));
+      };
+
+      const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${WECHAT_SDK_URL}"]`);
+      if (existingScript) {
+        if (existingScript.dataset.loaded === 'true' || getMiniProgramApi()) {
+          resolveOnce();
+          return;
+        }
+        existingScript.addEventListener('load', resolveOnce, { once: true });
+        existingScript.addEventListener('error', rejectOnce, { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = WECHAT_SDK_URL;
+      script.async = true;
+      script.onload = () => {
+        script.dataset.loaded = 'true';
+        resolveOnce();
+      };
+      script.onerror = rejectOnce;
+      document.head.appendChild(script);
+    });
+  }
+
+  try {
+    await window.__FOOTBALL_WECHAT_SDK_LOADING__;
+  } catch {
+    window.__FOOTBALL_WECHAT_SDK_LOADING__ = undefined;
+  }
 };
 
 const getSearchParams = () => {
@@ -82,29 +143,38 @@ const cacheWechatUser = (user: WechatUserProfile) => {
 };
 
 const getMiniProgramEnv = async (): Promise<boolean> => {
-  const bridgeWindow = window as WechatBridgeWindow;
-  if (!bridgeWindow.wx?.miniProgram?.getEnv) return false;
+  try {
+    await ensureWechatSdkLoaded();
+  } catch {
+    return false;
+  }
+  const miniProgram = getMiniProgramApi();
+  if (!miniProgram?.getEnv) return false;
 
   return new Promise((resolve) => {
+    const timer = window.setTimeout(() => {
+      resolve(false);
+    }, MINI_PROGRAM_ENV_TIMEOUT_MS);
+
     try {
-      bridgeWindow.wx?.miniProgram?.getEnv?.((result) => {
+      miniProgram.getEnv?.((result) => {
+        window.clearTimeout(timer);
         resolve(!!result?.miniprogram);
       });
     } catch {
+      window.clearTimeout(timer);
       resolve(false);
     }
   });
 };
 
 const getInjectedWechatUser = async (): Promise<WechatUserProfile | null> => {
-  const bridgeWindow = window as WechatBridgeWindow;
-
-  const directUser = normalizeWechatUser(bridgeWindow.__FOOTBALL_WECHAT_USER__, 'injected');
+  const directUser = normalizeWechatUser(window.__FOOTBALL_WECHAT_USER__, 'injected');
   if (directUser) return directUser;
 
-  if (!bridgeWindow.__FOOTBALL_GET_WECHAT_USER__) return null;
+  if (!window.__FOOTBALL_GET_WECHAT_USER__) return null;
 
-  const resolved = await bridgeWindow.__FOOTBALL_GET_WECHAT_USER__();
+  const resolved = await window.__FOOTBALL_GET_WECHAT_USER__();
   return normalizeWechatUser(resolved, 'injected');
 };
 
@@ -128,6 +198,30 @@ const getWechatUserFromUrl = (): WechatUserProfile | null => {
 
 export const resolveWechatUserFromMiniProgram = (payload: Partial<WechatUserProfile>) => {
   window.dispatchEvent(new CustomEvent(RESPONSE_EVENT, { detail: payload }));
+};
+
+export const getEnterpriseCustomerServiceFallbackWechatId = () => ENTERPRISE_CUSTOMER_SERVICE_WECHAT_ID;
+
+export const openEnterpriseCustomerService = async () => {
+  await ensureWechatSdkLoaded();
+
+  if (window.__FOOTBALL_OPEN_CUSTOMER_SERVICE__) {
+    await window.__FOOTBALL_OPEN_CUSTOMER_SERVICE__();
+    return;
+  }
+
+  const inMiniProgram = await getMiniProgramEnv();
+  const miniProgram = getMiniProgramApi();
+  if (inMiniProgram) {
+    if (miniProgram?.navigateTo) {
+      miniProgram.navigateTo({
+        url: MINI_PROGRAM_CUSTOMER_SERVICE_PAGE,
+      });
+      return;
+    }
+  }
+
+  throw new Error('当前环境未注入微信小程序 navigateTo 能力，无法打开客服页。');
 };
 
 export const requestWechatUserProfile = async (timeoutMs = 6000): Promise<WechatUserProfile> => {
@@ -155,8 +249,8 @@ export const requestWechatUserProfile = async (timeoutMs = 6000): Promise<Wechat
     throw new Error('当前不在微信小程序 WebView 环境，无法获取微信用户信息。');
   }
 
-  const bridgeWindow = window as WechatBridgeWindow;
-  if (!bridgeWindow.wx?.miniProgram?.postMessage) {
+  const miniProgram = getMiniProgramApi();
+  if (!miniProgram?.postMessage) {
     throw new Error('当前小程序 WebView 未注入 postMessage 能力，无法请求微信用户信息。');
   }
 
@@ -193,17 +287,17 @@ export const requestWechatUserProfile = async (timeoutMs = 6000): Promise<Wechat
       window.clearTimeout(timer);
       window.removeEventListener(RESPONSE_EVENT, customEventHandler);
       window.removeEventListener('message', messageEventHandler);
-      if (bridgeWindow.__FOOTBALL_RESOLVE_WECHAT_USER__ === handleResolvedUser) {
-        delete bridgeWindow.__FOOTBALL_RESOLVE_WECHAT_USER__;
+      if (window.__FOOTBALL_RESOLVE_WECHAT_USER__ === handleResolvedUser) {
+        delete window.__FOOTBALL_RESOLVE_WECHAT_USER__;
       }
     };
 
-    bridgeWindow.__FOOTBALL_RESOLVE_WECHAT_USER__ = handleResolvedUser;
+    window.__FOOTBALL_RESOLVE_WECHAT_USER__ = handleResolvedUser;
     window.addEventListener(RESPONSE_EVENT, customEventHandler);
     window.addEventListener('message', messageEventHandler);
 
     window.dispatchEvent(new CustomEvent(REQUEST_EVENT));
-    bridgeWindow.wx.miniProgram.postMessage({
+    miniProgram.postMessage({
       data: {
         type: REQUEST_EVENT,
         timestamp: Date.now(),

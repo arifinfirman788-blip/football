@@ -104,11 +104,6 @@ body {
   z-index: 1;
 }
 
-/* 头图下半部草坪覆盖：盖住切图里的黑色区域，形成从草坪到页面的连续绿色 */
-.guess-hero {
-  background: linear-gradient(180deg, #061a03 0%, #00160c 72%, #00160c 100%);
-}
-
 .guess-hero__image {
   z-index: 1;
 }

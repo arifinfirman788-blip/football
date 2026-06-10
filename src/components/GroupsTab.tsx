@@ -280,7 +280,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
                 : 'leaderboard-segment-button--idle'
             }`}
           >
-            当日排行
+            周排行
           </button>
           <button
             onClick={() => setActiveTab('all-time')}
@@ -460,8 +460,8 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
             <div className="text-slate-300 space-y-2 leading-relaxed font-sans">
               <p>1. <strong>积分来源</strong>：仅计算基础分，猜对一场胜/平/负 +1 分，猜错不加分。</p>
               <p>2. <strong>结算口径</strong>：所有场次均以常规时间结算，即 90 分钟加伤停补时，不包含加时赛及点球大战。</p>
-              <p>3. <strong>命中率考核</strong>：每日排行榜以单天内竞猜结束后的正确率（猜对场次 ÷ 总提交次数）为准计算前十强。</p>
-              <p>4. <strong>当日与总排行</strong>：【当日排行】于每日 24:00 结束当天考核结算；【总排行】累计活动期间全部基础分。</p>
+              <p>3. <strong>命中率考核</strong>：周排行榜以每周统计周期内竞猜结束后的正确率（猜对场次 ÷ 总提交次数）为准计算排名。</p>
+              <p>4. <strong>周排行与总排行</strong>：【周排行】按每周统计周期结算；【总排行】累计活动期间全部基础分。</p>
             </div>
             <button
               onClick={() => setShowRules(false)}

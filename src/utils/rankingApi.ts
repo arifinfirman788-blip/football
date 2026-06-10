@@ -105,7 +105,7 @@ const ensureSuccess = <T extends { message: ApiMessage }>(payload: T) => {
 };
 
 export const fetchWeeklyLeaderboard = async (date: string): Promise<RankingListUser[]> => {
-  const response = await fetch(`${API_BASE_URL}/api/rankings/weekly?date=${date}&page=1&page_size=10`);
+  const response = await fetch(`${API_BASE_URL}/rankings/weekly?date=${date}&page=1&page_size=10`);
   if (!response.ok) {
     throw new Error(`周排行榜接口请求失败，HTTP 状态码 ${response.status}`);
   }
@@ -124,7 +124,7 @@ export const fetchWeeklyLeaderboard = async (date: string): Promise<RankingListU
 };
 
 export const fetchTotalLeaderboard = async (): Promise<RankingListUser[]> => {
-  const response = await fetch(`${API_BASE_URL}/api/rankings/total?page=1&page_size=10`);
+  const response = await fetch(`${API_BASE_URL}/rankings/total?page=1&page_size=10`);
   if (!response.ok) {
     throw new Error(`总排行榜接口请求失败，HTTP 状态码 ${response.status}`);
   }
@@ -156,7 +156,7 @@ export const fetchMyRankingSummary = async (
     params.set('date', date);
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/rankings/me?${params.toString()}`);
+  const response = await fetch(`${API_BASE_URL}/rankings/me?${params.toString()}`);
   if (!response.ok) {
     throw new Error(`我的排行接口请求失败，HTTP 状态码 ${response.status}`);
   }

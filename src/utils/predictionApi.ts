@@ -16,6 +16,12 @@ interface ApiPageData<T> {
   totalCount: number;
   totalPage: number;
   date?: string;
+  dates?: string[];
+  date_groups?: Array<{
+    date: string;
+    match_total: number;
+    list: T[];
+  }>;
   match_total?: number;
 }
 
@@ -249,6 +255,12 @@ const mapPredictionOutcome = (prediction: ApiPredictionRecordItem['prediction_re
   return 'draw';
 };
 
+const mapPredictionMatchStatus = (status: ApiPredictionRecordItem['status']): Match['status'] => {
+  if (status === 'live') return 'conducting';
+  if (status === 'finished') return 'ended';
+  return 'unstarted';
+};
+
 const mapPredictionRecord = (
   item: ApiPredictionRecordItem,
   wechatUser?: WechatUserProfile | null
@@ -259,12 +271,21 @@ const mapPredictionRecord = (
   return {
     matchId: String(item.match_id),
     fixture: `${item.home_team_name} VS ${item.away_team_name}`,
+    homeTeamName: item.home_team_name,
+    awayTeamName: item.away_team_name,
+    homeTeamFlag: mapTeam(item.home_team_name, item.home_world_rank, item.home_team_flag).flag,
+    awayTeamFlag: mapTeam(item.away_team_name, item.away_world_rank, item.away_team_flag).flag,
     choice: item.prediction_label,
     outcome,
     time: beijingTime.time,
     dateKey: beijingTime.dateKey,
     timestamp: beijingTime.timestamp,
     stage: mapStageLabel(item.stage_label, item.stage, item.round_no),
+    matchStatus: mapPredictionMatchStatus(item.status),
+    actualResult: item.regular_result_label || null,
+    score: item.home_score !== null && item.away_score !== null
+      ? `${item.home_score} : ${item.away_score}`
+      : null,
     status: item.settlement_status === 'pending'
       ? '待开奖'
       : item.points_awarded > 0
@@ -283,7 +304,7 @@ export const getStoredUserId = () => {
 };
 
 export const upsertUserProfile = async (wechatUser: WechatUserProfile): Promise<number> => {
-  const response = await fetch(`${API_BASE_URL}/api/users/upsert`, {
+  const response = await fetch(`${API_BASE_URL}/users/upsert`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -310,7 +331,7 @@ export const upsertUserProfile = async (wechatUser: WechatUserProfile): Promise<
 };
 
 export const fetchPredictableMatchesByDate = async (userId: number, date: string) => {
-  const response = await fetch(`${API_BASE_URL}/api/public/matches/predictable?user_id=${userId}&date=${date}&page=1&page_size=100`);
+  const response = await fetch(`${API_BASE_URL}/public/matches/predictable?user_id=${userId}&date=${date}&page=1&page_size=100`);
   if (!response.ok) {
     throw new Error(`竞猜比赛接口请求失败，HTTP 状态码 ${response.status}`);
   }
@@ -329,18 +350,40 @@ export const fetchPredictableMatchesByDate = async (userId: number, date: string
 };
 
 export const resolveFirstPredictableDate = async (userId: number, fromDate = new Date()) => {
-  for (let offset = 0; offset < 21; offset += 1) {
-    const date = new Date(fromDate);
-    date.setDate(fromDate.getDate() + offset);
-    const dateKey = formatDateKey(date);
-    const result = await fetchPredictableMatchesByDate(userId, dateKey);
-    if (result.matches.length > 0) {
-      return result;
-    }
+  const date = formatDateKey(fromDate);
+  const dayCount = 3;
+  const response = await fetch(`${API_BASE_URL}/public/matches/nearest-predictable?user_id=${userId}&date=${date}&day_count=${dayCount}&page=1&page_size=100`);
+  if (!response.ok) {
+    throw new Error(`最近比赛日竞猜接口请求失败，HTTP 状态码 ${response.status}`);
   }
 
-  const fallbackDate = formatDateKey(fromDate);
-  return fetchPredictableMatchesByDate(userId, fallbackDate);
+  const payload = (await response.json()) as ApiPageResponse<ApiPredictableMatchItem>;
+  ensureSuccess(payload);
+
+  const dateGroups = Array.isArray(payload.data.date_groups) ? payload.data.date_groups : [];
+  const groupedMatches = Object.fromEntries(
+    dateGroups.map((group) => [
+      group.date,
+      {
+        matches: group.list.map(mapPredictableMatchToMatch),
+        canPredictMap: group.list.reduce<Record<string, boolean>>((acc, item) => {
+          acc[String(item.id)] = item.can_predict;
+          return acc;
+        }, {}),
+      },
+    ])
+  );
+
+  return {
+    date: payload.data.date || date,
+    dates: Array.isArray(payload.data.dates) ? payload.data.dates : [payload.data.date || date],
+    matches: payload.data.list.map(mapPredictableMatchToMatch),
+    canPredictMap: payload.data.list.reduce<Record<string, boolean>>((acc, item) => {
+      acc[String(item.id)] = item.can_predict;
+      return acc;
+    }, {}),
+    groupedMatches,
+  };
 };
 
 export const submitPrediction = async (
@@ -349,7 +392,7 @@ export const submitPrediction = async (
   outcome: 'home' | 'draw' | 'away'
 ) => {
   const predictionResult = outcome === 'home' ? 'home_win' : outcome === 'away' ? 'away_win' : 'draw';
-  const url = `${API_BASE_URL}/api/public/matches/${matchId}/prediction`;
+  const url = `${API_BASE_URL}/public/matches/${matchId}/prediction`;
   const requestBody = {
     user_id: userId,
     prediction_result: predictionResult,
@@ -424,7 +467,7 @@ export const fetchUserPredictionRecords = async (
   userId: number,
   wechatUser?: WechatUserProfile | null
 ) => {
-  const response = await fetch(`${API_BASE_URL}/api/public/users/${userId}/predictions?page=1&page_size=100`);
+  const response = await fetch(`${API_BASE_URL}/public/users/${userId}/predictions?page=1&page_size=100`);
   if (!response.ok) {
     throw new Error(`我的竞猜记录接口请求失败，HTTP 状态码 ${response.status}`);
   }

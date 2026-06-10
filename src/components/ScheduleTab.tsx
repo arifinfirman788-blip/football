@@ -4,11 +4,11 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Match } from '../types';
+import { Match, PredictionRecord } from '../types';
 import { assetUrl } from '../utils/assets';
+import { fetchUserPredictionRecords } from '../utils/predictionApi';
 import {
   fetchGroupTeams,
-  fetchMyPredictionMatches,
   fetchScheduleMatches,
   getScheduleFallbackMatches,
   ScheduleGroupData,
@@ -38,7 +38,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
   const [activeCategory, setActiveCategory] = useState<'all' | 'group' | 'knockout' | 'mine'>('all');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
   const [matches, setMatches] = useState<Match[]>(() => getScheduleFallbackMatches());
-  const [myPredictionMatches, setMyPredictionMatches] = useState<Match[]>([]);
+  const [myPredictionRecords, setMyPredictionRecords] = useState<PredictionRecord[]>([]);
   const [groupDataList, setGroupDataList] = useState<ScheduleGroupData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -47,6 +47,12 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
   const getBeijingKickoffLabel = (match: Match) => {
     const dateLabel = match.time.replace(/^北京时间\s*/, '');
     return `${dateLabel} ${match.timestamp}`;
+  };
+
+  const getPredictionMatchStatusLabel = (status: PredictionRecord['matchStatus']) => {
+    if (status === 'conducting') return '进行中';
+    if (status === 'ended') return '已结束';
+    return '未开始';
   };
 
   useEffect(() => {
@@ -76,11 +82,11 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
 
         if (userId && Number.isFinite(userId)) {
           setMyPredictionError(null);
-          const myMatches = await fetchMyPredictionMatches(userId);
+          const myRecords = await fetchUserPredictionRecords(userId);
           if (cancelled) return;
-          setMyPredictionMatches(myMatches);
+          setMyPredictionRecords(myRecords);
         } else if (!cancelled) {
-          setMyPredictionMatches([]);
+          setMyPredictionRecords([]);
           setMyPredictionError('未找到当前用户 ID，暂时无法加载“我的竞猜”。');
         }
       } catch (error) {
@@ -88,7 +94,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
         if (cancelled) return;
         setMatches(getScheduleFallbackMatches());
         setGroupDataList([]);
-        setMyPredictionMatches([]);
+        setMyPredictionRecords([]);
         setLoadError(error instanceof Error ? `${error.message}，已展示默认赛程数据。` : '赛程接口加载失败，已展示默认赛程数据。');
       } finally {
         if (!cancelled) {
@@ -245,58 +251,68 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                 {myPredictionError}
               </div>
             )}
-            {myPredictionMatches.length > 0 ? (
-              myPredictionMatches.map((match) => (
+            {myPredictionRecords.length > 0 ? (
+              myPredictionRecords.map((record) => (
                 <div
-                  key={match.id}
-                  className="sport-glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/5 shadow-[0_10px_22px_rgba(0,0,0,0.35)]"
+                  key={record.matchId}
+                  className="sport-glass-card rounded-2xl p-3.5 border border-white/5 shadow-[0_10px_22px_rgba(0,0,0,0.35)]"
                 >
-                  <div className="flex flex-col space-y-1 w-16 border-r border-white/5 pr-2 shrink-0">
-                    <span className="text-[13px] font-bold font-mono tracking-tight text-white">{match.timestamp}</span>
-                    <span className="text-[8px] text-slate-400 font-medium truncate">{match.stage.split('·')[0]}</span>
-                    {match.group && (
-                      <span className="text-[8.5px] self-start text-[#00e676] bg-[#00e676]/10 font-bold px-1 py-[1.5px] rounded mt-0.5 border border-[#00e676]/20">
-                        {match.group}组
-                      </span>
-                    )}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-slate-100 truncate">
+                        {record.fixture}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-300">
+                        <span>{record.homeTeamFlag}</span>
+                        <span className="truncate">{record.homeTeamName}</span>
+                        <span className="text-slate-500">vs</span>
+                        <span>{record.awayTeamFlag}</span>
+                        <span className="truncate">{record.awayTeamName}</span>
+                      </div>
+                      <div className="text-[9px] text-slate-500 font-mono mt-1">
+                        {record.dateKey.slice(5).replace('-', '/')} {record.timestamp} · {record.stage}
+                      </div>
+                    </div>
+                    <span className={`shrink-0 text-[8.5px] font-bold px-2 py-0.5 rounded-full border ${
+                      record.matchStatus === 'conducting'
+                        ? 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/20'
+                        : record.matchStatus === 'ended'
+                          ? 'text-slate-300 bg-slate-700/30 border-slate-600/30'
+                          : 'text-slate-400 bg-[#1e2d3b] border-slate-700/30'
+                    }`}>
+                      {getPredictionMatchStatusLabel(record.matchStatus)}
+                    </span>
                   </div>
 
-                  <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center px-2 select-none min-w-0">
-                    <div
-                      onClick={() => onTeamSelect(match.homeTeam.id)}
-                      className="flex flex-col items-center cursor-pointer group min-w-0"
-                    >
-                      <span className="text-2xl filter drop-shadow">{match.homeTeam.flag}</span>
-                      <span className="text-[10px] font-bold mt-1 text-slate-100 truncate w-full text-center">
-                        {match.homeTeam.name}
-                      </span>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-black/18 border border-white/5 px-3 py-2">
+                      <div className="text-[8.5px] text-slate-500 font-medium">竞猜结果</div>
+                      <div className="text-[10px] text-[#00e676] font-bold mt-1">{record.choice}</div>
                     </div>
-
-                    <div className="flex flex-col items-center justify-center shrink-0 px-2 min-w-[56px]">
-                      <span className="text-slate-400 font-display text-[10px] font-bold uppercase tracking-[1px] whitespace-nowrap">VS</span>
-                      <span className="text-[8px] text-slate-500 font-mono mt-0.5 whitespace-nowrap">{match.stage.split('·')[1]}</span>
+                    <div className="rounded-xl bg-black/18 border border-white/5 px-3 py-2">
+                      <div className="text-[8.5px] text-slate-500 font-medium">真实结果</div>
+                      <div className="text-[10px] text-white font-bold mt-1">{record.actualResult || '待开奖'}</div>
                     </div>
-
-                    <div
-                      onClick={() => onTeamSelect(match.awayTeam.id)}
-                      className="flex flex-col items-center cursor-pointer group min-w-0"
-                    >
-                      <span className="text-2xl filter drop-shadow">{match.awayTeam.flag}</span>
-                      <span className="text-[10px] font-bold mt-1 text-slate-100 truncate w-full text-center">
-                        {match.awayTeam.name}
-                      </span>
+                    <div className="rounded-xl bg-black/18 border border-white/5 px-3 py-2">
+                      <div className="text-[8.5px] text-slate-500 font-medium">比赛比分</div>
+                      <div className="text-[10px] text-white font-bold mt-1">{record.score || '--'}</div>
                     </div>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAIPredictionClick(match);
-                    }}
-                    className="ml-3 shrink-0 px-2.5 py-1 rounded-full text-[9px] font-bold text-[#00e676] border border-[#00e676]/20 bg-[#00e676]/10"
-                  >
-                    AI分析
-                  </button>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-[9px] text-slate-500 font-mono">
+                      {record.points === null ? '待结算' : `积分 +${record.points}`}
+                    </span>
+                    <span className={`text-[9px] font-bold rounded-full border px-2 py-0.5 ${
+                      record.status === '猜对 +1'
+                        ? 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/20'
+                        : record.status === '猜错 +0'
+                          ? 'text-[#ff8a80] bg-[#ff8a80]/10 border-[#ff8a80]/20'
+                          : 'text-[#ffd54f] bg-[#ffd54f]/10 border-[#ffd54f]/20'
+                    }`}>
+                      {record.status}
+                    </span>
+                  </div>
                 </div>
               ))
             ) : (

@@ -1,6 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Match } from '../types';
-import { ARK_PROXY_PATH } from './apiConfig';
+import { API_BASE_URL } from './apiConfig';
 
 export interface LocalAiSource {
   title: string;
@@ -11,7 +11,7 @@ export interface LocalAiResult {
   success: true;
   prediction: string;
   sources: LocalAiSource[];
-  provider: 'ark-bot';
+  provider: 'ai-stream';
   timestamp: string;
 }
 
@@ -20,21 +20,9 @@ export interface ArkConversationMessage {
   content: string;
 }
 
-interface ArkChatCompletionChunk {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-    delta?: {
-      content?: string;
-    };
-  }>;
-  references?: Array<{
-    title?: string;
-    name?: string;
-    url?: string;
-    uri?: string;
-  }>;
+interface AiStreamChunk {
+  content?: string;
+  error?: string;
 }
 
 interface ArkStreamOptions {
@@ -46,18 +34,9 @@ interface ArkStreamOptions {
   onSources?: (sources: LocalAiSource[]) => void;
 }
 
-const arkApiUrl = ARK_PROXY_PATH;
-const arkApiKey = 'ark-1a59cf94-e2ae-48f2-b5cf-d9e17795e8df-8f7ef';
-const arkBotModel = 'bot-20260529180527-29f2t';
+const aiStreamApiUrl = `${API_BASE_URL}/ai/chat/stream`;
 
 class ArkStreamFatalError extends Error {}
-
-const normalizeArkApiUrl = (rawUrl: string) => {
-  const normalized = rawUrl.replace(/\/+$/, '');
-  if (normalized.endsWith('/chat/completions')) return normalized;
-  if (normalized.endsWith('/bots')) return `${normalized}/chat/completions`;
-  return normalized;
-};
 
 const buildMatchQuestion = (match: Match) => (
   `请分析并预测这场即将到来（或最近发生）的世界杯足球赛：
@@ -81,23 +60,6 @@ const buildArkPrompt = (payload: { match?: Match | null; question?: string }) =>
   return payload.question?.trim() || '请分析一下今晚最值得关注的世界杯比赛。';
 };
 
-const getChunkText = (data: ArkChatCompletionChunk) => (
-  data.choices?.[0]?.delta?.content
-  || data.choices?.[0]?.message?.content
-  || ''
-);
-
-const getChunkSources = (data: ArkChatCompletionChunk): LocalAiSource[] => {
-  if (!Array.isArray(data.references)) return [];
-
-  return data.references
-    .map((item) => ({
-      title: item.title || item.name || '联网参考来源',
-      uri: item.url || item.uri || '',
-    }))
-    .filter((item) => item.uri);
-};
-
 export const streamArkPrediction = async ({
   match,
   question,
@@ -106,22 +68,15 @@ export const streamArkPrediction = async ({
   onChunk,
   onSources,
 }: ArkStreamOptions): Promise<LocalAiResult> => {
-  if (!arkApiKey) {
-    throw new Error('未配置 Ark API Key，无法调用 Ark 问答预测接口。');
-  }
-
   let prediction = '';
-  let latestSources: LocalAiSource[] = [];
+  const latestSources: LocalAiSource[] = [];
 
-  await fetchEventSource(normalizeArkApiUrl(arkApiUrl), {
+  await fetchEventSource(aiStreamApiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${arkApiKey}`,
     },
     body: JSON.stringify({
-      model: arkBotModel,
-      stream: true,
       messages: messages?.length
         ? messages
         : [
@@ -135,34 +90,32 @@ export const streamArkPrediction = async ({
     openWhenHidden: true,
     async onopen(response) {
       if (!response.ok) {
-        throw new ArkStreamFatalError(`Ark 接口请求失败，HTTP 状态码 ${response.status}。`);
+        throw new ArkStreamFatalError(`问答接口请求失败，HTTP 状态码 ${response.status}。`);
       }
     },
     onmessage(event) {
       if (!event.data || event.data === '[DONE]') return;
 
-      let chunkData: ArkChatCompletionChunk;
+      let chunkData: AiStreamChunk;
       try {
-        chunkData = JSON.parse(event.data) as ArkChatCompletionChunk;
+        chunkData = JSON.parse(event.data) as AiStreamChunk;
       } catch {
-        throw new ArkStreamFatalError('Ark SSE 返回的数据不是合法 JSON。');
+        throw new ArkStreamFatalError('问答 SSE 返回的数据不是合法 JSON。');
       }
 
-      const chunkText = getChunkText(chunkData);
+      if (event.event === 'error' || chunkData.error) {
+        throw new ArkStreamFatalError(chunkData.error || '问答接口返回错误。');
+      }
+
+      const chunkText = chunkData.content || '';
       if (chunkText) {
         prediction += chunkText;
         onChunk?.(chunkText);
       }
-
-      const chunkSources = getChunkSources(chunkData);
-      if (chunkSources.length > 0) {
-        latestSources = chunkSources;
-        onSources?.(chunkSources);
-      }
     },
     onclose() {
       if (!prediction.trim()) {
-        throw new ArkStreamFatalError('Ark SSE 连接已关闭，但未返回任何内容。');
+        throw new ArkStreamFatalError('问答 SSE 连接已关闭，但未返回任何内容。');
       }
     },
     onerror(error) {
@@ -174,19 +127,21 @@ export const streamArkPrediction = async ({
         throw new ArkStreamFatalError('请求已取消。');
       }
 
-      throw new ArkStreamFatalError(error instanceof Error ? error.message : 'Ark SSE 请求失败。');
+      throw new ArkStreamFatalError(error instanceof Error ? error.message : '问答 SSE 请求失败。');
     },
   });
 
   if (!prediction.trim()) {
-    throw new Error('Ark 接口返回成功，但内容为空。');
+    throw new Error('问答接口返回成功，但内容为空。');
   }
+
+  onSources?.([]);
 
   return {
     success: true,
     prediction,
     sources: latestSources,
-    provider: 'ark-bot',
+    provider: 'ai-stream',
     timestamp: new Date().toISOString(),
   };
 };

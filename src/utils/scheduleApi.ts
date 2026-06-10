@@ -228,7 +228,7 @@ export const mapApiMatchToMatch = (item: ApiMatchItem): Match => {
 };
 
 export const fetchScheduleMatches = async (): Promise<Match[]> => {
-  const response = await fetch(`${API_BASE_URL}/api/matches?page=1&page_size=100`);
+  const response = await fetch(`${API_BASE_URL}/matches?page=1&page_size=100`);
   if (!response.ok) {
     throw new Error(`赛程接口请求失败，HTTP 状态码 ${response.status}`);
   }
@@ -242,7 +242,7 @@ export const fetchScheduleMatches = async (): Promise<Match[]> => {
 };
 
 export const fetchMyPredictionMatches = async (userId: number): Promise<Match[]> => {
-  const response = await fetch(`${API_BASE_URL}/api/public/users/${userId}/predictions?page=1&page_size=100`);
+  const response = await fetch(`${API_BASE_URL}/public/users/${userId}/predictions?page=1&page_size=100`);
   if (!response.ok) {
     throw new Error(`我的竞猜接口请求失败，HTTP 状态码 ${response.status}`);
   }
@@ -280,7 +280,7 @@ export const fetchMyPredictionMatches = async (userId: number): Promise<Match[]>
 };
 
 export const fetchGroupTeams = async (groupId: number): Promise<ScheduleGroupData> => {
-  const response = await fetch(`${API_BASE_URL}/api/groups/${groupId}/teams`);
+  const response = await fetch(`${API_BASE_URL}/groups/${groupId}/teams`);
   if (!response.ok) {
     throw new Error(`分组球队接口请求失败，group_id=${groupId}，HTTP 状态码 ${response.status}`);
   }

@@ -110,12 +110,19 @@ export interface PredictionRecord {
   // 用户提交后的竞猜明细。正式版建议与服务端竞猜订单结构保持一致。
   matchId: string;
   fixture: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeTeamFlag: string;
+  awayTeamFlag: string;
   choice: string;
   outcome: 'home' | 'draw' | 'away';
   time: string;
   dateKey: string;
   timestamp: string;
   stage: string;
+  matchStatus: Match['status'];
+  actualResult: string | null;
+  score: string | null;
   status: '待开奖' | '猜对 +1' | '猜错 +0';
   points: number | null; // 空值代表赛后尚未结算；0 和 1 分别代表猜错、猜对。
   wechatUser?: WechatUserProfile;

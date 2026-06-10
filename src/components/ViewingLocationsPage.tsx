@@ -17,60 +17,44 @@ interface ViewingLocation {
   name: string;
   address: string;
   time: string;
-  phone: string;
+  phone?: string;
   distance: string;
   lng: number;
   lat: number;
 }
 
-/**
- * TODO: 以下地点用于展示列表和导航交互，不是最终运营数据。
- * 正式版建议由活动后台下发，并补充营业状态、适用比赛、预约方式和排序权重。
- */
 const viewingLocations: ViewingLocation[] = [
   {
-    id: 'shanghai-jingan',
-    city: '上海',
-    name: '静安足球观影点',
-    address: '静安区南京西路商圈',
-    time: '18:00-赛后 30 分钟',
-    phone: '现场咨询',
-    distance: '约 2.4km',
-    lng: 121.459,
-    lat: 31.229,
+    id: 'timore',
+    city: '花溪区',
+    name: '缇漫Timore',
+    address: '汉批街道花跟大道十里河滩湿地公园(南广场观乌亭)地铁A口进入',
+    time: '10:00-21:30',
+    phone: '1726360557',
+    distance: '观影点',
+    lng: 106.678469,
+    lat: 26.438111,
   },
   {
-    id: 'beijing-chaoyang',
-    city: '北京',
-    name: '朝阳球迷观赛区',
-    address: '朝阳区工体周边商圈',
-    time: '17:30-赛后 30 分钟',
-    phone: '现场咨询',
-    distance: '约 5.8km',
-    lng: 116.447,
-    lat: 39.930,
+    id: 'cherry-motor',
+    city: '云岩区',
+    name: '车厘子机车咖啡馆',
+    address: '贵阳市云岩区水东路与温泉大道交叉口南440米',
+    time: '10:00-22:00',
+    phone: '13765013728',
+    distance: '观影点',
+    lng: 106.764971,
+    lat: 26.606122,
   },
   {
-    id: 'shenzhen-nanshan',
-    city: '深圳',
-    name: '南山户外观影点',
-    address: '南山区深圳湾体育中心周边',
-    time: '18:00-赛后 30 分钟',
-    phone: '现场咨询',
-    distance: '约 8.6km',
-    lng: 113.951,
-    lat: 22.536,
-  },
-  {
-    id: 'hangzhou-binjiang',
-    city: '杭州',
-    name: '滨江绿茵观影点',
-    address: '滨江区奥体中心周边',
-    time: '18:00-赛后 30 分钟',
-    phone: '现场咨询',
-    distance: '约 11.2km',
-    lng: 120.234,
-    lat: 30.239,
+    id: 'colorful-guizhou-city',
+    city: '南明区',
+    name: '多彩贵州城大草坪',
+    address: '龙洞堡老里坡1号',
+    time: '待确认',
+    distance: '观影点',
+    lng: 106.789304,
+    lat: 26.52904,
   },
 ];
 
@@ -136,10 +120,15 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
                 <Clock className="w-3.5 h-3.5 text-[#ffd54f]" />
                 <span className="truncate">{location.time}</span>
               </div>
-              <div className="rounded-xl bg-black/18 border border-white/5 px-2.5 py-2 flex items-center gap-1.5 text-slate-300">
+              <a
+                href={location.phone ? `tel:${location.phone}` : undefined}
+                className={`rounded-xl bg-black/18 border border-white/5 px-2.5 py-2 flex items-center gap-1.5 text-slate-300 ${
+                  location.phone ? 'active:scale-[0.98] transition-all' : 'pointer-events-none opacity-70'
+                }`}
+              >
                 <Phone className="w-3.5 h-3.5 text-[#ffd54f]" />
-                <span className="truncate">{location.phone}</span>
-              </div>
+                <span className="truncate">{location.phone || '暂无联系电话'}</span>
+              </a>
             </div>
 
             <a

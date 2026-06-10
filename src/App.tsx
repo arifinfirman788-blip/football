@@ -10,7 +10,6 @@ import { PredictionTab } from './components/PredictionTab';
 import { ScheduleTab } from './components/ScheduleTab';
 import { GroupsTab } from './components/GroupsTab';
 import { AIForecastTab } from './components/AIForecastTab';
-import { SplashAd } from './components/SplashAd';
 import { ViewingLocationsPage } from './components/ViewingLocationsPage';
 import { RewardRulesPage } from './components/RewardRulesPage';
 
@@ -44,11 +43,6 @@ export default function App() {
   // 两个覆盖底导的二级页面：线下观影地点、奖励兑换规则。
   const [isViewingLocationsOpen, setIsViewingLocationsOpen] = useState<boolean>(false);
   const [isRewardRulesOpen, setIsRewardRulesOpen] = useState<boolean>(false);
-
-  // 开屏广告状态：资源加载完成后停留 2.4 秒，再用 0.7 秒淡出。
-  const [showSplashAd, setShowSplashAd] = useState<boolean>(true);
-  const [isSplashLeaving, setIsSplashLeaving] = useState<boolean>(false);
-  const [isSplashReady, setIsSplashReady] = useState<boolean>(false);
 
   // 一级页面路由。项目未引入 react-router，底导切换由这个状态统一控制。
   const [phoneState, setPhoneState] = useState<{
@@ -154,30 +148,6 @@ export default function App() {
     );
   };
 
-  const closeSplashAd = () => {
-    setIsSplashLeaving(true);
-    window.setTimeout(() => {
-      setShowSplashAd(false);
-    }, 700);
-  };
-
-  React.useEffect(() => {
-    if (!showSplashAd || !isSplashReady) return;
-
-    // 必须等待海报 onLoad 后再计时，避免弱网下海报还没显示就开始淡出。
-    const visibleTimer = window.setTimeout(() => {
-      setIsSplashLeaving(true);
-    }, 2400);
-    const removeTimer = window.setTimeout(() => {
-      setShowSplashAd(false);
-    }, 3100);
-
-    return () => {
-      window.clearTimeout(visibleTimer);
-      window.clearTimeout(removeTimer);
-    };
-  }, [showSplashAd, isSplashReady]);
-
   React.useEffect(() => {
     storage.setJson(predictionStorageKey, predictionHistory);
   }, [predictionHistory]);
@@ -204,14 +174,6 @@ export default function App() {
             isOpen={isRewardRulesOpen}
             onClose={() => setIsRewardRulesOpen(false)}
           />
-
-          {showSplashAd && (
-            <SplashAd
-              isLeaving={isSplashLeaving}
-              onReady={() => setIsSplashReady(true)}
-              onSkip={closeSplashAd}
-            />
-          )}
         </div>
       </main>
     </div>
