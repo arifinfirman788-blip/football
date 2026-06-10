@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FlagMark } from './FlagMark';
 import { Match, PredictionRecord } from '../types';
 import { assetUrl } from '../utils/assets';
 import { fetchUserPredictionRecords } from '../utils/predictionApi';
@@ -43,6 +44,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [myPredictionError, setMyPredictionError] = useState<string | null>(null);
+  const [isGroupFilterCollapsed, setIsGroupFilterCollapsed] = useState(false);
+  const [isCompactGroupPickerOpen, setIsCompactGroupPickerOpen] = useState(false);
+  const contentScrollRef = useRef<HTMLDivElement | null>(null);
 
   const getBeijingKickoffLabel = (match: Match) => {
     const dateLabel = match.time.replace(/^北京时间\s*/, '');
@@ -151,13 +155,45 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
     selectedGroupId === 'all' ? allGroupIds : allGroupIds.filter((groupId) => groupId === selectedGroupId)
   ), [allGroupIds, selectedGroupId]);
 
+  const selectedGroupLabel = selectedGroupId === 'all' ? '全部' : `${selectedGroupId}组`;
+
   const groupStandingsMap = useMemo(
     () => Object.fromEntries(groupDataList.map((group) => [group.id, group.standings])),
     [groupDataList]
   );
 
+  useEffect(() => {
+    if (activeCategory !== 'group') {
+      setIsGroupFilterCollapsed(false);
+      setIsCompactGroupPickerOpen(false);
+      return;
+    }
+
+    const scrollContainer = contentScrollRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      const shouldCollapse = scrollContainer.scrollTop > 28;
+      setIsGroupFilterCollapsed((prev) => (prev === shouldCollapse ? prev : shouldCollapse));
+      if (!shouldCollapse) {
+        setIsCompactGroupPickerOpen(false);
+      }
+    };
+
+    handleScroll();
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+    };
+  }, [activeCategory]);
+
+  const handleGroupSelect = (groupId: string) => {
+    setSelectedGroupId(groupId);
+    setIsCompactGroupPickerOpen(false);
+  };
+
   return (
-    <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden select-none">
+    <div className="flex-1 flex flex-col bg-[#050f17] text-white overflow-hidden overflow-x-hidden select-none">
       
       {/* 赛程顶部：体育场灯光背景 + 右侧大力神杯 */}
       <div className="relative h-[194px] shrink-0 overflow-hidden bg-[#06111a]">
@@ -232,7 +268,10 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
       </div>
 
       {/* 内容区：根据筛选展示我的关注、小组赛或按日期分组的赛程列表 */}
-      <div className="flex-1 overflow-y-auto px-3.5 pb-28 pt-2 space-y-4 relative z-0">
+      <div
+        ref={contentScrollRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 pb-28 pt-2 space-y-4 relative z-0"
+      >
         {loadError && (
           <div className="mx-1 rounded-2xl border border-amber-400/15 bg-amber-500/8 px-3 py-2 text-[10px] text-amber-200">
             {loadError}
@@ -263,10 +302,20 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                         {record.fixture}
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-300">
-                        <span>{record.homeTeamFlag}</span>
+                        <FlagMark
+                          flag={record.homeTeamFlag}
+                          alt={record.homeTeamName}
+                          className="shrink-0"
+                          imageClassName="h-4 w-4 rounded-full object-cover"
+                        />
                         <span className="truncate">{record.homeTeamName}</span>
                         <span className="text-slate-500">vs</span>
-                        <span>{record.awayTeamFlag}</span>
+                        <FlagMark
+                          flag={record.awayTeamFlag}
+                          alt={record.awayTeamName}
+                          className="shrink-0"
+                          imageClassName="h-4 w-4 rounded-full object-cover"
+                        />
                         <span className="truncate">{record.awayTeamName}</span>
                       </div>
                       <div className="text-[9px] text-slate-500 font-mono mt-1">
@@ -323,40 +372,105 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
           </div>
         ) : activeCategory === 'group' ? (
           <div className="relative pb-12">
-            <div className="sticky top-2 z-20 mx-1 mb-3">
-              <div className="rounded-2xl border border-white/10 bg-[#071521]/92 backdrop-blur-md shadow-[0_10px_24px_rgba(0,0,0,0.35)] px-3 py-2">
+            <div
+              className={`sticky top-2 z-20 mx-1 mb-3 transition-all duration-300 ease-out ${
+                isGroupFilterCollapsed
+                  ? 'pointer-events-none -translate-y-3 opacity-0'
+                  : 'translate-y-0 opacity-100'
+              }`}
+            >
+                <div className="rounded-2xl border border-white/10 bg-[#071521]/92 backdrop-blur-md shadow-[0_10px_24px_rgba(0,0,0,0.35)] px-3 py-2">
                 {/* 顶部分组筛选：用两行按钮把 A-L 全部放上来 */}
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] text-slate-300 font-bold tracking-wider uppercase">分组筛选</span>
-                  <button
-                    onClick={() => setSelectedGroupId('all')}
-                    className={`h-7 px-3 rounded-full text-[10px] font-bold transition-all ${
-                      selectedGroupId === 'all'
-                        ? 'bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]'
-                        : 'text-slate-300 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    全部
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-6 gap-1.5">
-                  {allGroupIds.map((groupId) => (
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-slate-300 font-bold tracking-wider uppercase">分组筛选</span>
                     <button
-                      key={groupId}
-                      onClick={() => setSelectedGroupId(groupId)}
-                      className={`h-8 rounded-full text-[11px] font-black transition-all ${
-                        selectedGroupId === groupId
-                          ? 'bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_4px_10px_rgba(18,128,43,0.28)]'
-                          : 'bg-white/[0.04] text-slate-300 hover:text-white hover:bg-white/8'
+                      onClick={() => handleGroupSelect('all')}
+                      className={`h-7 px-3 rounded-full text-[10px] font-bold transition-all ${
+                        selectedGroupId === 'all'
+                          ? 'bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]'
+                          : 'text-slate-300 hover:text-white hover:bg-white/5'
                       }`}
                     >
-                      {groupId}
+                      全部
                     </button>
-                  ))}
+                  </div>
+
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {allGroupIds.map((groupId) => (
+                      <button
+                        key={groupId}
+                        onClick={() => handleGroupSelect(groupId)}
+                        className={`h-8 rounded-full text-[11px] font-black transition-all ${
+                          selectedGroupId === groupId
+                            ? 'bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_4px_10px_rgba(18,128,43,0.28)]'
+                            : 'bg-white/[0.04] text-slate-300 hover:text-white hover:bg-white/8'
+                        }`}
+                      >
+                        {groupId}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+            </div>
+
+            <div
+              className={`sticky top-2 z-30 ml-auto mb-3 flex w-fit justify-end transition-all duration-300 ease-out ${
+                isGroupFilterCollapsed
+                  ? 'translate-y-0 opacity-100'
+                  : 'pointer-events-none -translate-y-2 opacity-0'
+              }`}
+            >
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsCompactGroupPickerOpen((prev) => !prev)}
+                    className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#071521]/95 px-3 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.35)] backdrop-blur-md active:scale-[0.98] transition-all"
+                  >
+                    <div className="flex flex-col items-start leading-none">
+                      <span className="text-[8px] font-bold uppercase tracking-[1.5px] text-slate-400">分组</span>
+                      <span className="mt-1 text-[12px] font-black text-white">{selectedGroupLabel}</span>
+                    </div>
+                    <span className={`text-[10px] text-[#00e676] transition-transform ${isCompactGroupPickerOpen ? 'rotate-180' : ''}`}>
+                      ▼
+                    </span>
+                  </button>
+
+                  {isCompactGroupPickerOpen && (
+                    <div className="absolute right-0 top-[calc(100%+8px)] w-[212px] rounded-2xl border border-white/10 bg-[#071521]/97 p-3 shadow-[0_14px_28px_rgba(0,0,0,0.38)] backdrop-blur-md">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-[9px] font-bold uppercase tracking-[1.5px] text-slate-400">切换分组</span>
+                        <button
+                          type="button"
+                          onClick={() => handleGroupSelect('all')}
+                          className={`rounded-full px-2.5 py-1 text-[9px] font-bold transition-all ${
+                            selectedGroupId === 'all'
+                              ? 'bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white'
+                              : 'bg-white/[0.04] text-slate-300'
+                          }`}
+                        >
+                          全部
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {allGroupIds.map((groupId) => (
+                          <button
+                            key={groupId}
+                            type="button"
+                            onClick={() => handleGroupSelect(groupId)}
+                            className={`h-8 rounded-full text-[10px] font-black transition-all ${
+                              selectedGroupId === groupId
+                                ? 'bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]'
+                                : 'bg-white/[0.04] text-slate-300'
+                            }`}
+                          >
+                            {groupId}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
             <div className="space-y-4">
               {visibleGroupIds.map((groupId) => {
@@ -398,7 +512,13 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                           className="px-4 py-2.5 flex items-center justify-between hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center space-x-3">
-                            <span className="text-xl filter drop-shadow">{standing.team.flag}</span>
+                            <FlagMark
+                              flag={standing.team.flag}
+                              alt={standing.team.name}
+                              className="shrink-0"
+                              imageClassName="h-6 w-6 rounded-full object-cover shadow"
+                              emojiClassName="text-xl filter drop-shadow"
+                            />
                             <span className="text-xs font-bold tracking-wide text-slate-100">
                               {standing.team.name}
                             </span>
@@ -496,7 +616,13 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                           onClick={(e) => { e.stopPropagation(); onTeamSelect(match.homeTeam.id); }}
                           className="flex flex-col items-center hover:bg-white/5 py-1 px-1 rounded-xl transition-all min-w-0"
                         >
-                          <span className="text-2xl filter drop-shadow">{match.homeTeam.flag}</span>
+                          <FlagMark
+                            flag={match.homeTeam.flag}
+                            alt={match.homeTeam.name}
+                            className="shrink-0"
+                            imageClassName="h-8 w-8 rounded-full object-cover shadow"
+                            emojiClassName="text-2xl filter drop-shadow"
+                          />
                           <span className="text-[10px] font-bold mt-1 text-slate-100 truncate w-full text-center">
                             {match.homeTeam.name}
                           </span>
@@ -521,7 +647,13 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
                           onClick={(e) => { e.stopPropagation(); onTeamSelect(match.awayTeam.id); }}
                           className="flex flex-col items-center hover:bg-white/5 py-1 px-1 rounded-xl transition-all min-w-0"
                         >
-                          <span className="text-2xl filter drop-shadow">{match.awayTeam.flag}</span>
+                          <FlagMark
+                            flag={match.awayTeam.flag}
+                            alt={match.awayTeam.name}
+                            className="shrink-0"
+                            imageClassName="h-8 w-8 rounded-full object-cover shadow"
+                            emojiClassName="text-2xl filter drop-shadow"
+                          />
                           <span className="text-[10px] font-bold mt-1 text-slate-100 truncate w-full text-center">
                             {match.awayTeam.name}
                           </span>

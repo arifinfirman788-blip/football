@@ -351,7 +351,7 @@ export const fetchPredictableMatchesByDate = async (userId: number, date: string
 
 export const resolveFirstPredictableDate = async (userId: number, fromDate = new Date()) => {
   const date = formatDateKey(fromDate);
-  const dayCount = 3;
+  const dayCount = 2;
   const response = await fetch(`${API_BASE_URL}/public/matches/nearest-predictable?user_id=${userId}&date=${date}&day_count=${dayCount}&page=1&page_size=100`);
   if (!response.ok) {
     throw new Error(`最近比赛日竞猜接口请求失败，HTTP 状态码 ${response.status}`);

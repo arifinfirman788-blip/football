@@ -9,6 +9,9 @@ const MINI_PROGRAM_CUSTOMER_SERVICE_PAGE = '/pages/customerService/customerServi
 const WECHAT_SDK_URL = 'https://res.wx.qq.com/open/js/jweixin-1.6.0.js';
 const WECHAT_SDK_TIMEOUT_MS = 4000;
 const MINI_PROGRAM_ENV_TIMEOUT_MS = 1500;
+const WECHAT_CONFIG_TIMEOUT_MS = 4000;
+const WECHAT_TICKET_URL = '/football/wechat-api/asrTaskService/wechat/ticket';
+const WECHAT_PRODUCTION_APP_ID = 'wxf958a408e90c009a';
 
 /**
  * H5 <-> 小程序宿主通信约定
@@ -24,9 +27,43 @@ type MiniProgramEnv = {
   miniprogram?: boolean;
 };
 
+type WechatJsSdkConfig = {
+  appId: string;
+  timestamp: number;
+  nonceStr: string;
+  signature: string;
+};
+
+type WechatJsSdkConfigInput = {
+  appId?: string | null;
+  timestamp?: number | string | null;
+  nonceStr?: string | null;
+  signature?: string | null;
+};
+
 declare global {
   interface Window {
     wx?: {
+      config?: (payload: {
+        debug?: boolean;
+        appId: string;
+        timestamp: number;
+        nonceStr: string;
+        signature: string;
+        jsApiList: string[];
+      }) => void;
+      ready?: (callback: () => void) => void;
+      error?: (callback: (error: unknown) => void) => void;
+      openLocation?: (payload: {
+        latitude: number;
+        longitude: number;
+        name: string;
+        address: string;
+        scale?: number;
+        success?: () => void;
+        fail?: (error: unknown) => void;
+        cancel?: () => void;
+      }) => void;
       miniProgram?: {
         getEnv?: (callback: (result: MiniProgramEnv) => void) => void;
         navigateTo?: (payload: { url: string }) => void;
@@ -37,7 +74,16 @@ declare global {
     __FOOTBALL_GET_WECHAT_USER__?: () => Promise<Partial<WechatUserProfile> | null> | Partial<WechatUserProfile> | null;
     __FOOTBALL_RESOLVE_WECHAT_USER__?: (payload: Partial<WechatUserProfile>) => void;
     __FOOTBALL_OPEN_CUSTOMER_SERVICE__?: () => Promise<void> | void;
+    __FOOTBALL_OPEN_LOCATION__?: (payload: {
+      latitude: number;
+      longitude: number;
+      name: string;
+      address: string;
+    }) => Promise<void> | void;
+    __FOOTBALL_WECHAT_CONFIG__?: Partial<WechatJsSdkConfig>;
     __FOOTBALL_WECHAT_SDK_LOADING__?: Promise<void>;
+    __FOOTBALL_WECHAT_CONFIG_READY__?: Promise<void>;
+    __FOOTBALL_WECHAT_TICKET__?: string;
   }
 }
 
@@ -113,6 +159,162 @@ const getFirstParam = (params: URLSearchParams, keys: string[]) => {
     if (value) return value;
   }
   return null;
+};
+
+const getWechatAppId = () => WECHAT_PRODUCTION_APP_ID;
+
+const createNonceStr = () => 'Wm3WZYTPz0wzccnW';
+
+const sha1 = async (content: string) => {
+  const buffer = new TextEncoder().encode(content);
+  const digest = await window.crypto.subtle.digest('SHA-1', buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const generateWechatSignature = async ({
+  ticket,
+  nonceStr,
+  timestamp,
+  url,
+}: {
+  ticket: string;
+  nonceStr: string;
+  timestamp: number;
+  url: string;
+}) => {
+  const rawString = `jsapi_ticket=${ticket}&noncestr=${nonceStr}&timestamp=${timestamp}&url=${url}`;
+  return sha1(rawString);
+};
+
+const fetchWechatJsapiTicket = async () => {
+  if (window.__FOOTBALL_WECHAT_TICKET__) {
+    return window.__FOOTBALL_WECHAT_TICKET__;
+  }
+
+  const response = await fetch(`${WECHAT_TICKET_URL}?t=${Date.now()}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(`获取微信 jsapi_ticket 失败，HTTP ${response.status}。`);
+  }
+
+  const payload = await response.json() as {
+    data?: {
+      ticket?: string;
+    };
+    ticket?: string;
+  };
+
+  const ticket = payload?.data?.ticket || payload?.ticket;
+  if (!ticket) {
+    throw new Error('微信 ticket 接口未返回有效的 ticket。');
+  }
+
+  window.__FOOTBALL_WECHAT_TICKET__ = ticket;
+  return ticket;
+};
+
+const normalizeWechatConfig = (
+  value: WechatJsSdkConfigInput | null | undefined,
+): WechatJsSdkConfig | null => {
+  if (!value) return null;
+
+  const appId = value.appId;
+  const nonceStr = value.nonceStr;
+  const signature = value.signature;
+  const timestamp = typeof value.timestamp === 'string'
+    ? Number(value.timestamp)
+    : value.timestamp;
+
+  if (!appId || !nonceStr || !signature || !timestamp || Number.isNaN(timestamp)) {
+    return null;
+  }
+
+  return {
+    appId,
+    nonceStr,
+    signature,
+    timestamp,
+  };
+};
+
+const getInjectedWechatConfig = (): WechatJsSdkConfig | null => (
+  normalizeWechatConfig(window.__FOOTBALL_WECHAT_CONFIG__)
+);
+
+const ensureWechatConfigReady = async () => {
+  await ensureWechatSdkLoaded();
+
+  if (!window.wx?.config || !window.wx?.ready || !window.wx?.error) {
+    throw new Error('当前环境未注入完整的微信 JS-SDK 配置能力。');
+  }
+
+  if (!window.__FOOTBALL_WECHAT_CONFIG_READY__) {
+    window.__FOOTBALL_WECHAT_CONFIG_READY__ = (async () => {
+      const injectedConfig = getInjectedWechatConfig();
+      let configPayload = injectedConfig;
+      if (!configPayload) {
+        const nonceStr = createNonceStr();
+        const timestamp = Math.floor(Date.now() / 1000);
+        const signUrl = window.location.href.split('#')[0];
+        const ticket = await fetchWechatJsapiTicket();
+        configPayload = {
+          appId: getWechatAppId(),
+          timestamp,
+          nonceStr,
+          signature: await generateWechatSignature({
+            ticket,
+            nonceStr,
+            timestamp,
+            url: signUrl,
+          }),
+        };
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          reject(new Error('微信 JS-SDK 初始化超时。'));
+        }, WECHAT_CONFIG_TIMEOUT_MS);
+
+        let settled = false;
+        const resolveOnce = () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          resolve();
+        };
+        const rejectOnce = (error: unknown) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          reject(error instanceof Error ? error : new Error('微信 JS-SDK 初始化失败。'));
+        };
+
+        try {
+          window.wx?.ready?.(resolveOnce);
+          window.wx?.error?.(() => rejectOnce(new Error('微信 JS-SDK 签名校验失败，请检查 appId、timestamp、nonceStr、signature。')));
+          window.wx?.config?.({
+            debug: false,
+            ...configPayload,
+            jsApiList: ['openLocation'],
+          });
+        } catch {
+          rejectOnce(new Error('微信 JS-SDK 配置调用失败。'));
+        }
+      });
+    })();
+  }
+
+  try {
+    await window.__FOOTBALL_WECHAT_CONFIG_READY__;
+  } catch {
+    window.__FOOTBALL_WECHAT_CONFIG_READY__ = undefined;
+    throw new Error('微信 JS-SDK 签名校验失败，请检查当前页面 URL 的签名配置。');
+  }
 };
 
 const isWechatUserProfile = (value: Partial<WechatUserProfile> | null | undefined): value is WechatUserProfile => {
@@ -222,6 +424,43 @@ export const openEnterpriseCustomerService = async () => {
   }
 
   throw new Error('当前环境未注入微信小程序 navigateTo 能力，无法打开客服页。');
+};
+
+export const openWechatLocation = async (payload: {
+  latitude: number;
+  longitude: number;
+  name: string;
+  address: string;
+}) => {
+  await ensureWechatSdkLoaded();
+
+  if (window.__FOOTBALL_OPEN_LOCATION__) {
+    await window.__FOOTBALL_OPEN_LOCATION__(payload);
+    return;
+  }
+
+  await ensureWechatConfigReady();
+
+  if (!window.wx?.openLocation) {
+    throw new Error('当前环境未注入微信 openLocation 能力，无法直接打开地图。');
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    try {
+      window.wx?.openLocation?.({
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        name: payload.name,
+        address: payload.address,
+        scale: 18,
+        success: () => resolve(),
+        cancel: () => reject(new Error('已取消打开地图。')),
+        fail: () => reject(new Error('调用微信地图失败，请检查 JS-SDK 签名配置是否完整。')),
+      });
+    } catch {
+      reject(new Error('调用微信地图失败，请检查 JS-SDK 配置。'));
+    }
+  });
 };
 
 export const requestWechatUserProfile = async (timeoutMs = 6000): Promise<WechatUserProfile> => {

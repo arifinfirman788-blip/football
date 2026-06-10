@@ -74,8 +74,11 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [showCopyToast, setShowCopyToast] = useState<boolean>(false);
+  const [showBusyToast, setShowBusyToast] = useState<boolean>(false);
   const activeStreamAbortRef = useRef<AbortController | null>(null);
   const copyToastTimerRef = useRef<number | null>(null);
+  const busyToastTimerRef = useRef<number | null>(null);
+  const isStreamingRef = useRef<boolean>(false);
   const typewriterStateRef = useRef<{
     messageId: string | null;
     queue: string;
@@ -96,6 +99,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
 
   // 从竞猜页或赛程页带比赛进入时，自动发起一次联网分析。
   useEffect(() => {
+    if (isStreaming) return;
     if (selectedMatch) {
       const triggerKey = selectedMatchRequestKey || selectedMatch.id;
       if (autoTriggeredRequestKeys.has(triggerKey)) return;
@@ -112,7 +116,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
         window.clearTimeout(timerId);
       };
     }
-  }, [selectedMatch, selectedMatchRequestKey]);
+  }, [selectedMatch, selectedMatchRequestKey, isStreaming]);
 
   useEffect(() => {
     storage.setSessionJson(chatSessionStorageKey, messages);
@@ -126,7 +130,14 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     if (copyToastTimerRef.current !== null) {
       window.clearTimeout(copyToastTimerRef.current);
     }
+    if (busyToastTimerRef.current !== null) {
+      window.clearTimeout(busyToastTimerRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
 
   const upsertAiMessage = (messageId: string, updater: (message: ChatMessage) => ChatMessage) => {
     setMessages(prev => prev.map((message) => (
@@ -153,6 +164,18 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     copyToastTimerRef.current = window.setTimeout(() => {
       setShowCopyToast(false);
       copyToastTimerRef.current = null;
+    }, 1800);
+  };
+
+  const showBusyQuestionToast = () => {
+    setShowBusyToast(true);
+    if (busyToastTimerRef.current !== null) {
+      window.clearTimeout(busyToastTimerRef.current);
+    }
+
+    busyToastTimerRef.current = window.setTimeout(() => {
+      setShowBusyToast(false);
+      busyToastTimerRef.current = null;
     }, 1800);
   };
 
@@ -235,6 +258,11 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   };
 
   const triggerMatchChatPrediction = async (match: Match) => {
+    if (isStreamingRef.current || activeStreamAbortRef.current) {
+      showBusyQuestionToast();
+      return;
+    }
+
     const userPromptText = `请帮我联网深度分析焦点战役【${match.homeTeam.flag} ${match.homeTeam.name} VS ${match.awayTeam.flag} ${match.awayTeam.name}】，评估双方近期状态、交手细节并预测可能胜平负比分！`;
     const aiMessageId = createMessageId();
     const nextConversationMessages: ChatMessage[] = [
@@ -305,6 +333,10 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
 
   const handleSendUserQuestion = async (queryText: string) => {
     if (!queryText.trim()) return;
+    if (isStreamingRef.current || activeStreamAbortRef.current) {
+      showBusyQuestionToast();
+      return;
+    }
     const finalQuery = queryText.trim();
     const aiMessageId = createMessageId();
     const nextConversationMessages: ChatMessage[] = [
@@ -582,6 +614,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
                 key={idx}
                 type="button"
                 onClick={() => handleSendUserQuestion(q.prompt)}
+                disabled={isStreaming}
                 className="px-2.5 py-1 text-[9.5px] text-teal-200/88 border border-white/12 rounded-full bg-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] hover:bg-white/6 hover:text-[#00e676] hover:border-[#00e676]/28 transition-all shrink-0 cursor-pointer"
               >
                 {q.text}
@@ -600,6 +633,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="向AI咨询任何世界杯战术"
+            disabled={isStreaming}
             className="flex-1 bg-transparent border-none text-[11.5px] text-white focus:outline-hidden placeholder-slate-500"
           />
           <button
@@ -618,6 +652,16 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
           <div className="text-xs font-black tracking-wide text-white uppercase">链接已复制</div>
           <div className="mt-1.5 text-[10.5px] leading-relaxed text-slate-300">
             请前往系统外浏览器粘贴链接后打开
+          </div>
+        </div>
+      )}
+
+      {showBusyToast && (
+        <div className="absolute top-1/2 left-1/2 z-50 w-64 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[#ffd54f]/45 bg-[#061421]/95 px-5 py-4 text-center shadow-[0_12px_30px_rgba(0,0,0,0.85)] select-none">
+          <div className="mb-2 text-lg">⏳</div>
+          <div className="text-xs font-black tracking-wide text-white">当前回答尚未完成</div>
+          <div className="mt-1.5 text-[10.5px] leading-relaxed text-slate-300">
+            请等待上一条问题回答结束后再继续提问
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { ArrowLeft, MapPin, Navigation, Clock, Phone } from 'lucide-react';
+import { openWechatLocation } from '../utils/wechatBridge';
 
 interface ViewingLocationsPageProps {
   isOpen: boolean;
@@ -58,12 +59,30 @@ const viewingLocations: ViewingLocation[] = [
   },
 ];
 
-const getAmapNavigationUrl = (location: ViewingLocation) => (
-  // 高德 URI API 会优先尝试唤起 App，无法唤起时由浏览器继续打开地图页面。
-  `https://uri.amap.com/navigation?to=${location.lng},${location.lat},${encodeURIComponent(location.name)}&mode=car&policy=1&coordinate=gaode&callnative=1`
-);
-
 export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOpen, onClose }) => {
+  const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!toastMessage) return undefined;
+    const timer = window.setTimeout(() => {
+      setToastMessage(null);
+    }, 2200);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
+
+  const handleNavigate = async (location: ViewingLocation) => {
+    try {
+      await openWechatLocation({
+        latitude: location.lat,
+        longitude: location.lng,
+        name: location.name,
+        address: location.address,
+      });
+    } catch (error) {
+      setToastMessage(error instanceof Error ? error.message : '当前无法打开微信地图导航。');
+    }
+  };
+
   // 二级页关闭时不渲染 DOM，避免遮挡底导和竞猜页交互。
   if (!isOpen) return null;
 
@@ -87,6 +106,7 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
             选择附近观影点，点击导航前往现场一起看球
           </p>
         </div>
+
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-8 space-y-3">
@@ -94,7 +114,7 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
           实际开放场次、入场要求和活动权益以后续主办方公告为准，建议出发前再次确认。
         </div>
 
-        {viewingLocations.map((location) => (
+        {[...viewingLocations].reverse().map((location) => (
           <div
             key={location.id}
             className="rounded-2xl border border-white/[0.08] bg-[#071521]/95 p-3.5 shadow-[0_10px_22px_rgba(0,0,0,0.34)]"
@@ -131,18 +151,23 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
               </a>
             </div>
 
-            <a
-              href={getAmapNavigationUrl(location)}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 h-10 rounded-xl bg-gradient-to-b from-[#67d45d] to-[#16802b] text-white font-black text-[12px] flex items-center justify-center gap-1.5 shadow-[0_8px_18px_rgba(0,230,118,0.18)] active:scale-[0.98] transition-all"
+            <button
+              type="button"
+              onClick={() => handleNavigate(location)}
+              className="mt-3 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-[#a5f07e]/35 bg-gradient-to-b from-[#7be35f] via-[#32a73c] to-[#156e23] text-[12px] font-black text-white shadow-[0_10px_24px_rgba(0,230,118,0.22),inset_0_1px_0_rgba(255,255,255,0.24)] active:scale-[0.985] transition-all"
             >
               <Navigation className="w-4 h-4" />
               <span>导航前往</span>
-            </a>
+            </button>
           </div>
         ))}
       </div>
+
+      {toastMessage && (
+        <div className="absolute left-1/2 bottom-6 z-[70] -translate-x-1/2 max-w-[300px] rounded-2xl border border-white/10 bg-black/85 px-4 py-2.5 text-center text-[11px] text-white shadow-[0_10px_24px_rgba(0,0,0,0.4)]">
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 };

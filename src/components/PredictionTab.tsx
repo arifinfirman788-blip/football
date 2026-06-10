@@ -7,6 +7,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Match, PredictionRecord, WechatUserProfile } from '../types';
 import { assetUrl } from '../utils/assets';
 import { Gift } from 'lucide-react';
+import { FlagMark } from './FlagMark';
 import { getCachedWechatUser, requestWechatUserProfile } from '../utils/wechatBridge';
 import {
   fetchUserPredictionRecords,
@@ -84,16 +85,26 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     [predictionHistory]
   );
 
-  const refreshPredictionPage = async (resolvedUserId: number, resolvedWechatUser: WechatUserProfile) => {
+  const refreshPredictionPage = async (
+    resolvedUserId: number,
+    resolvedWechatUser: WechatUserProfile,
+    options?: {
+      preferredDateKey?: string;
+      preferredMatchId?: string;
+    }
+  ) => {
     const [{ date, dates, matches, canPredictMap, groupedMatches }, predictionRecords] = await Promise.all([
       resolveFirstPredictableDate(resolvedUserId, new Date()),
       fetchUserPredictionRecords(resolvedUserId, resolvedWechatUser),
     ]);
-    const defaultDateGroup = groupedMatches[date];
-    const initialMatches = defaultDateGroup?.matches || matches;
-    const initialCanPredictMap = defaultDateGroup?.canPredictMap || canPredictMap;
+    const nextDateKey = options?.preferredDateKey && groupedMatches[options.preferredDateKey]
+      ? options.preferredDateKey
+      : date;
+    const targetDateGroup = groupedMatches[nextDateKey];
+    const initialMatches = targetDateGroup?.matches || matches;
+    const initialCanPredictMap = targetDateGroup?.canPredictMap || canPredictMap;
 
-    setDisplayDateKey(date);
+    setDisplayDateKey(nextDateKey);
     setAvailableDateKeys(dates);
     setGroupedPredictableMatches(groupedMatches);
     setPredictableMatches(initialMatches);
@@ -105,7 +116,12 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
         return acc;
       }, {})
     );
-    setCurrentMatch((prev) => initialMatches.find((match) => match.id === prev?.id) || initialMatches[0] || null);
+    setCurrentMatch((prev) => (
+      initialMatches.find((match) => match.id === options?.preferredMatchId)
+      || initialMatches.find((match) => match.id === prev?.id)
+      || initialMatches[0]
+      || null
+    ));
   };
 
   const switchPredictableDate = (dateKey: string) => {
@@ -248,7 +264,10 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       const resolvedUserId = await upsertUserProfile(resolvedWechatUser);
       setUserId(resolvedUserId);
       await submitPrediction(resolvedUserId, currentMatch.id, selectedOutcome);
-      await refreshPredictionPage(resolvedUserId, resolvedWechatUser);
+      await refreshPredictionPage(resolvedUserId, resolvedWechatUser, {
+        preferredDateKey: displayDateKey,
+        preferredMatchId: currentMatch.id,
+      });
       setShowSuccessToast(true);
       window.setTimeout(() => {
         setShowSuccessToast(false);
@@ -327,7 +346,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
         {/* 竞猜头图：整张海报完整展示，不做裁切 */}
         <div className="guess-hero relative w-full overflow-hidden">
           <img
-            src={assetUrl('assets/header/guess-hero-full.jpg')}
+            src={assetUrl('assets/header/guess-hero-full.png')}
             alt="竞猜活动海报"
             className="guess-hero__image block w-full min-w-full h-auto align-top"
           />
@@ -417,10 +436,20 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                     {m.stage.split('·')[0]} {m.group && `• ${m.group}组`}
                   </span>
                   <div className="flex items-center space-x-1 mt-1 font-bold text-xs">
-                    <span>{m.homeTeam.flag}</span>
+                    <FlagMark
+                      flag={m.homeTeam.flag}
+                      alt={m.homeTeam.name}
+                      className="shrink-0"
+                      imageClassName="h-4 w-4 rounded-full object-cover"
+                    />
                     <span className="text-white text-[11px] max-w-[45px] truncate">{m.homeTeam.name}</span>
                     <span className="text-slate-500 text-[9px] font-mono">v</span>
-                    <span>{m.awayTeam.flag}</span>
+                    <FlagMark
+                      flag={m.awayTeam.flag}
+                      alt={m.awayTeam.name}
+                      className="shrink-0"
+                      imageClassName="h-4 w-4 rounded-full object-cover"
+                    />
                     <span className="text-white text-[11px] max-w-[45px] truncate">{m.awayTeam.name}</span>
                   </div>
                   
@@ -504,9 +533,13 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 className="flex flex-col items-center cursor-pointer group min-w-0"
               >
                 <div className="relative p-1 bg-white/5 group-hover:bg-white/10 rounded-full transition-all duration-300 border border-white/10 shadow-lg group-hover:scale-105 active:scale-95">
-                  <span className="text-4xl filter drop-shadow">
-                    {currentMatch.homeTeam.flag}
-                  </span>
+                  <FlagMark
+                    flag={currentMatch.homeTeam.flag}
+                    alt={currentMatch.homeTeam.name}
+                    className="shrink-0"
+                    imageClassName="h-12 w-12 rounded-full object-cover shadow"
+                    emojiClassName="text-4xl filter drop-shadow"
+                  />
                 </div>
                 <span className="text-xs font-black mt-2 text-white group-hover:text-[#ffd54f] truncate w-full text-center px-1">
                   {currentMatch.homeTeam.name}
@@ -538,9 +571,13 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 className="flex flex-col items-center cursor-pointer group min-w-0"
               >
                 <div className="relative p-1 bg-white/5 group-hover:bg-white/10 rounded-full transition-all duration-300 border border-white/10 shadow-lg group-hover:scale-105 active:scale-95">
-                  <span className="text-4xl filter drop-shadow">
-                    {currentMatch.awayTeam.flag}
-                  </span>
+                  <FlagMark
+                    flag={currentMatch.awayTeam.flag}
+                    alt={currentMatch.awayTeam.name}
+                    className="shrink-0"
+                    imageClassName="h-12 w-12 rounded-full object-cover shadow"
+                    emojiClassName="text-4xl filter drop-shadow"
+                  />
                 </div>
                 <span className="text-xs font-black mt-2 text-white group-hover:text-[#ffd54f] truncate w-full text-center px-1">
                   {currentMatch.awayTeam.name}
@@ -678,13 +715,6 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                     已提交 {todayPredictionRecords.length}/{dailySubmissionLimit} 场
                   </span>
                 </div>
-                <span className={`text-[9.5px] font-bold px-2 py-1 rounded-full border ${
-                  isTodayCompleted
-                    ? 'text-[#00e676] bg-[#00e676]/10 border-[#00e676]/25'
-                    : 'text-[#ffd54f] bg-[#ffd54f]/10 border-[#ffd54f]/20'
-                }`}>
-                  {isTodayCompleted ? '今日已完成' : '继续完成'}
-                </span>
               </div>
 
               <div className="space-y-2">
@@ -699,10 +729,20 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                           {record.fixture}
                         </span>
                         <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-300">
-                          <span>{record.homeTeamFlag}</span>
+                          <FlagMark
+                            flag={record.homeTeamFlag}
+                            alt={record.homeTeamName}
+                            className="shrink-0"
+                            imageClassName="h-4 w-4 rounded-full object-cover"
+                          />
                           <span className="truncate">{record.homeTeamName}</span>
                           <span className="text-slate-500">vs</span>
-                          <span>{record.awayTeamFlag}</span>
+                          <FlagMark
+                            flag={record.awayTeamFlag}
+                            alt={record.awayTeamName}
+                            className="shrink-0"
+                            imageClassName="h-4 w-4 rounded-full object-cover"
+                          />
                           <span className="truncate">{record.awayTeamName}</span>
                         </div>
                         <span className="block text-[9px] text-slate-500 font-mono mt-0.5">

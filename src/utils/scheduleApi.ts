@@ -194,6 +194,7 @@ const mapTeam = (name: string, rank: number | null, fallbackFlagUrl: string | nu
   if (localTeam) {
     return {
       ...localTeam,
+      flag: fallbackFlagUrl || localTeam.flag,
       rank: rank ?? localTeam.rank,
     };
   }

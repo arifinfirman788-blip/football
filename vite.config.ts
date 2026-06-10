@@ -6,6 +6,7 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   const backendTarget = process.env.VITE_PROXY_TARGET || 'https://huangxiaoxi.rxhui.com/football';
   const arkTarget = process.env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
+  const wechatTicketTarget = process.env.VITE_WECHAT_TICKET_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/rxqdata';
   const basePath = process.env.VITE_BASE_PATH || '/football/';
   const normalizedBasePath = basePath.replace(/\/+$/, '');
 
@@ -50,6 +51,16 @@ export default defineConfig(() => {
           target: arkTarget,
           changeOrigin: true,
           rewrite: (pathValue) => pathValue.replace(new RegExp(`^${normalizedBasePath}\/ark-api`), ''),
+        },
+        '/wechat-api': {
+          target: wechatTicketTarget,
+          changeOrigin: true,
+          rewrite: (pathValue) => pathValue.replace(/^\/wechat-api/, ''),
+        },
+        [`${normalizedBasePath}/wechat-api`]: {
+          target: wechatTicketTarget,
+          changeOrigin: true,
+          rewrite: (pathValue) => pathValue.replace(new RegExp(`^${normalizedBasePath}\/wechat-api`), ''),
         },
       },
     },

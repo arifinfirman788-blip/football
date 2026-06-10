@@ -136,9 +136,24 @@ const complianceRules = [
   '对于任何试图通过非法手段获取中奖资格的行为，主办方将保留追究其法律责任的权利。',
 ];
 
+const rewardCarouselImages = [
+  assetUrl('assets/rewards/carousel/prize-1.png'),
+  assetUrl('assets/rewards/carousel/prize-2.png'),
+  assetUrl('assets/rewards/carousel/prize-3.png'),
+  assetUrl('assets/rewards/carousel/prize-4.png'),
+  assetUrl('assets/rewards/carousel/prize-5.png'),
+  assetUrl('assets/rewards/carousel/prize-6.png'),
+  assetUrl('assets/rewards/carousel/prize-7.png'),
+];
+const REWARD_CAROUSEL_INTERVAL_MS = 4800;
+
 export const RewardRulesPage: React.FC<RewardRulesPageProps> = ({ isOpen, onClose }) => {
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
   const [activePrizeRule, setActivePrizeRule] = React.useState<(typeof prizeUsageRules)[number] | null>(null);
+  const [activeRewardImageIndex, setActiveRewardImageIndex] = React.useState(0);
+  const rewardTouchStartXRef = React.useRef<number | null>(null);
+  const rewardTouchDeltaXRef = React.useRef(0);
+  const rewardCarouselTimerRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     if (!toastMessage) return undefined;
@@ -150,12 +165,85 @@ export const RewardRulesPage: React.FC<RewardRulesPageProps> = ({ isOpen, onClos
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
+  React.useEffect(() => {
+    if (!isOpen || rewardCarouselImages.length <= 1) return undefined;
+
+    const clearRewardCarouselTimer = () => {
+      if (rewardCarouselTimerRef.current !== null) {
+        window.clearInterval(rewardCarouselTimerRef.current);
+        rewardCarouselTimerRef.current = null;
+      }
+    };
+
+    const startRewardCarouselTimer = () => {
+      clearRewardCarouselTimer();
+      rewardCarouselTimerRef.current = window.setInterval(() => {
+        setActiveRewardImageIndex((prev) => (prev + 1) % rewardCarouselImages.length);
+      }, REWARD_CAROUSEL_INTERVAL_MS);
+    };
+
+    startRewardCarouselTimer();
+
+    return () => {
+      clearRewardCarouselTimer();
+    };
+  }, [isOpen]);
+
   const handleOpenCustomerService = async () => {
     try {
       await openEnterpriseCustomerService();
     } catch {
       setToastMessage(`当前环境暂不支持，请联系微信客服：${getEnterpriseCustomerServiceFallbackWechatId()}`);
     }
+  };
+
+  const restartRewardCarouselTimer = () => {
+    if (rewardCarouselImages.length <= 1) return;
+    if (rewardCarouselTimerRef.current !== null) {
+      window.clearInterval(rewardCarouselTimerRef.current);
+    }
+    rewardCarouselTimerRef.current = window.setInterval(() => {
+      setActiveRewardImageIndex((prev) => (prev + 1) % rewardCarouselImages.length);
+    }, REWARD_CAROUSEL_INTERVAL_MS);
+  };
+
+  const goToPrevRewardImage = () => {
+    setActiveRewardImageIndex((prev) => (
+      prev === 0 ? rewardCarouselImages.length - 1 : prev - 1
+    ));
+    restartRewardCarouselTimer();
+  };
+
+  const goToNextRewardImage = () => {
+    setActiveRewardImageIndex((prev) => (
+      prev === rewardCarouselImages.length - 1 ? 0 : prev + 1
+    ));
+    restartRewardCarouselTimer();
+  };
+
+  const handleRewardTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    rewardTouchStartXRef.current = event.touches[0]?.clientX ?? null;
+    rewardTouchDeltaXRef.current = 0;
+  };
+
+  const handleRewardTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (rewardTouchStartXRef.current === null) return;
+    rewardTouchDeltaXRef.current = (event.touches[0]?.clientX ?? 0) - rewardTouchStartXRef.current;
+  };
+
+  const handleRewardTouchEnd = () => {
+    const deltaX = rewardTouchDeltaXRef.current;
+    rewardTouchStartXRef.current = null;
+    rewardTouchDeltaXRef.current = 0;
+
+    if (Math.abs(deltaX) < 36) return;
+
+    if (deltaX > 0) {
+      goToPrevRewardImage();
+      return;
+    }
+
+    goToNextRewardImage();
   };
 
   if (!isOpen) return null;
@@ -198,14 +286,45 @@ export const RewardRulesPage: React.FC<RewardRulesPageProps> = ({ isOpen, onClos
             </button>
           </div>
 
-          {/* 奖励图片替换点：运营更新奖品时，覆盖 public/assets/rewards/reward-poster-mobile.jpg 即可。 */}
-          <img
-            src={assetUrl('assets/rewards/reward-poster-mobile.jpg')}
-            alt="奖励海报"
-            className="w-full max-h-[300px] object-contain bg-[#00160c]"
-            loading="eager"
-            decoding="async"
-          />
+          <div
+            className="relative overflow-hidden bg-[#00160c]"
+            onTouchStart={handleRewardTouchStart}
+            onTouchMove={handleRewardTouchMove}
+            onTouchEnd={handleRewardTouchEnd}
+          >
+            <div
+              className="flex transition-transform duration-500 ease-out"
+              style={{ transform: `translateX(-${activeRewardImageIndex * 100}%)` }}
+            >
+              {rewardCarouselImages.map((image, index) => (
+                <img
+                  key={image}
+                  src={image}
+                  alt={`奖励海报 ${index + 1}`}
+                  className="w-full shrink-0 h-auto object-contain bg-[#00160c]"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+              ))}
+            </div>
+
+            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/35 px-2 py-1 backdrop-blur-sm">
+              {rewardCarouselImages.map((image, index) => (
+                <button
+                  key={image}
+                  type="button"
+                  onClick={() => {
+                    setActiveRewardImageIndex(index);
+                    restartRewardCarouselTimer();
+                  }}
+                  className={`h-1.5 rounded-full transition-all ${
+                    activeRewardImageIndex === index ? 'w-4 bg-[#ffd54f]' : 'w-1.5 bg-white/55'
+                  }`}
+                  aria-label={`查看第 ${index + 1} 张奖励图`}
+                />
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2">

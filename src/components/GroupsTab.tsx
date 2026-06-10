@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, HelpCircle } from 'lucide-react';
 import { assetUrl } from '../utils/assets';
 import { PredictionRecord } from '../types';
@@ -73,61 +73,70 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const todayDateKey = getTodayDateKey();
+  const loadRequestIdRef = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadRankings = useCallback(async (options?: { showLoading?: boolean }) => {
+    const showLoading = options?.showLoading ?? true;
+    const requestId = ++loadRequestIdRef.current;
     const rawUserId = typeof window === 'undefined' ? null : window.localStorage.getItem('football.user-id');
     const userId = rawUserId ? Number(rawUserId) : null;
 
-    const loadRankings = async () => {
-      try {
+    try {
+      if (showLoading) {
         setIsLoading(true);
-        setLoadError(null);
+      }
+      setLoadError(null);
 
-        const [weeklyList, totalList] = await Promise.all([
-          fetchWeeklyLeaderboard(todayDateKey),
-          fetchTotalLeaderboard(),
+      const [weeklyList, totalList] = await Promise.all([
+        fetchWeeklyLeaderboard(todayDateKey),
+        fetchTotalLeaderboard(),
+      ]);
+
+      if (loadRequestIdRef.current !== requestId) return;
+      setDailyLeaderboard(weeklyList);
+      setAllTimeLeaderboard(totalList);
+
+      if (userId && Number.isFinite(userId)) {
+        const [weeklyMine, totalMine] = await Promise.all([
+          fetchMyRankingSummary(userId, 'weekly', todayDateKey),
+          fetchMyRankingSummary(userId, 'total'),
         ]);
 
-        if (cancelled) return;
-        setDailyLeaderboard(weeklyList);
-        setAllTimeLeaderboard(totalList);
-
-        if (userId && Number.isFinite(userId)) {
-          const [weeklyMine, totalMine] = await Promise.all([
-            fetchMyRankingSummary(userId, 'weekly', todayDateKey),
-            fetchMyRankingSummary(userId, 'total'),
-          ]);
-
-          if (cancelled) return;
-          setMyWeeklyRanking(weeklyMine);
-          setMyTotalRanking(totalMine);
-        } else if (!cancelled) {
-          setMyWeeklyRanking(null);
-          setMyTotalRanking(null);
-          setLoadError('未找到当前用户 ID，暂时无法加载“我的排行”。');
-        }
-      } catch (error) {
-        console.error(error);
-        if (cancelled) return;
-        setDailyLeaderboard([]);
-        setAllTimeLeaderboard([]);
+        if (loadRequestIdRef.current !== requestId) return;
+        setMyWeeklyRanking(weeklyMine);
+        setMyTotalRanking(totalMine);
+      } else {
         setMyWeeklyRanking(null);
         setMyTotalRanking(null);
-        setLoadError(error instanceof Error ? error.message : '排行榜接口加载失败。');
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        setLoadError('未找到当前用户 ID，暂时无法加载“我的排行”。');
       }
-    };
+    } catch (error) {
+      console.error(error);
+      if (loadRequestIdRef.current !== requestId) return;
+      setDailyLeaderboard([]);
+      setAllTimeLeaderboard([]);
+      setMyWeeklyRanking(null);
+      setMyTotalRanking(null);
+      setLoadError(error instanceof Error ? error.message : '排行榜接口加载失败。');
+    } finally {
+      if (loadRequestIdRef.current === requestId && showLoading) {
+        setIsLoading(false);
+      }
+    }
+  }, [todayDateKey]);
 
-    loadRankings();
+  useEffect(() => {
+    void loadRankings({ showLoading: true });
 
     return () => {
-      cancelled = true;
+      loadRequestIdRef.current += 1;
     };
-  }, [todayDateKey]);
+  }, [loadRankings]);
+
+  const handleOpenMyRankingDetail = () => {
+    setShowMyRankingDetail(true);
+    void loadRankings({ showLoading: false });
+  };
 
   const activeLeaderboardList = activeTab === 'daily' ? dailyLeaderboard : allTimeLeaderboard;
   const activeMyRanking = activeTab === 'daily' ? myWeeklyRanking : myTotalRanking;
@@ -416,7 +425,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
 
       {/* 底部“我的排行”入口：点击后进入用户积分明细二级页 */}
       <button
-        onClick={() => setShowMyRankingDetail(true)}
+        onClick={handleOpenMyRankingDetail}
         className="absolute bottom-22 left-4 right-4 bg-[#0c2419ec] backdrop-blur-md border border-[#00e676]/30 px-3.5 py-2.5 rounded-full z-20 flex justify-between items-center text-slate-100 shadow-[0_10px_25px_rgba(0,230,118,0.15)] select-none"
       >
         
