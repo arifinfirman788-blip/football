@@ -8,6 +8,7 @@ import { Match } from '../types';
 import { Sparkles, Send } from 'lucide-react';
 import { ArkConversationMessage, LocalAiSource, streamArkPrediction } from '../utils/localAi';
 import { storage } from '../utils/storage';
+import { TEAMS } from '../data';
 
 interface ChatMessage {
   id: string;
@@ -31,6 +32,7 @@ interface AIForecastTabProps {
 const autoTriggeredRequestKeys = new Set<string>();
 const createMessageId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const chatSessionStorageKey = 'football.ai-forecast.messages';
+const teamFlagByName = new Map(Object.values(TEAMS).map((team) => [team.name, team.flag]));
 const createGreetingMessage = (): ChatMessage => ({
   id: createMessageId(),
   sender: 'ai',
@@ -60,6 +62,13 @@ const toArkConversationMessages = (chatMessages: ChatMessage[]): ArkConversation
   }, []);
 };
 
+const getMatchFlagText = (teamName: string, flag: string) => {
+  if (flag && !/^https?:\/\//i.test(flag)) {
+    return flag;
+  }
+  return teamFlagByName.get(teamName) || '🏳️';
+};
+
 export const AIForecastTab: React.FC<AIForecastTabProps> = ({ 
   selectedMatch, 
   selectedMatchRequestKey,
@@ -79,6 +88,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
   const copyToastTimerRef = useRef<number | null>(null);
   const busyToastTimerRef = useRef<number | null>(null);
   const isStreamingRef = useRef<boolean>(false);
+  const autoTriggerBusyRef = useRef<boolean>(false);
   const typewriterStateRef = useRef<{
     messageId: string | null;
     queue: string;
@@ -103,17 +113,25 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     if (selectedMatch) {
       const triggerKey = selectedMatchRequestKey || selectedMatch.id;
       if (autoTriggeredRequestKeys.has(triggerKey)) return;
+      if (autoTriggerBusyRef.current || isStreamingRef.current || activeStreamAbortRef.current) return;
 
       // 开发环境 StrictMode 会先执行一次“试挂载再卸载”。
       // 延迟到当前页面真正稳定挂载后再发请求，避免第一轮假挂载把 SSE 先发出去又立刻 abort。
+      autoTriggerBusyRef.current = true;
       const timerId = window.setTimeout(() => {
-        if (autoTriggeredRequestKeys.has(triggerKey)) return;
+        if (autoTriggeredRequestKeys.has(triggerKey)) {
+          autoTriggerBusyRef.current = false;
+          return;
+        }
         autoTriggeredRequestKeys.add(triggerKey);
-        triggerMatchChatPrediction(selectedMatch);
+        void triggerMatchChatPrediction(selectedMatch, { silentWhenBusy: true });
       }, 0);
 
       return () => {
         window.clearTimeout(timerId);
+        if (!autoTriggeredRequestKeys.has(triggerKey)) {
+          autoTriggerBusyRef.current = false;
+        }
       };
     }
   }, [selectedMatch, selectedMatchRequestKey, isStreaming]);
@@ -257,13 +275,18 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
     }
   };
 
-  const triggerMatchChatPrediction = async (match: Match) => {
+  const triggerMatchChatPrediction = async (
+    match: Match,
+    options?: { silentWhenBusy?: boolean },
+  ) => {
     if (isStreamingRef.current || activeStreamAbortRef.current) {
-      showBusyQuestionToast();
+      if (!options?.silentWhenBusy) {
+        showBusyQuestionToast();
+      }
       return;
     }
 
-    const userPromptText = `请帮我联网深度分析焦点战役【${match.homeTeam.flag} ${match.homeTeam.name} VS ${match.awayTeam.flag} ${match.awayTeam.name}】，评估双方近期状态、交手细节并预测可能胜平负比分！`;
+    const userPromptText = `请帮我联网深度分析焦点战役【${getMatchFlagText(match.homeTeam.name, match.homeTeam.flag)} ${match.homeTeam.name} VS ${getMatchFlagText(match.awayTeam.name, match.awayTeam.flag)} ${match.awayTeam.name}】，评估双方近期状态、交手细节并预测可能胜平负比分！`;
     const aiMessageId = createMessageId();
     const nextConversationMessages: ChatMessage[] = [
       ...messages,
@@ -323,6 +346,7 @@ export const AIForecastTab: React.FC<AIForecastTabProps> = ({
         text: mockResult,
       }));
     } finally {
+      autoTriggerBusyRef.current = false;
       setIsStreaming(false);
       setStreamingMessageId((current) => (current === aiMessageId ? null : current));
       if (activeStreamAbortRef.current === abortController) {

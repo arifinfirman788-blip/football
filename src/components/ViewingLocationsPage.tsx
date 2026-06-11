@@ -66,7 +66,7 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
     if (!toastMessage) return undefined;
     const timer = window.setTimeout(() => {
       setToastMessage(null);
-    }, 2200);
+    }, 3000);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
@@ -83,7 +83,6 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
     }
   };
 
-  // 二级页关闭时不渲染 DOM，避免遮挡底导和竞猜页交互。
   if (!isOpen) return null;
 
   return (
@@ -106,7 +105,6 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
             选择附近观影点，点击导航前往现场一起看球
           </p>
         </div>
-
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-8 space-y-3">
@@ -164,7 +162,7 @@ export const ViewingLocationsPage: React.FC<ViewingLocationsPageProps> = ({ isOp
       </div>
 
       {toastMessage && (
-        <div className="absolute left-1/2 bottom-6 z-[70] -translate-x-1/2 max-w-[300px] rounded-2xl border border-white/10 bg-black/85 px-4 py-2.5 text-center text-[11px] text-white shadow-[0_10px_24px_rgba(0,0,0,0.4)]">
+        <div className="absolute left-1/2 bottom-6 z-[70] -translate-x-1/2 max-w-[320px] rounded-2xl border border-white/10 bg-black/85 px-4 py-2.5 text-center text-[11px] leading-relaxed text-white shadow-[0_10px_24px_rgba(0,0,0,0.4)] whitespace-pre-wrap break-words">
           {toastMessage}
         </div>
       )}

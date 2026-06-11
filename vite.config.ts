@@ -6,7 +6,7 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   const backendTarget = process.env.VITE_PROXY_TARGET || 'https://huangxiaoxi.rxhui.com/football';
   const arkTarget = process.env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
-  const wechatTicketTarget = process.env.VITE_WECHAT_TICKET_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/rxqdata';
+  const wechatTicketTarget = process.env.VITE_WECHAT_TICKET_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/football';
   const basePath = process.env.VITE_BASE_PATH || '/football/';
   const normalizedBasePath = basePath.replace(/\/+$/, '');
 
@@ -52,15 +52,15 @@ export default defineConfig(() => {
           changeOrigin: true,
           rewrite: (pathValue) => pathValue.replace(new RegExp(`^${normalizedBasePath}\/ark-api`), ''),
         },
-        '/wechat-api': {
+        '/asrTaskService': {
           target: wechatTicketTarget,
           changeOrigin: true,
-          rewrite: (pathValue) => pathValue.replace(/^\/wechat-api/, ''),
+          rewrite: (pathValue) => pathValue.replace(/^\/asrTaskService/, '/asrTaskService'),
         },
-        [`${normalizedBasePath}/wechat-api`]: {
+        [`${normalizedBasePath}/asrTaskService`]: {
           target: wechatTicketTarget,
           changeOrigin: true,
-          rewrite: (pathValue) => pathValue.replace(new RegExp(`^${normalizedBasePath}\/wechat-api`), ''),
+          rewrite: (pathValue) => pathValue.replace(new RegExp(`^${normalizedBasePath}\/asrTaskService`), '/asrTaskService'),
         },
       },
     },

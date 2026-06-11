@@ -1,6 +1,7 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Match } from '../types';
 import { API_BASE_URL } from './apiConfig';
+import { TEAMS } from '../data';
 
 export interface LocalAiSource {
   title: string;
@@ -38,10 +39,19 @@ const aiStreamApiUrl = `${API_BASE_URL}/ai/chat/stream`;
 
 class ArkStreamFatalError extends Error {}
 
+const teamFlagByName = new Map(Object.values(TEAMS).map((team) => [team.name, team.flag]));
+
+const getTextFlag = (teamName: string, flag: string) => {
+  if (flag && !/^https?:\/\//i.test(flag)) {
+    return flag;
+  }
+  return teamFlagByName.get(teamName) || '🏳️';
+};
+
 const buildMatchQuestion = (match: Match) => (
   `请分析并预测这场即将到来（或最近发生）的世界杯足球赛：
-主队：${match.homeTeam.name} (${match.homeTeam.flag})
-客队：${match.awayTeam.name} (${match.awayTeam.flag})
+主队：${match.homeTeam.name} (${getTextFlag(match.homeTeam.name, match.homeTeam.flag)})
+客队：${match.awayTeam.name} (${getTextFlag(match.awayTeam.name, match.awayTeam.flag)})
 赛事阶段：${match.stage || '小组赛'}
 比赛时间：${match.dateKey} ${match.timestamp}
 

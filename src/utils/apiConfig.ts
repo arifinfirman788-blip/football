@@ -1,5 +1,13 @@
-export const APP_BASE_PATH = '/football';
+const PRODUCTION_ORIGIN = 'https://glsw-wdgz-libs.aihuangxiaoxi.com';
+const APP_BASE_PATH = '/football';
 
-export const API_BASE_URL = `${APP_BASE_PATH}/api`;
+/** 业务接口与微信 ticket 等服务共用的 /football 前缀。 */
+export const SERVICE_BASE_URL = import.meta.env.PROD
+  ? `${PRODUCTION_ORIGIN}${APP_BASE_PATH}`
+  : APP_BASE_PATH;
 
-export const ARK_PROXY_PATH = `${APP_BASE_PATH}/ark-api/api/v3/bots/chat/completions`;
+export { APP_BASE_PATH };
+
+export const API_BASE_URL = `${SERVICE_BASE_URL}/api`;
+
+export const ARK_PROXY_PATH = `${SERVICE_BASE_URL}/ark-api/api/v3/bots/chat/completions`;

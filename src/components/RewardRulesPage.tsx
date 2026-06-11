@@ -36,8 +36,8 @@ const rewardClaimRules = {
   publishWindow: {
     title: '公示时间与领奖时限',
     items: [
-      '周排行：前 1-10 名，每周五上午在周榜单进行公示，领奖有效期为公示之日起 5 个自然日内。',
-      '总排行：前 1-50 名，总决赛结束后 1 个工作日进行公示，领奖有效期为公示之日起 10 个自然日内。',
+      '周排行：前 1-21 名，每周五上午在周榜单进行公示，领奖有效期为公示之日起 5 个自然日内。',
+      '总排行：前 1-55 名，总决赛结束后 1 个工作日进行公示，领奖有效期为公示之日起 10 个自然日内。',
     ],
   },
   claimNotice: {
@@ -270,7 +270,7 @@ export const RewardRulesPage: React.FC<RewardRulesPageProps> = ({ isOpen, onClos
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-3 space-y-3">
         <div className="rounded-2xl overflow-hidden border border-[#ffd54f]/18 bg-[#071521] shadow-[0_12px_24px_rgba(0,0,0,0.36)]">
           <div className="px-3.5 py-2.5 flex items-center justify-between bg-gradient-to-r from-[#2b2309] to-[#071521] border-b border-white/5">
             <div className="flex items-center gap-2">
@@ -413,13 +413,13 @@ export const RewardRulesPage: React.FC<RewardRulesPageProps> = ({ isOpen, onClos
         </div>
       </div>
 
-      <div className="shrink-0 px-4 pb-5 pt-3 bg-gradient-to-t from-[#040c14] via-[#040c14]/96 to-transparent">
+      <div className="shrink-0 px-4 pb-3 pt-2 bg-gradient-to-t from-[#040c14] via-[#040c14]/96 to-transparent">
         <button
           onClick={handleOpenCustomerService}
           className="w-full h-11 rounded-2xl bg-gradient-to-r from-[#00e676] to-[#35f29b] text-[#05210f] font-black text-[13px] shadow-[0_10px_24px_rgba(0,230,118,0.22)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >
           <Headphones className="w-4 h-4" />
-          <span>联系微信客服</span>
+          <span>联系客服</span>
         </button>
       </div>
 

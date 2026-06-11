@@ -8,9 +8,7 @@ const ENTERPRISE_CUSTOMER_SERVICE_WECHAT_ID = 'hxxVIP01';
 const MINI_PROGRAM_CUSTOMER_SERVICE_PAGE = '/pages/customerService/customerService';
 const WECHAT_SDK_URL = 'https://res.wx.qq.com/open/js/jweixin-1.6.0.js';
 const WECHAT_SDK_TIMEOUT_MS = 4000;
-const MINI_PROGRAM_ENV_TIMEOUT_MS = 1500;
 const WECHAT_CONFIG_TIMEOUT_MS = 4000;
-const WECHAT_TICKET_URL = '/football/wechat-api/asrTaskService/wechat/ticket';
 const WECHAT_PRODUCTION_APP_ID = 'wxf958a408e90c009a';
 
 /**
@@ -22,10 +20,6 @@ const WECHAT_PRODUCTION_APP_ID = 'wxf958a408e90c009a';
  *    - window.dispatchEvent(new CustomEvent('football:wechat-user-response', { detail: { ... } }))
  *    - window.postMessage({ type: 'football:wechat-user-response', payload: { ... } }, '*')
  */
-
-type MiniProgramEnv = {
-  miniprogram?: boolean;
-};
 
 type WechatJsSdkConfig = {
   appId: string;
@@ -65,7 +59,6 @@ declare global {
         cancel?: () => void;
       }) => void;
       miniProgram?: {
-        getEnv?: (callback: (result: MiniProgramEnv) => void) => void;
         navigateTo?: (payload: { url: string }) => void;
         postMessage?: (payload: { data: unknown }) => void;
       };
@@ -89,8 +82,13 @@ declare global {
 
 const getMiniProgramApi = () => window.wx?.miniProgram;
 
+const hasWechatJssdkBridge = () => (
+  typeof window.wx?.config === 'function'
+  && typeof window.wx?.ready === 'function'
+);
+
 const ensureWechatSdkLoaded = async () => {
-  if (getMiniProgramApi()) return;
+  if (hasWechatJssdkBridge()) return;
 
   if (!window.__FOOTBALL_WECHAT_SDK_LOADING__) {
     window.__FOOTBALL_WECHAT_SDK_LOADING__ = new Promise<void>((resolve, reject) => {
@@ -110,7 +108,7 @@ const ensureWechatSdkLoaded = async () => {
 
       const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${WECHAT_SDK_URL}"]`);
       if (existingScript) {
-        if (existingScript.dataset.loaded === 'true' || getMiniProgramApi()) {
+        if (existingScript.dataset.loaded === 'true') {
           resolveOnce();
           return;
         }
@@ -133,8 +131,9 @@ const ensureWechatSdkLoaded = async () => {
 
   try {
     await window.__FOOTBALL_WECHAT_SDK_LOADING__;
-  } catch {
+  } catch (error) {
     window.__FOOTBALL_WECHAT_SDK_LOADING__ = undefined;
+    throw error;
   }
 };
 
@@ -193,7 +192,8 @@ const fetchWechatJsapiTicket = async () => {
     return window.__FOOTBALL_WECHAT_TICKET__;
   }
 
-  const response = await fetch(`${WECHAT_TICKET_URL}?t=${Date.now()}`, {
+  const ticketUrl = getWechatTicketUrl();
+  const response = await fetch(`${ticketUrl}?t=${Date.now()}`, {
     method: 'GET',
     credentials: 'include',
   });
@@ -246,6 +246,13 @@ const getInjectedWechatConfig = (): WechatJsSdkConfig | null => (
   normalizeWechatConfig(window.__FOOTBALL_WECHAT_CONFIG__)
 );
 
+const getWechatSignUrl = () => window.location.href.split('#')[0];
+const getWechatTicketUrl = () => `${window.location.origin}/football/asrTaskService/wechat/ticket`;
+
+const resetWechatConfigReady = () => {
+  window.__FOOTBALL_WECHAT_CONFIG_READY__ = undefined;
+};
+
 const ensureWechatConfigReady = async () => {
   await ensureWechatSdkLoaded();
 
@@ -260,7 +267,7 @@ const ensureWechatConfigReady = async () => {
       if (!configPayload) {
         const nonceStr = createNonceStr();
         const timestamp = Math.floor(Date.now() / 1000);
-        const signUrl = window.location.href.split('#')[0];
+        const signUrl = getWechatSignUrl();
         const ticket = await fetchWechatJsapiTicket();
         configPayload = {
           appId: getWechatAppId(),
@@ -296,7 +303,12 @@ const ensureWechatConfigReady = async () => {
 
         try {
           window.wx?.ready?.(resolveOnce);
-          window.wx?.error?.(() => rejectOnce(new Error('微信 JS-SDK 签名校验失败，请检查 appId、timestamp、nonceStr、signature。')));
+          window.wx?.error?.((error) => {
+            const errMsg = typeof error === 'object' && error && 'errMsg' in error
+              ? String((error as { errMsg?: string }).errMsg)
+              : '';
+            rejectOnce(new Error(errMsg || '微信 JS-SDK 签名校验失败，请检查 appId、timestamp、nonceStr、signature。'));
+          });
           window.wx?.config?.({
             debug: false,
             ...configPayload,
@@ -311,10 +323,51 @@ const ensureWechatConfigReady = async () => {
 
   try {
     await window.__FOOTBALL_WECHAT_CONFIG_READY__;
-  } catch {
-    window.__FOOTBALL_WECHAT_CONFIG_READY__ = undefined;
-    throw new Error('微信 JS-SDK 签名校验失败，请检查当前页面 URL 的签名配置。');
+  } catch (error) {
+    resetWechatConfigReady();
+    throw error instanceof Error
+      ? error
+      : new Error('微信 JS-SDK 签名校验失败，请检查当前页面 URL 的签名配置。');
   }
+};
+
+const invokeWechatOpenLocation = async (payload: {
+  latitude: number;
+  longitude: number;
+  name: string;
+  address: string;
+}) => {
+  await new Promise<void>((resolve, reject) => {
+    const openLocation = () => {
+      if (!window.wx?.openLocation) {
+        reject(new Error('当前环境未注入微信 openLocation 能力，无法直接打开地图。'));
+        return;
+      }
+
+      window.wx.openLocation({
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        name: payload.name,
+        address: payload.address,
+        scale: 18,
+        success: () => resolve(),
+        cancel: () => reject(new Error('已取消打开地图。')),
+        fail: (error) => {
+          const errMsg = typeof error === 'object' && error && 'errMsg' in error
+            ? String((error as { errMsg?: string }).errMsg)
+            : '';
+          reject(new Error(errMsg || '调用微信地图失败，请检查 JS-SDK 签名配置是否完整。'));
+        },
+      });
+    };
+
+    if (window.wx?.ready) {
+      window.wx.ready(openLocation);
+      return;
+    }
+
+    openLocation();
+  });
 };
 
 const isWechatUserProfile = (value: Partial<WechatUserProfile> | null | undefined): value is WechatUserProfile => {
@@ -342,32 +395,6 @@ export const getCachedWechatUser = () => (
 
 const cacheWechatUser = (user: WechatUserProfile) => {
   storage.setJson(USER_CACHE_KEY, user);
-};
-
-const getMiniProgramEnv = async (): Promise<boolean> => {
-  try {
-    await ensureWechatSdkLoaded();
-  } catch {
-    return false;
-  }
-  const miniProgram = getMiniProgramApi();
-  if (!miniProgram?.getEnv) return false;
-
-  return new Promise((resolve) => {
-    const timer = window.setTimeout(() => {
-      resolve(false);
-    }, MINI_PROGRAM_ENV_TIMEOUT_MS);
-
-    try {
-      miniProgram.getEnv?.((result) => {
-        window.clearTimeout(timer);
-        resolve(!!result?.miniprogram);
-      });
-    } catch {
-      window.clearTimeout(timer);
-      resolve(false);
-    }
-  });
 };
 
 const getInjectedWechatUser = async (): Promise<WechatUserProfile | null> => {
@@ -412,15 +439,12 @@ export const openEnterpriseCustomerService = async () => {
     return;
   }
 
-  const inMiniProgram = await getMiniProgramEnv();
   const miniProgram = getMiniProgramApi();
-  if (inMiniProgram) {
-    if (miniProgram?.navigateTo) {
-      miniProgram.navigateTo({
-        url: MINI_PROGRAM_CUSTOMER_SERVICE_PAGE,
-      });
-      return;
-    }
+  if (miniProgram?.navigateTo) {
+    miniProgram.navigateTo({
+      url: MINI_PROGRAM_CUSTOMER_SERVICE_PAGE,
+    });
+    return;
   }
 
   throw new Error('当前环境未注入微信小程序 navigateTo 能力，无法打开客服页。');
@@ -432,35 +456,19 @@ export const openWechatLocation = async (payload: {
   name: string;
   address: string;
 }) => {
-  await ensureWechatSdkLoaded();
-
   if (window.__FOOTBALL_OPEN_LOCATION__) {
     await window.__FOOTBALL_OPEN_LOCATION__(payload);
     return;
   }
 
-  await ensureWechatConfigReady();
-
-  if (!window.wx?.openLocation) {
-    throw new Error('当前环境未注入微信 openLocation 能力，无法直接打开地图。');
+  try {
+    await ensureWechatSdkLoaded();
+    await ensureWechatConfigReady();
+    await invokeWechatOpenLocation(payload);
+  } catch (error) {
+    resetWechatConfigReady();
+    throw error;
   }
-
-  await new Promise<void>((resolve, reject) => {
-    try {
-      window.wx?.openLocation?.({
-        latitude: payload.latitude,
-        longitude: payload.longitude,
-        name: payload.name,
-        address: payload.address,
-        scale: 18,
-        success: () => resolve(),
-        cancel: () => reject(new Error('已取消打开地图。')),
-        fail: () => reject(new Error('调用微信地图失败，请检查 JS-SDK 签名配置是否完整。')),
-      });
-    } catch {
-      reject(new Error('调用微信地图失败，请检查 JS-SDK 配置。'));
-    }
-  });
 };
 
 export const requestWechatUserProfile = async (timeoutMs = 6000): Promise<WechatUserProfile> => {
@@ -476,71 +484,69 @@ export const requestWechatUserProfile = async (timeoutMs = 6000): Promise<Wechat
     return injectedUser;
   }
 
-  const inMiniProgram = await getMiniProgramEnv();
-  if (!inMiniProgram) {
-    const cachedUser = getCachedWechatUser();
-    if (cachedUser) {
-      return {
-        ...cachedUser,
-        source: 'cache',
-      };
-    }
-    throw new Error('当前不在微信小程序 WebView 环境，无法获取微信用户信息。');
-  }
+  await ensureWechatSdkLoaded();
 
   const miniProgram = getMiniProgramApi();
-  if (!miniProgram?.postMessage) {
-    throw new Error('当前小程序 WebView 未注入 postMessage 能力，无法请求微信用户信息。');
+  if (miniProgram?.postMessage) {
+    return new Promise<WechatUserProfile>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        cleanup();
+        reject(new Error('等待小程序返回微信用户信息超时。'));
+      }, timeoutMs);
+
+      const handleResolvedUser = (payload: Partial<WechatUserProfile>) => {
+        const user = normalizeWechatUser(payload, 'mini-program');
+        if (!user) {
+          cleanup();
+          reject(new Error('小程序返回的微信用户信息不完整。'));
+          return;
+        }
+
+        cacheWechatUser(user);
+        cleanup();
+        resolve(user);
+      };
+
+      const customEventHandler = (event: Event) => {
+        const detail = (event as CustomEvent<Partial<WechatUserProfile>>).detail;
+        handleResolvedUser(detail);
+      };
+
+      const messageEventHandler = (event: MessageEvent) => {
+        const payload = event.data?.type === RESPONSE_EVENT ? event.data?.payload : null;
+        if (payload) handleResolvedUser(payload);
+      };
+
+      const cleanup = () => {
+        window.clearTimeout(timer);
+        window.removeEventListener(RESPONSE_EVENT, customEventHandler);
+        window.removeEventListener('message', messageEventHandler);
+        if (window.__FOOTBALL_RESOLVE_WECHAT_USER__ === handleResolvedUser) {
+          delete window.__FOOTBALL_RESOLVE_WECHAT_USER__;
+        }
+      };
+
+      window.__FOOTBALL_RESOLVE_WECHAT_USER__ = handleResolvedUser;
+      window.addEventListener(RESPONSE_EVENT, customEventHandler);
+      window.addEventListener('message', messageEventHandler);
+
+      window.dispatchEvent(new CustomEvent(REQUEST_EVENT));
+      miniProgram.postMessage({
+        data: {
+          type: REQUEST_EVENT,
+          timestamp: Date.now(),
+        },
+      });
+    });
   }
 
-  return new Promise<WechatUserProfile>((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      cleanup();
-      reject(new Error('等待小程序返回微信用户信息超时。'));
-    }, timeoutMs);
-
-    const handleResolvedUser = (payload: Partial<WechatUserProfile>) => {
-      const user = normalizeWechatUser(payload, 'mini-program');
-      if (!user) {
-        cleanup();
-        reject(new Error('小程序返回的微信用户信息不完整。'));
-        return;
-      }
-
-      cacheWechatUser(user);
-      cleanup();
-      resolve(user);
+  const cachedUser = getCachedWechatUser();
+  if (cachedUser) {
+    return {
+      ...cachedUser,
+      source: 'cache',
     };
+  }
 
-    const customEventHandler = (event: Event) => {
-      const detail = (event as CustomEvent<Partial<WechatUserProfile>>).detail;
-      handleResolvedUser(detail);
-    };
-
-    const messageEventHandler = (event: MessageEvent) => {
-      const payload = event.data?.type === RESPONSE_EVENT ? event.data?.payload : null;
-      if (payload) handleResolvedUser(payload);
-    };
-
-    const cleanup = () => {
-      window.clearTimeout(timer);
-      window.removeEventListener(RESPONSE_EVENT, customEventHandler);
-      window.removeEventListener('message', messageEventHandler);
-      if (window.__FOOTBALL_RESOLVE_WECHAT_USER__ === handleResolvedUser) {
-        delete window.__FOOTBALL_RESOLVE_WECHAT_USER__;
-      }
-    };
-
-    window.__FOOTBALL_RESOLVE_WECHAT_USER__ = handleResolvedUser;
-    window.addEventListener(RESPONSE_EVENT, customEventHandler);
-    window.addEventListener('message', messageEventHandler);
-
-    window.dispatchEvent(new CustomEvent(REQUEST_EVENT));
-    miniProgram.postMessage({
-      data: {
-        type: REQUEST_EVENT,
-        timestamp: Date.now(),
-      },
-    });
-  });
+  throw new Error('当前无法获取微信用户信息，请稍后重试。');
 };
