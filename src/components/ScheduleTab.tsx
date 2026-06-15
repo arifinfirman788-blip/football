@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlagMark } from './FlagMark';
 import { Match, PredictionRecord } from '../types';
+import { GROUPS_DATA } from '../data';
 import { assetUrl } from '../utils/assets';
 import { fetchUserPredictionRecords } from '../utils/predictionApi';
 import {
@@ -34,6 +35,113 @@ const DEFAULT_GROUP_OPTIONS = [
   { id: 'K', numericId: 11, name: 'K组' },
   { id: 'L', numericId: 12, name: 'L组' },
 ] as const;
+
+const buildStandingsFromMatches = (
+  matches: Match[],
+  apiGroupDataList: ScheduleGroupData[],
+): ScheduleGroupData[] => {
+  const apiGroupMap = new Map(apiGroupDataList.map((group) => [group.id, group]));
+
+  return DEFAULT_GROUP_OPTIONS.map((groupOption) => {
+    const apiGroup = apiGroupMap.get(groupOption.id);
+    const baseStandings = (apiGroup?.standings.length
+      ? apiGroup.standings
+      : (GROUPS_DATA.find((group) => group.id === groupOption.id)?.teams || []).map((item) => ({
+          team: item.team,
+          played: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDiffValue: 0,
+          goalDiff: '0',
+          points: 0,
+          rank: item.rank,
+        })))
+      .map((standing) => ({
+        ...standing,
+        played: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        goalDiffValue: 0,
+        goalDiff: '0',
+        points: 0,
+        rank: 0,
+      }));
+
+    const standingsMap = new Map(
+      baseStandings.map((standing) => [standing.team.id, standing])
+    );
+
+    matches
+      .filter((match) => match.group === groupOption.id && match.status === 'ended')
+      .forEach((match) => {
+        if (typeof match.homeScore !== 'number' || typeof match.awayScore !== 'number') {
+          return;
+        }
+
+        const homeStanding = standingsMap.get(match.homeTeam.id);
+        const awayStanding = standingsMap.get(match.awayTeam.id);
+        if (!homeStanding || !awayStanding) {
+          return;
+        }
+
+        homeStanding.played += 1;
+        awayStanding.played += 1;
+        homeStanding.goalsFor += match.homeScore;
+        homeStanding.goalsAgainst += match.awayScore;
+        awayStanding.goalsFor += match.awayScore;
+        awayStanding.goalsAgainst += match.homeScore;
+
+        if (match.homeScore > match.awayScore) {
+          homeStanding.wins += 1;
+          homeStanding.points += 3;
+          awayStanding.losses += 1;
+        } else if (match.homeScore < match.awayScore) {
+          awayStanding.wins += 1;
+          awayStanding.points += 3;
+          homeStanding.losses += 1;
+        } else {
+          homeStanding.draws += 1;
+          awayStanding.draws += 1;
+          homeStanding.points += 1;
+          awayStanding.points += 1;
+        }
+      });
+
+    const standings = Array.from(standingsMap.values())
+      .map((standing) => {
+        const goalDiffValue = standing.goalsFor - standing.goalsAgainst;
+        return {
+          ...standing,
+          goalDiffValue,
+          goalDiff: goalDiffValue > 0 ? `+${goalDiffValue}` : `${goalDiffValue}`,
+        };
+      })
+      .sort((a, b) => (
+        b.points - a.points
+        || b.goalDiffValue - a.goalDiffValue
+        || b.goalsFor - a.goalsFor
+        || a.team.rank - b.team.rank
+      ))
+      .map((standing, index) => ({
+        ...standing,
+        rank: index + 1,
+      }));
+
+    return {
+      id: groupOption.id,
+      numericId: groupOption.numericId,
+      name: apiGroup?.name || groupOption.name,
+      sortNo: apiGroup?.sortNo || groupOption.numericId,
+      standings,
+    };
+  });
+};
 
 export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPredictionClick }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'group' | 'knockout' | 'mine'>('all');
@@ -157,9 +265,14 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
 
   const selectedGroupLabel = selectedGroupId === 'all' ? '全部' : `${selectedGroupId}组`;
 
+  const computedGroupDataList = useMemo(
+    () => buildStandingsFromMatches(matches, groupDataList),
+    [groupDataList, matches]
+  );
+
   const groupStandingsMap = useMemo(
-    () => Object.fromEntries(groupDataList.map((group) => [group.id, group.standings])),
-    [groupDataList]
+    () => Object.fromEntries(computedGroupDataList.map((group) => [group.id, group.standings])),
+    [computedGroupDataList]
   );
 
   useEffect(() => {
@@ -476,7 +589,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ onTeamSelect, onAIPred
               {visibleGroupIds.map((groupId) => {
                 const groupMatches = groupMatchesMap[groupId] || [];
                 const groupStandings = groupStandingsMap[groupId] || [];
-                const groupMeta = groupDataList.find((group) => group.id === groupId)
+                const groupMeta = computedGroupDataList.find((group) => group.id === groupId)
                   || DEFAULT_GROUP_OPTIONS.find((group) => group.id === groupId);
 
                 return (

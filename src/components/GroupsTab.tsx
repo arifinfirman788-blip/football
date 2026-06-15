@@ -25,6 +25,8 @@ interface GroupsTabProps {
 
 const bannerBg = assetUrl('assets/schedule/stadium-header.png');
 const bannerTrophy = assetUrl('assets/schedule/trophy-cup.png');
+const WEEKLY_PAGE_SIZE = 21;
+const TOTAL_PAGE_SIZE = 55;
 
 // 前三名奖牌是纯前端绘制，后续如有品牌奖牌切图，可在这里直接替换。
 interface MedalProps {
@@ -88,13 +90,13 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
       setLoadError(null);
 
       const [weeklyList, totalList] = await Promise.all([
-        fetchWeeklyLeaderboard(todayDateKey),
-        fetchTotalLeaderboard(),
+        fetchWeeklyLeaderboard(todayDateKey, 1, WEEKLY_PAGE_SIZE),
+        fetchTotalLeaderboard(1, TOTAL_PAGE_SIZE),
       ]);
 
       if (loadRequestIdRef.current !== requestId) return;
-      setDailyLeaderboard(weeklyList);
-      setAllTimeLeaderboard(totalList);
+      setDailyLeaderboard(weeklyList.list);
+      setAllTimeLeaderboard(totalList.list);
 
       if (userId && Number.isFinite(userId)) {
         const [weeklyMine, totalMine] = await Promise.all([
@@ -421,6 +423,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
             <span>暂无排行榜数据</span>
           </div>
         )}
+
       </div>
 
       {/* 底部“我的排行”入口：点击后进入用户积分明细二级页 */}

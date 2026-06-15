@@ -76,6 +76,14 @@ export interface RankingListUser {
   points: number;
 }
 
+export interface RankingListPageResult {
+  list: RankingListUser[];
+  currentPage: number;
+  pageSize: number;
+  totalCount: number;
+  totalPage: number;
+}
+
 export interface MyRankingSummary {
   rank: number | null;
   nickname: string;
@@ -104,8 +112,12 @@ const ensureSuccess = <T extends { message: ApiMessage }>(payload: T) => {
   }
 };
 
-export const fetchWeeklyLeaderboard = async (date: string): Promise<RankingListUser[]> => {
-  const response = await fetch(`${API_BASE_URL}/rankings/weekly?date=${date}&page=1&page_size=10`);
+export const fetchWeeklyLeaderboard = async (
+  date: string,
+  page = 1,
+  pageSize = 21
+): Promise<RankingListPageResult> => {
+  const response = await fetch(`${API_BASE_URL}/rankings/weekly?date=${date}&page=${page}&page_size=${pageSize}`);
   if (!response.ok) {
     throw new Error(`周排行榜接口请求失败，HTTP 状态码 ${response.status}`);
   }
@@ -113,18 +125,27 @@ export const fetchWeeklyLeaderboard = async (date: string): Promise<RankingListU
   const payload = (await response.json()) as ApiPageResponse<ApiWeeklyRankingItem>;
   ensureSuccess(payload);
 
-  return payload.data.list.map((item, index) => ({
-    rank: index + 1,
-    name: item.nickname,
-    avatar: item.avatar_url || DEFAULT_AVATAR,
-    guesses: item.correct_count,
-    accuracy: formatHitRate(item.hit_rate),
-    points: item.points,
-  }));
+  return {
+    list: payload.data.list.map((item, index) => ({
+      rank: (payload.data.currentPage - 1) * payload.data.pageSize + index + 1,
+      name: item.nickname,
+      avatar: item.avatar_url || DEFAULT_AVATAR,
+      guesses: item.correct_count,
+      accuracy: formatHitRate(item.hit_rate),
+      points: item.points,
+    })),
+    currentPage: payload.data.currentPage,
+    pageSize: payload.data.pageSize,
+    totalCount: payload.data.totalCount,
+    totalPage: payload.data.totalPage,
+  };
 };
 
-export const fetchTotalLeaderboard = async (): Promise<RankingListUser[]> => {
-  const response = await fetch(`${API_BASE_URL}/rankings/total?page=1&page_size=10`);
+export const fetchTotalLeaderboard = async (
+  page = 1,
+  pageSize = 55
+): Promise<RankingListPageResult> => {
+  const response = await fetch(`${API_BASE_URL}/rankings/total?page=${page}&page_size=${pageSize}`);
   if (!response.ok) {
     throw new Error(`总排行榜接口请求失败，HTTP 状态码 ${response.status}`);
   }
@@ -132,14 +153,20 @@ export const fetchTotalLeaderboard = async (): Promise<RankingListUser[]> => {
   const payload = (await response.json()) as ApiPageResponse<ApiTotalRankingItem>;
   ensureSuccess(payload);
 
-  return payload.data.list.map((item, index) => ({
-    rank: index + 1,
-    name: item.nickname,
-    avatar: item.avatar_url || DEFAULT_AVATAR,
-    guesses: item.correct_predictions,
-    accuracy: formatHitRate(item.hit_rate),
-    points: item.total_points,
-  }));
+  return {
+    list: payload.data.list.map((item, index) => ({
+      rank: (payload.data.currentPage - 1) * payload.data.pageSize + index + 1,
+      name: item.nickname,
+      avatar: item.avatar_url || DEFAULT_AVATAR,
+      guesses: item.correct_predictions,
+      accuracy: formatHitRate(item.hit_rate),
+      points: item.total_points,
+    })),
+    currentPage: payload.data.currentPage,
+    pageSize: payload.data.pageSize,
+    totalCount: payload.data.totalCount,
+    totalPage: payload.data.totalPage,
+  };
 };
 
 export const fetchMyRankingSummary = async (

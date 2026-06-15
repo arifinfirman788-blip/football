@@ -4,7 +4,7 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
-  const backendTarget = process.env.VITE_PROXY_TARGET || 'https://huangxiaoxi.rxhui.com/football';
+  const backendTarget = process.env.VITE_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/football';
   const arkTarget = process.env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
   const wechatTicketTarget = process.env.VITE_WECHAT_TICKET_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/football';
   const basePath = process.env.VITE_BASE_PATH || '/football/';

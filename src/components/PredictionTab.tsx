@@ -293,6 +293,30 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     return `${hours}:${minutes}:${seconds}`;
   };
 
+  const getTopRightMatchStatus = (match: Match) => {
+    if (match.status === 'conducting') {
+      return {
+        label: '进行中',
+        textClassName: 'text-[#0f5132]',
+        indicatorClassName: 'bg-[#00e676] animate-pulse',
+      };
+    }
+
+    if (match.status === 'ended') {
+      return {
+        label: '已结束',
+        textClassName: 'text-slate-600',
+        indicatorClassName: 'bg-slate-500',
+      };
+    }
+
+    return {
+      label: formatMatchCountdown(match),
+      textClassName: 'text-[#6d4b00]',
+      indicatorClassName: 'bg-[#6d4b00]',
+    };
+  };
+
   const dailySubmissionLimit = predictableMatches.length;
   const remainingSubmissions = predictableMatches.filter(match => !submittedPredictions[match.id]).length;
 
@@ -359,6 +383,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
       : currentMatchRecord?.score || '--'
     : '--';
   const currentMatchActualResult = currentMatchRecord?.actualResult || '待开奖';
+  const currentMatchTopRightStatus = currentMatch ? getTopRightMatchStatus(currentMatch) : null;
 
   const choiceMap = {
     home: currentMatch ? `主胜 (${currentMatch.homeTeam.name}胜)` : '主胜',
@@ -573,10 +598,10 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                   style={{ backgroundImage: `url('${assetUrl('assets/prediction/countdown-frame.png')}')` }}
                 >
                   <div className="flex items-center justify-between w-full px-3">
-                    <span className="font-mono font-bold text-[9px] text-[#6d4b00] tracking-wide whitespace-nowrap">
-                      {formatMatchCountdown(currentMatch)}
+                    <span className={`font-mono font-bold text-[9px] tracking-wide whitespace-nowrap ${currentMatchTopRightStatus?.textClassName || 'text-[#6d4b00]'}`}>
+                      {currentMatchTopRightStatus?.label || '--'}
                     </span>
-                    <span className="text-[#6d4b00] text-[14px] leading-none">⏱</span>
+                    <span className={`inline-block w-2 h-2 rounded-full ${currentMatchTopRightStatus?.indicatorClassName || 'bg-[#6d4b00]'}`}></span>
                   </div>
                 </div>
               </div>
