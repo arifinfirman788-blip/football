@@ -1,4 +1,6 @@
-const PRODUCTION_ORIGIN = 'https://glsw-wdgz-libs.aihuangxiaoxi.com';
+const PRODUCTION_ORIGIN = (
+  import.meta.env.VITE_PRODUCTION_ORIGIN || 'https://glsw-wdgz-libs.aihuangxiaoxi.com'
+).replace(/\/+$/, '');
 const APP_BASE_PATH = '/football';
 
 /** 业务接口与微信 ticket 等服务共用的 /football 前缀。 */

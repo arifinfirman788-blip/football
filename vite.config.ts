@@ -1,13 +1,17 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, loadEnv} from 'vite';
 
-export default defineConfig(() => {
-  const backendTarget = process.env.VITE_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/football';
-  const arkTarget = process.env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
-  const wechatTicketTarget = process.env.VITE_WECHAT_TICKET_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/football';
-  const basePath = process.env.VITE_BASE_PATH || '/football/';
+const DEFAULT_PRODUCTION_ORIGIN = 'https://glsw-wdgz-libs.aihuangxiaoxi.com';
+
+export default defineConfig(({mode}) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const productionOrigin = (env.VITE_PRODUCTION_ORIGIN || DEFAULT_PRODUCTION_ORIGIN).replace(/\/+$/, '');
+  const backendTarget = env.VITE_PROXY_TARGET || `${productionOrigin}/football`;
+  const arkTarget = env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
+  const wechatTicketTarget = env.VITE_WECHAT_TICKET_PROXY_TARGET || `${productionOrigin}/football`;
+  const basePath = env.VITE_BASE_PATH || '/football/';
   const normalizedBasePath = basePath.replace(/\/+$/, '');
 
   return {

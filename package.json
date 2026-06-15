@@ -8,7 +8,9 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:test": "vite --mode test",
     "build": "vite build && node scripts/inline-dist-assets.mjs",
+    "build:test": "vite build --mode test && node scripts/inline-dist-assets.mjs",
     "preview": "vite preview",
     "clean": "rm -rf football",
     "lint": "tsc --noEmit",
