@@ -15,6 +15,7 @@ import { RewardRulesPage } from './components/RewardRulesPage';
 
 import { Match, PredictionRecord } from './types';
 import { storage } from './utils/storage';
+import { initAnalytics, track } from './utils/analytics';
 
 /**
  * 当前前端实际入口说明：
@@ -68,6 +69,19 @@ export default function App() {
       activeTab: 'ai-forecast',
     }));
   };
+
+  React.useEffect(() => {
+    initAnalytics();
+  }, []);
+
+  React.useEffect(() => {
+    if (phoneState.activeTab === 'prediction') {
+      track('game_home_view', { page_path: 'pages/worldcup/index' });
+    }
+    if (phoneState.activeTab === 'groups') {
+      track('leaderboard_view', { page_path: 'pages/worldcup/leaderboard' });
+    }
+  }, [phoneState.activeTab]);
 
   // 一级页面渲染入口。球队和球员详情页已退出当前产品流程，不再从球队旗帜下钻。
   const renderPhoneContent = () => {

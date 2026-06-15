@@ -16,6 +16,7 @@ import {
   submitPrediction,
   upsertUserProfile,
 } from '../utils/predictionApi';
+import { track } from '../utils/analytics';
 
 interface PredictionTabProps {
   // 当前版本不再进入球队详情页，保留回调是为了后续需要恢复下钻时改动更小。
@@ -180,6 +181,10 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
         return acc;
       }, {})
     ));
+    track('daily_task_click', {
+      page_path: 'pages/worldcup/index',
+      extra: { date: dateKey, match_count: nextMatches.length },
+    });
   };
 
   useEffect(() => {
@@ -273,6 +278,31 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     setPredictableMatches(currentDateGroup.matches);
     setMatchCanPredictMap(currentDateGroup.canPredictMap);
   }, [displayDateKey, groupedPredictableMatches]);
+
+  const getAnalyticsMatchId = (match: Match) => {
+    const value = Number(match.id);
+    return Number.isFinite(value) ? value : undefined;
+  };
+
+  useEffect(() => {
+    if (!currentMatch) return;
+    track('match_guess_view', {
+      page_path: 'pages/worldcup/guess',
+      match_id: getAnalyticsMatchId(currentMatch),
+      match_name: `${currentMatch.homeTeam.name} vs ${currentMatch.awayTeam.name}`,
+    });
+  }, [currentMatch?.id]);
+
+  useEffect(() => {
+    if (todayPredictionRecords.length <= 0) return;
+    track('guess_result_view', {
+      page_path: 'pages/worldcup/results',
+      extra: {
+        date: displayDateKey,
+        prediction_count: todayPredictionRecords.length,
+      },
+    });
+  }, [displayDateKey, todayPredictionRecords.length]);
 
   const getMatchTimeLabel = (match: Match) => {
     const date = match.dateKey.slice(5).replace('-', '/');
@@ -499,8 +529,8 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
                 const isActive = dateKey === displayDateKey;
                 return (
                   <button
-                    key={dateKey}
-                    onClick={() => switchPredictableDate(dateKey)}
+                  key={dateKey}
+                  onClick={() => switchPredictableDate(dateKey)}
                     className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all ${
                       isActive
                         ? 'bg-[#00e676]/14 border-[#00e676]/35 text-[#00e676]'
@@ -521,7 +551,14 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
               return (
                 <button
                   key={m.id}
-                  onClick={() => setCurrentMatch(m)}
+                  onClick={() => {
+                    setCurrentMatch(m);
+                    track('daily_task_click', {
+                      page_path: 'pages/worldcup/index',
+                      match_id: getAnalyticsMatchId(m),
+                      match_name: `${m.homeTeam.name} vs ${m.awayTeam.name}`,
+                    });
+                  }}
                   className={`px-3.5 py-2.5 rounded-2xl shrink-0 transition-all border flex flex-col items-center min-w-[125px] cursor-pointer ${
                     isSelected 
                       ? 'bg-gradient-to-b from-[#112436] to-[#05101b] border-[#00e676]/65 shadow-md shadow-emerald-500/5 scale-[1.01]' 
@@ -690,7 +727,15 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
             <div className="w-full flex flex-col items-center my-2.5 space-y-2">
               <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[#1b3d58] to-transparent"></div>
               <button
-                onClick={() => onAIPredictionClick(currentMatch)}
+                onClick={() => {
+                  track('daily_task_click', {
+                    page_path: 'pages/worldcup/guess',
+                    match_id: getAnalyticsMatchId(currentMatch),
+                    match_name: `${currentMatch.homeTeam.name} vs ${currentMatch.awayTeam.name}`,
+                    extra: { action: 'ai_forecast' },
+                  });
+                  onAIPredictionClick(currentMatch);
+                }}
                 className="px-4 py-1.5 bg-[#00e676]/10 hover:bg-[#00e676]/25 border border-[#00e676]/35 text-[#00e676] rounded-full text-[10.5px] font-bold tracking-wide flex items-center space-x-1.5 transition-all hover:scale-105 cursor-pointer shadow shadow-[#00e676]/5 group"
               >
                 <span>✨</span>

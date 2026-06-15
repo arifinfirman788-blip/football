@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, HelpCircle } from 'lucide-react';
+import { Award, ChevronLeft, HelpCircle } from 'lucide-react';
 import { assetUrl } from '../utils/assets';
 import { PredictionRecord } from '../types';
 import {
@@ -15,6 +15,7 @@ import {
   MyRankingSummary,
   RankingListUser,
 } from '../utils/rankingApi';
+import { track } from '../utils/analytics';
 
 type LeaderboardUser = RankingListUser;
 
@@ -27,6 +28,55 @@ const bannerBg = assetUrl('assets/schedule/stadium-header.png');
 const bannerTrophy = assetUrl('assets/schedule/trophy-cup.png');
 const WEEKLY_PAGE_SIZE = 21;
 const TOTAL_PAGE_SIZE = 55;
+const FIRST_WEEKLY_ANNOUNCEMENT_END_DATE = '2026-06-18';
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+
+type AnnouncementTab = 'weekly' | 'total';
+
+interface WeeklyAnnouncementPeriod {
+  startDateKey: string;
+  endDateKey: string;
+  issueNumber: number;
+}
+
+const formatDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateKey = (dateKey: string) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const formatDisplayDate = (dateKey: string) => dateKey.replace(/-/g, '.');
+
+const getLatestCompletedWeeklyAnnouncementPeriod = (now = new Date()): WeeklyAnnouncementPeriod | null => {
+  const day = now.getDay();
+  const daysSinceLastCompletedThursday = day >= 5 ? day - 4 : day + 3;
+  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  endDate.setDate(endDate.getDate() - daysSinceLastCompletedThursday);
+
+  const endDateKey = formatDateKey(endDate);
+  if (endDateKey < FIRST_WEEKLY_ANNOUNCEMENT_END_DATE) {
+    return null;
+  }
+
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - 6);
+
+  const firstEndDate = parseDateKey(FIRST_WEEKLY_ANNOUNCEMENT_END_DATE);
+  const issueNumber = Math.floor((endDate.getTime() - firstEndDate.getTime()) / MS_PER_WEEK) + 1;
+
+  return {
+    startDateKey: formatDateKey(startDate),
+    endDateKey,
+    issueNumber,
+  };
+};
 
 // 前三名奖牌是纯前端绘制，后续如有品牌奖牌切图，可在这里直接替换。
 interface MedalProps {
@@ -66,14 +116,22 @@ const CustomMedal: React.FC<MedalProps> = ({ rank }) => {
 
 export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   const [activeTab, setActiveTab] = useState<'daily' | 'all-time'>('daily');
+  const [announcementTab, setAnnouncementTab] = useState<AnnouncementTab>('weekly');
   const [showRules, setShowRules] = useState<boolean>(false);
   const [showMyRankingDetail, setShowMyRankingDetail] = useState<boolean>(false);
+  const [showWinnerAnnouncement, setShowWinnerAnnouncement] = useState<boolean>(false);
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardUser[]>([]);
   const [allTimeLeaderboard, setAllTimeLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [weeklyAnnouncementList, setWeeklyAnnouncementList] = useState<LeaderboardUser[]>([]);
   const [myWeeklyRanking, setMyWeeklyRanking] = useState<MyRankingSummary | null>(null);
   const [myTotalRanking, setMyTotalRanking] = useState<MyRankingSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isAnnouncementLoading, setIsAnnouncementLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [announcementError, setAnnouncementError] = useState<string | null>(null);
+  const [announcementPeriod, setAnnouncementPeriod] = useState<WeeklyAnnouncementPeriod | null>(() => (
+    getLatestCompletedWeeklyAnnouncementPeriod()
+  ));
   const todayDateKey = getTodayDateKey();
   const loadRequestIdRef = useRef(0);
 
@@ -135,10 +193,160 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
     };
   }, [loadRankings]);
 
+  useEffect(() => {
+    if (!showWinnerAnnouncement || announcementTab !== 'weekly') {
+      return;
+    }
+
+    if (!announcementPeriod) {
+      setWeeklyAnnouncementList([]);
+      setAnnouncementError(null);
+      setIsAnnouncementLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadWeeklyAnnouncement = async () => {
+      try {
+        setIsAnnouncementLoading(true);
+        setAnnouncementError(null);
+        const result = await fetchWeeklyLeaderboard(announcementPeriod.endDateKey, 1, WEEKLY_PAGE_SIZE);
+
+        if (isCancelled) return;
+        setWeeklyAnnouncementList(result.list);
+      } catch (error) {
+        console.error(error);
+        if (isCancelled) return;
+        setWeeklyAnnouncementList([]);
+        setAnnouncementError(error instanceof Error ? error.message : '周榜中奖公示加载失败。');
+      } finally {
+        if (!isCancelled) {
+          setIsAnnouncementLoading(false);
+        }
+      }
+    };
+
+    void loadWeeklyAnnouncement();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [announcementPeriod, announcementTab, showWinnerAnnouncement]);
+
   const handleOpenMyRankingDetail = () => {
+    track('leaderboard_view', {
+      page_path: 'pages/worldcup/my-ranking',
+      extra: { tab: activeTab },
+    });
     setShowMyRankingDetail(true);
     void loadRankings({ showLoading: false });
   };
+
+  const handleOpenWinnerAnnouncement = () => {
+    track('daily_task_click', {
+      page_path: 'pages/worldcup/leaderboard',
+      extra: { action: 'winner_announcement' },
+    });
+    setAnnouncementPeriod(getLatestCompletedWeeklyAnnouncementPeriod());
+    setShowWinnerAnnouncement(true);
+  };
+
+  const renderAnnouncementRows = (list: LeaderboardUser[], rangeText: string) => (
+    <>
+      <div className="leaderboard-table-header grid grid-cols-[48px_minmax(110px,1fr)_54px_54px_52px] items-center mx-3.5 mt-2 px-3.5 py-2 text-[10px] text-slate-300 font-bold tracking-wider shrink-0 select-none">
+        <span className="text-center font-medium">排名</span>
+        <span className="pl-1 font-medium">中奖用户</span>
+        <span className="text-center font-medium">猜对场次</span>
+        <span className="text-center font-medium">命中率</span>
+        <span className="text-right font-medium pr-1">积分</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3.5 pt-2 pb-8 space-y-2 scrollbar-none">
+        <div className="rounded-2xl border border-[#00e676]/14 bg-[#061a11]/70 px-3.5 py-3 text-[10.5px] text-slate-300 leading-relaxed">
+          中奖范围：{rangeText}。如出现积分相同，以后台结算后的排名顺序为准。
+        </div>
+
+        {list.map((user) => {
+          const isRank1 = user.rank === 1;
+          const isRank2 = user.rank === 2;
+          const isRank3 = user.rank === 3;
+          const rowStyle = isRank1
+            ? 'bg-gradient-to-r from-[#e5a93b]/10 via-[#06111b] to-[#06111b] border-[1.2px] border-[#e5a93b]/70 shadow-[0_8px_22px_rgba(229,169,59,0.2),0_6px_18px_rgba(0,0,0,0.38)]'
+            : isRank2
+              ? 'bg-gradient-to-r from-[#8ba3bd]/10 via-[#06111b] to-[#06111b] border-[1.2px] border-[#8ba3bd]/62 shadow-[0_8px_22px_rgba(139,163,189,0.18),0_6px_18px_rgba(0,0,0,0.38)]'
+              : isRank3
+                ? 'bg-gradient-to-r from-[#c68953]/10 via-[#06111b] to-[#06111b] border-[1.2px] border-[#c68953]/62 shadow-[0_8px_22px_rgba(198,137,83,0.18),0_6px_18px_rgba(0,0,0,0.38)]'
+                : 'bg-[#06111b]/86 border border-white/[0.08] shadow-[0_7px_16px_rgba(0,0,0,0.32)]';
+
+          return (
+            <div
+              key={`winner-${user.rank}`}
+              className={`grid grid-cols-[48px_minmax(110px,1fr)_54px_54px_52px] items-center px-3.5 py-2.5 rounded-xl transition-all ${rowStyle}`}
+            >
+              <div className="flex justify-center shrink-0">
+                {user.rank <= 3 ? (
+                  <CustomMedal rank={user.rank} />
+                ) : (
+                  <div className="w-6 h-6 text-slate-400 flex items-center justify-center text-xs font-bold select-none font-mono">
+                    {user.rank}
+                  </div>
+                )}
+              </div>
+
+              <div className="pl-1 flex items-center space-x-2 min-w-0 overflow-hidden">
+                <img
+                  src={user.avatar}
+                  alt={user.name}
+                  className={`w-9 h-9 rounded-full object-cover shrink-0 select-none shadow ${
+                    isRank1
+                      ? 'border-[1.5px] border-[#e5a93b]'
+                      : isRank2
+                        ? 'border-[1.5px] border-[#8ba3bd]'
+                        : isRank3
+                          ? 'border-[1.5px] border-[#c68953]'
+                          : 'border border-white/10'
+                  }`}
+                />
+                <span className={`text-[12px] font-bold tracking-wide whitespace-nowrap ${
+                  isRank1 ? 'text-[#ffe082]' : 'text-white'
+                }`}>
+                  {user.name}
+                </span>
+              </div>
+
+              <span className="text-center text-[12px] font-bold font-mono text-slate-100 select-all">
+                {user.guesses}
+              </span>
+              <span className="text-center text-[12px] font-bold font-mono text-[#00e676] select-all">
+                {user.accuracy}
+              </span>
+              <span className={`text-right pr-2 text-[12.5px] font-bold font-mono select-all ${
+                isRank1 ? 'text-[#ffe082]' : isRank2 ? 'text-slate-200' : isRank3 ? 'text-[#f1b88e]' : 'text-slate-300'
+              }`}>
+                {user.points}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  const renderAnnouncementEmptyState = (title: string, description: string, meta: string) => (
+    <div className="flex-1 px-5 pb-10 flex items-center justify-center">
+      <div className="w-full rounded-3xl border border-white/[0.08] bg-[#071521]/92 p-6 text-center shadow-[0_16px_40px_rgba(0,0,0,0.34)]">
+        <div className="mx-auto w-13 h-13 rounded-full bg-[#00e676]/10 border border-[#00e676]/20 flex items-center justify-center">
+          <Award className="w-6 h-6 text-[#00e676]" />
+        </div>
+        <h3 className="mt-4 text-base font-black tracking-wide text-white">{title}</h3>
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{description}</p>
+        <div className="mt-4 rounded-2xl border border-white/6 bg-black/20 px-3 py-2 text-[10px] text-slate-300 leading-relaxed">
+          {meta}
+        </div>
+      </div>
+    </div>
+  );
 
   const activeLeaderboardList = activeTab === 'daily' ? dailyLeaderboard : allTimeLeaderboard;
   const activeMyRanking = activeTab === 'daily' ? myWeeklyRanking : myTotalRanking;
@@ -152,6 +360,100 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   const accuracy = settledRecords.length > 0
     ? `${Math.round((correctCount / settledRecords.length) * 100)}%`
     : '待结算';
+
+  if (showWinnerAnnouncement) {
+    return (
+      <div className="flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
+        <div className="relative h-[154px] shrink-0 bg-gradient-to-b from-[#102436] to-[#040c14] border-b border-white/5 px-4 pt-5 pb-3">
+          <button
+            onClick={() => setShowWinnerAnnouncement(false)}
+            className="absolute left-4 top-5 w-9 h-9 rounded-full bg-black/32 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-95 transition-all"
+          >
+            <ChevronLeft className="w-5 h-5 text-white" />
+          </button>
+
+          <div className="h-[76px] flex flex-col items-center justify-center">
+            <span className="text-[10px] text-[#00e676] font-bold tracking-[3px] uppercase">Winner Announcement</span>
+            <h2 className="text-xl font-black tracking-[3px] mt-1">中奖公示</h2>
+          </div>
+
+          <div className="leaderboard-segment-shell absolute left-8 right-8 bottom-3">
+            <div className="grid grid-cols-2 h-full">
+              <button
+                onClick={() => setAnnouncementTab('weekly')}
+                className={`leaderboard-segment-button rounded-l-[20px] ${
+                  announcementTab === 'weekly'
+                    ? 'leaderboard-segment-button--active'
+                    : 'leaderboard-segment-button--idle'
+                }`}
+              >
+                周榜公示
+              </button>
+              <button
+                onClick={() => setAnnouncementTab('total')}
+                className={`leaderboard-segment-button rounded-r-[20px] ${
+                  announcementTab === 'total'
+                    ? 'leaderboard-segment-button--active'
+                    : 'leaderboard-segment-button--idle'
+                }`}
+              >
+                最终总榜
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {announcementTab === 'weekly' ? (
+          !announcementPeriod ? (
+            renderAnnouncementEmptyState(
+              '首期中奖公示待生成',
+              '当前还没有完整的周榜公示周期。首期将在 2026.06.19 00:00 后展示 2026.06.12 00:00 至 2026.06.18 24:00 的周排行结果。',
+              '周榜中奖用户：每期周排行第 1-21 名。'
+            )
+          ) : isAnnouncementLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-2">
+              <Award className="w-7 h-7 animate-pulse text-[#00e676]" />
+              <span className="text-xs">中奖公示加载中...</span>
+            </div>
+          ) : announcementError ? (
+            renderAnnouncementEmptyState(
+              '中奖公示暂未加载成功',
+              announcementError,
+              `本期周期：${formatDisplayDate(announcementPeriod.startDateKey)} 00:00 - ${formatDisplayDate(announcementPeriod.endDateKey)} 24:00。`
+            )
+          ) : weeklyAnnouncementList.length > 0 ? (
+            <>
+              <div className="px-4 pt-3 pb-1 shrink-0">
+                <div className="rounded-2xl border border-[#00e676]/14 bg-[#071521] px-4 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.26)]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-[#00e676] font-bold tracking-[2px]">第 {announcementPeriod.issueNumber} 期</span>
+                    <span className="text-[10px] text-slate-400">展示一周</span>
+                  </div>
+                  <h3 className="mt-1 text-base font-black text-white">周榜中奖名单</h3>
+                  <p className="mt-1 text-[10.5px] text-slate-400 leading-relaxed">
+                    {formatDisplayDate(announcementPeriod.startDateKey)} 00:00 - {formatDisplayDate(announcementPeriod.endDateKey)} 24:00
+                  </p>
+                </div>
+              </div>
+              {renderAnnouncementRows(weeklyAnnouncementList, '周榜第 1-21 名')}
+            </>
+          ) : (
+            renderAnnouncementEmptyState(
+              '本期暂无可公示用户',
+              '后台已返回本期周榜，但当前没有进入中奖范围的用户。',
+              `本期周期：${formatDisplayDate(announcementPeriod.startDateKey)} 00:00 - ${formatDisplayDate(announcementPeriod.endDateKey)} 24:00。`
+            )
+          )
+        ) : (
+          renderAnnouncementEmptyState(
+            '最终总榜待活动结束后公示',
+            '总榜中奖用户以活动结束后的最终排名为准，当前不提前公示实时总榜，避免用户误解为最终中奖结果。',
+            '总榜中奖用户：最终排名第 1-55 名。'
+          )
+        )}
+      </div>
+    );
+  }
 
   if (showMyRankingDetail) {
     // “我的排行”二级页：展示用户每一场竞猜的选择与积分结算明细。
@@ -266,8 +568,21 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
 
         <div className="absolute top-[22px] right-4 flex items-center gap-2">
           <button
-            onClick={() => setShowRules(true)}
-            className="h-9 px-4 rounded-full border border-white/12 bg-black/18 backdrop-blur-md text-white text-[13px] font-bold shadow-[0_2px_10px_rgba(0,0,0,0.28)] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+            onClick={handleOpenWinnerAnnouncement}
+            className="h-9 px-3 rounded-full border border-[#00e676]/24 bg-[#071b12]/50 backdrop-blur-md text-white text-[12px] font-bold shadow-[0_2px_10px_rgba(0,0,0,0.28)] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+          >
+            <Award className="w-4 h-4 text-[#00e676]" />
+            <span>中奖公示</span>
+          </button>
+          <button
+            onClick={() => {
+              track('daily_task_click', {
+                page_path: 'pages/worldcup/leaderboard',
+                extra: { action: 'leaderboard_rules' },
+              });
+              setShowRules(true);
+            }}
+            className="h-9 px-3 rounded-full border border-white/12 bg-black/18 backdrop-blur-md text-white text-[12px] font-bold shadow-[0_2px_10px_rgba(0,0,0,0.28)] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
           >
             <span>规则说明</span>
             <HelpCircle className="w-4 h-4 text-white/90" />
@@ -284,7 +599,13 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
         <div className="leaderboard-segment-shell absolute left-16 right-16 bottom-3">
           <div className="grid grid-cols-2 h-full">
           <button
-            onClick={() => setActiveTab('daily')}
+            onClick={() => {
+              setActiveTab('daily');
+              track('leaderboard_view', {
+                page_path: 'pages/worldcup/leaderboard',
+                extra: { tab: 'weekly' },
+              });
+            }}
             className={`leaderboard-segment-button rounded-l-[20px] ${
               activeTab === 'daily'
                 ? 'leaderboard-segment-button--active'
@@ -294,7 +615,13 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
             周排行
           </button>
           <button
-            onClick={() => setActiveTab('all-time')}
+            onClick={() => {
+              setActiveTab('all-time');
+              track('leaderboard_view', {
+                page_path: 'pages/worldcup/leaderboard',
+                extra: { tab: 'total' },
+              });
+            }}
             className={`leaderboard-segment-button rounded-r-[20px] ${
               activeTab === 'all-time'
                 ? 'leaderboard-segment-button--active'

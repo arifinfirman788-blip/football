@@ -77,6 +77,7 @@ declare global {
     __FOOTBALL_WECHAT_SDK_LOADING__?: Promise<void>;
     __FOOTBALL_WECHAT_CONFIG_READY__?: Promise<void>;
     __FOOTBALL_WECHAT_TICKET__?: string;
+    __FOOTBALL_TRACK_SHARE_CLICK__?: (payload?: { matchId?: number; matchName?: string }) => void;
   }
 }
 
