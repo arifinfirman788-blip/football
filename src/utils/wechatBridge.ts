@@ -426,6 +426,14 @@ const getWechatUserFromUrl = (): WechatUserProfile | null => {
   };
 };
 
+export const hydrateWechatUserFromUrl = () => {
+  const queryUser = getWechatUserFromUrl();
+  if (queryUser) {
+    cacheWechatUser(queryUser);
+  }
+  return queryUser;
+};
+
 export const resolveWechatUserFromMiniProgram = (payload: Partial<WechatUserProfile>) => {
   window.dispatchEvent(new CustomEvent(RESPONSE_EVENT, { detail: payload }));
 };
@@ -473,9 +481,8 @@ export const openWechatLocation = async (payload: {
 };
 
 export const requestWechatUserProfile = async (timeoutMs = 6000): Promise<WechatUserProfile> => {
-  const queryUser = getWechatUserFromUrl();
+  const queryUser = hydrateWechatUserFromUrl();
   if (queryUser) {
-    cacheWechatUser(queryUser);
     return queryUser;
   }
 

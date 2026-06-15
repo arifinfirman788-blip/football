@@ -1,7 +1,7 @@
 import { API_BASE_URL } from './apiConfig';
 import { USER_ID_STORAGE_KEY } from './predictionApi';
 import { storage } from './storage';
-import { getCachedWechatUser } from './wechatBridge';
+import { getCachedWechatUser, hydrateWechatUserFromUrl } from './wechatBridge';
 
 type AnalyticsEventName =
   | 'app_show'
@@ -164,6 +164,7 @@ export const track = (eventName: AnalyticsEventName, props: AnalyticsProps = {})
 
 export const initAnalytics = () => {
   if (typeof window === 'undefined') return;
+  hydrateWechatUserFromUrl();
   getOrCreateSessionId();
   getOrCreateAnonymousId();
 
