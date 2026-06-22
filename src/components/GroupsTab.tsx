@@ -262,7 +262,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
         <span className="text-right font-medium pr-1">积分</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3.5 pt-2 pb-8 space-y-2 scrollbar-none">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pt-2 pb-[calc(92px+env(safe-area-inset-bottom))] space-y-2 scrollbar-none">
         <div className="rounded-2xl border border-[#00e676]/14 bg-[#061a11]/70 px-3.5 py-3 text-[10.5px] text-slate-300 leading-relaxed">
           中奖范围：{rangeText}。如出现积分相同，以后台结算后的排名顺序为准。
         </div>
@@ -334,7 +334,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   );
 
   const renderAnnouncementEmptyState = (title: string, description: string, meta: string) => (
-    <div className="flex-1 px-5 pb-10 flex items-center justify-center">
+    <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] flex items-center justify-center scrollbar-none">
       <div className="w-full rounded-3xl border border-white/[0.08] bg-[#071521]/92 p-6 text-center shadow-[0_16px_40px_rgba(0,0,0,0.34)]">
         <div className="mx-auto w-13 h-13 rounded-full bg-[#00e676]/10 border border-[#00e676]/20 flex items-center justify-center">
           <Award className="w-6 h-6 text-[#00e676]" />
@@ -363,7 +363,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
 
   if (showWinnerAnnouncement) {
     return (
-      <div className="flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
+      <div className="min-h-0 flex-1 flex flex-col bg-[#040c14] text-white overflow-hidden relative select-none font-sans">
         <div className="relative h-[154px] shrink-0 bg-gradient-to-b from-[#102436] to-[#040c14] border-b border-white/5 px-4 pt-5 pb-3">
           <button
             onClick={() => setShowWinnerAnnouncement(false)}
