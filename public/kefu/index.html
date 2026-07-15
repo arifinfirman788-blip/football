@@ -3715,12 +3715,12 @@
       if (type === "points") {
         appendUser("积分规则");
         const aiNode = appendAi(`
-          <div class="bubble">您想了解贵客荟会员积分的哪类问题？我可以按“获得、消耗、到账、变动原因”继续帮您查。</div>
+          <div class="bubble">您想了解哪类积分规则？我会按知识库中的会员消费积分、不可积分商品、支付页积分提示和活动发放规则继续查询。</div>
           ${promptList([
-            { icon: "plus-circle", title: "积分获得", desc: "下单、活动、任务如何获取积分", prompt: "贵客荟会员积分怎么获得？" },
-            { icon: "badge-percent", title: "积分消耗", desc: "积分可抵扣哪些文旅产品", prompt: "贵客荟会员积分可以怎么使用或抵扣？" },
-            { icon: "clock-3", title: "到账时间", desc: "订单完成后多久可以到账", prompt: "贵客荟会员积分什么时候到账？" },
-            { icon: "refresh-cw", title: "积分变动", desc: "积分增加、扣减或退回原因", prompt: "为什么我的贵客荟会员积分发生变化？" }
+            { icon: "plus-circle", title: "消费积分", desc: "酒店民宿、线路、餐饮、门票", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票是一元积一分吗？" },
+            { icon: "badge-percent", title: "不积分商品", desc: "积分商城、精选住宿、票务等", prompt: "贵客荟哪些商品或服务不产生积分？" },
+            { icon: "receipt-text", title: "支付页提示", desc: "下单时查看预计获得积分", prompt: "贵客荟下单支付页面会显示预计获得积分吗？" },
+            { icon: "gift", title: "活动积分", desc: "打卡送积分等活动规则", prompt: "贵客荟打卡送积分等活动积分规则在哪里查看？" }
           ])}
         `);
         focusChatMessage(aiNode);
@@ -3730,16 +3730,16 @@
       if (type === "product") {
         appendUser("产品咨询");
         const aiNode = appendAi(`
-          <div class="bubble">您想咨询哪类文旅产品？可以直接输入景区、酒店、线路或文创名称，也可以先选择类型，我会继续追问到可定位的产品。</div>
+          <div class="bubble">您想咨询哪类文旅服务？当前知识库更适合按贵客荟“吃、住、行、游、购、娱”场景，或结合具体产品名称继续查询。</div>
           ${promptList([
-            { icon: "ticket", title: "景区门票", desc: "入园时间、购票规则、核销方式", prompt: "我想咨询景区门票" },
-            { icon: "route", title: "线路套餐", desc: "行程安排、适用日期、套餐内容", prompt: "我想咨询文旅线路套餐" },
-            { icon: "bed", title: "酒店民宿", desc: "入住规则、房型权益、取消政策", prompt: "我想咨询酒店民宿" },
-            { icon: "shopping-bag", title: "文创特产", desc: "商品规格、配送售后、兑换规则", prompt: "我想咨询文创特产" }
+            { icon: "sparkles", title: "平台服务", desc: "吃住行游购娱六大场景", prompt: "贵客荟的吃住行游购娱六大服务场景是什么？" },
+            { icon: "ticket", title: "可积分产品", desc: "住宿、线路、餐饮、门票", prompt: "贵客荟景点门票、酒店民宿、旅游线路、餐饮消费是否可以获得积分？" },
+            { icon: "shopping-bag", title: "不积分产品", desc: "商城、精选住宿、机票等", prompt: "贵客荟积分商城、精选住宿、特惠商品专区、机票、火车票、电影票是否积分？" },
+            { icon: "search", title: "具体产品", desc: "输入名称后查询购买使用规则", prompt: "我想咨询贵客荟具体文旅产品的购买、使用或售后规则，需要提供哪些信息？" }
           ])}
         `);
         focusChatMessage(aiNode);
-        chatInput.placeholder = "请输入景区、酒店、线路或文创名称";
+        chatInput.placeholder = "请输入服务场景或具体产品名称";
       }
     }
 
@@ -3782,10 +3782,10 @@
       if (has("积分", "成长值", "会员分")) {
         return {
           html: `
-            <div class="bubble">积分规则一般包含获取、使用、有效期和退单扣回四类。您可以在订单完成、活动参与或会员任务完成后查看积分变化；具体到账和可用范围以后端会员积分规则为准。</div>
+            <div class="bubble">当前知识库可查询贵客荟会员消费积分、不可积分商品、支付页预计积分提示和活动积分规则。您可以先选择一个问题继续问。</div>
             ${promptList([
-              { icon: "clock-3", title: "到账时间", desc: "订单完成后积分多久可用", prompt: "积分什么时候到账？" },
-              { icon: "badge-percent", title: "抵扣范围", desc: "哪些门票、线路或活动可抵扣", prompt: "积分可以抵扣什么？" }
+              { icon: "plus-circle", title: "消费积分", desc: "哪些消费一元积一分", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票是一元积一分吗？" },
+              { icon: "badge-percent", title: "不积分商品", desc: "哪些商品或服务不积分", prompt: "贵客荟哪些商品或服务不产生积分？" }
             ])}
           `
         };
