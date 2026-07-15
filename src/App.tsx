@@ -24,7 +24,22 @@ import { initAnalytics, track } from './utils/analytics';
  * - 暂未接入主流程但保留备用：PhoneFrame、ProfileTab、TeamDetail、PlayerProfile、Svgs。
  *   这些文件不会从 App.tsx 渲染，后续恢复对应页面时再重新引入。
  */
-export default function App() {
+function KefuRoute() {
+  const basePath = import.meta.env.BASE_URL || '/';
+  const kefuSrc = `${basePath.replace(/\/?$/, '/')}kefu/index.html`;
+
+  return (
+    <div className="w-screen h-screen bg-[#eef7ff] overflow-hidden">
+      <iframe
+        title="黄小西智能客服"
+        src={kefuSrc}
+        className="w-full h-full border-0"
+      />
+    </div>
+  );
+}
+
+function FootballApp() {
   const predictionStorageKey = 'football.prediction-history';
   /**
    * 全局竞猜记录。
@@ -192,4 +207,17 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+export default function App() {
+  const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/';
+  const normalizedBasePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+  const isKefuRoute = [
+    '/kefu',
+    '/customer-service',
+    `${normalizedBasePath}/kefu`,
+    `${normalizedBasePath}/customer-service`,
+  ].includes(normalizedPath);
+
+  return isKefuRoute ? <KefuRoute /> : <FootballApp />;
 }
