@@ -2806,7 +2806,7 @@
       scene: 2,
       version: 2,
       failClosed: false,
-      blockedReply: "抱歉，当前问题可能涉及不适合在客服场景讨论的内容。黄小西可以继续为您处理文旅订单、积分规则、商品咨询及售后服务问题。"
+      blockedReply: "抱歉，当前内容暂不支持咨询。您可以继续咨询文旅订单、积分规则、商品服务或售后问题。"
     };
 
     const pageParams = new URLSearchParams(window.location.search);
@@ -3116,7 +3116,7 @@
     }
 
     function localSensitiveHit(text = "") {
-      return /(色情|涉黄|赌博|博彩|毒品|枪支|暴恐|极端|反动|政变|分裂国家|颠覆国家)/i.test(String(text || ""));
+      return /(色情|涉黄|赌博|博彩|毒品|枪支|暴恐|极端|反动|政变|分裂国家|颠覆国家|法轮功|邪教|台独|港独|藏独|疆独|推翻政府)/i.test(String(text || ""));
     }
 
     function normalizeSecurityResult(data = {}) {
@@ -3169,12 +3169,9 @@
           });
         }
         return streamDifyChat(payload, handlers).catch((error) => {
-          console.warn("AI route chat failed, fallback to builtin agent", error);
+          console.warn("AI route chat failed", error);
           return {
-            html: `
-              <div class="bubble">当前智能问答服务暂时不可用，先由本地客服助手为您答复。</div>
-              ${localResult.html || ""}
-            `
+            html: `<div class="bubble">当前智能问答服务暂时不可用，请稍后再试，或点击“帮助”转人工处理。</div>`
           };
         });
       },
@@ -4068,7 +4065,7 @@
 
       return {
         html: `
-          <div class="bubble">我理解您的问题是“${escapeHtml(raw)}”。您可以继续补充订单、景区、线路、酒店民宿或文创特产信息；如果问题涉及具体订单，建议先点下方“订单”选择订单，我会结合订单数据继续答复。</div>
+          <div class="bubble">您可以继续补充订单、景区、线路、酒店民宿或文创特产信息；如果问题涉及具体订单，建议先点下方“订单”选择订单，我会结合订单数据继续答复。</div>
           <div class="prompt-list">
             <button class="prompt-card" type="button" data-open-orders>
               <i data-lucide="ticket-check"></i>
