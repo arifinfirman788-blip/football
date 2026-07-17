@@ -976,6 +976,36 @@
       overflow-wrap: anywhere;
     }
 
+    .bubble p {
+      margin: 0 0 8px;
+    }
+
+    .bubble p:last-child,
+    .bubble ul:last-child,
+    .bubble ol:last-child {
+      margin-bottom: 0;
+    }
+
+    .bubble ul,
+    .bubble ol {
+      margin: 0 0 8px;
+      padding-left: 18px;
+    }
+
+    .bubble li {
+      margin: 0 0 6px;
+      padding-left: 1px;
+    }
+
+    .bubble strong {
+      color: #172a62;
+      font-weight: 700;
+    }
+
+    .bubble .md-gap {
+      height: 8px;
+    }
+
     .ai .bubble {
       border: 1px solid rgba(255,255,255,.78);
       border-top-left-radius: 8px;
@@ -3250,8 +3280,56 @@
         .replace(/'/g, "&#039;");
     }
 
+    function renderInlineMarkdown(value) {
+      return escapeHtml(value || "")
+        .replace(/\*\*\s*([^*]+?)\s*\*\*/g, "<strong>$1</strong>")
+        .replace(/__\s*([^_]+?)\s*__/g, "<strong>$1</strong>");
+    }
+
     function formatPlainText(value) {
-      return escapeHtml(value || "").replace(/\n/g, "<br>");
+      const lines = String(value || "").replace(/\r\n/g, "\n").split("\n");
+      const html = [];
+      let listType = "";
+      const closeList = () => {
+        if (!listType) return;
+        html.push(`</${listType}>`);
+        listType = "";
+      };
+      const openList = (type) => {
+        if (listType === type) return;
+        closeList();
+        html.push(`<${type}>`);
+        listType = type;
+      };
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          closeList();
+          html.push('<div class="md-gap"></div>');
+          return;
+        }
+
+        const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
+        if (bulletMatch) {
+          openList("ul");
+          html.push(`<li>${renderInlineMarkdown(bulletMatch[1])}</li>`);
+          return;
+        }
+
+        const orderedMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
+        if (orderedMatch) {
+          openList("ol");
+          html.push(`<li>${renderInlineMarkdown(orderedMatch[2])}</li>`);
+          return;
+        }
+
+        closeList();
+        html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`);
+      });
+
+      closeList();
+      return html.join("");
     }
 
     function formatClock(date = new Date()) {
