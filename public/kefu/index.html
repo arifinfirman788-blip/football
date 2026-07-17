@@ -2800,6 +2800,15 @@
       recentLimit: 20
     };
 
+    const securityConfig = {
+      enabled: true,
+      endpoint: window.WECHAT_SECURITY_ENDPOINT || `${kefuConfig.baseUrl}/wechat/content-security/msgSecCheck`,
+      scene: 2,
+      version: 2,
+      failClosed: false,
+      blockedReply: "抱歉，当前问题可能涉及不适合在客服场景讨论的内容。黄小西可以继续为您处理文旅订单、积分规则、商品咨询及售后服务问题。"
+    };
+
     const pageParams = new URLSearchParams(window.location.search);
     const urlUserId = pageParams.get("userId");
     const urlChannel = pageParams.get("channel");
@@ -3106,7 +3115,51 @@
       };
     }
 
+    function localSensitiveHit(text = "") {
+      return /(色情|涉黄|赌博|博彩|毒品|枪支|暴恐|极端|反动|政变|分裂国家|颠覆国家)/i.test(String(text || ""));
+    }
+
+    function normalizeSecurityResult(data = {}) {
+      const body = data.data || data;
+      const result = body.result || body;
+      const errcode = Number(body.errcode ?? body.errorCode ?? result.errcode ?? 0);
+      const suggest = String(result.suggest || body.suggest || body.conclusion || "").toLowerCase();
+      const label = String(result.label || body.label || "");
+      const risky = errcode === 87014
+        || suggest === "risky"
+        || suggest === "review"
+        || body.isSensitive === true
+        || body.pass === false
+        || body.safe === false;
+      return { pass: !risky, errcode, suggest, label, raw: data };
+    }
+
     const api = {
+      checkMessageSecurity(payload = {}) {
+        const text = String(payload.text || "").trim();
+        if (!securityConfig.enabled || !text) return Promise.resolve({ pass: true, source: "disabled" });
+        return fetch(securityConfig.endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json;charset=UTF-8" },
+          body: JSON.stringify({
+            content: text,
+            openid: currentUser.channelUserId,
+            userId: currentUser.channelUserId,
+            memberId: currentUser.memberId,
+            channel: currentUser.channelCode,
+            scene: securityConfig.scene,
+            version: securityConfig.version
+          })
+        }).then((response) => {
+          if (!response.ok) throw new Error(`msgSecCheck ${response.status}`);
+          return response.json().catch(() => ({}));
+        }).then((data) => ({ ...normalizeSecurityResult(data), source: "wechat" }))
+          .catch((error) => {
+            console.warn("wechat msgSecCheck failed", error);
+            if (localSensitiveHit(text)) return { pass: false, source: "local-fallback", error };
+            return { pass: !securityConfig.failClosed, source: "unavailable", error };
+          });
+      },
       agentChat(payload, handlers = {}) {
         const localResult = builtinAgent(payload.text);
         if (localResult.action === "human") return Promise.resolve(localResult);
@@ -4048,7 +4101,7 @@
       scrollChatBottom();
     }
 
-    function submitQuestion(text, source = "input") {
+    async function submitQuestion(text, source = "input") {
       const question = String(text || "").trim();
       if (!question) return;
 
@@ -4057,6 +4110,14 @@
       closeUploadModal();
       setScreen("entry");
       activateChatReadingMode();
+
+      const securityResult = await api.checkMessageSecurity({ text: question, source });
+      if (!securityResult.pass) {
+        appendAi(`<div class="bubble">${escapeHtml(securityConfig.blockedReply)}</div>`);
+        scrollChatBottom();
+        return;
+      }
+
       appendUser(question);
       scrollChatBottom();
 
