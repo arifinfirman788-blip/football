@@ -4147,9 +4147,12 @@
 
     function parseAiHistoryDate(raw) {
       if (!raw) return new Date();
-      const date = typeof raw === "number"
-        ? new Date(raw > 100000000000 ? raw : raw * 1000)
-        : new Date(raw);
+      const normalized = typeof raw === "string" && /^\d+$/.test(raw.trim())
+        ? Number(raw.trim())
+        : raw;
+      const date = typeof normalized === "number"
+        ? new Date(normalized > 100000000000 ? normalized : normalized * 1000)
+        : new Date(normalized);
       return Number.isNaN(date.getTime()) ? new Date() : date;
     }
 
@@ -4159,8 +4162,14 @@
         message.createdAt ??
         message.created_time ??
         message.createdTime ??
+        message.createTime ??
+        message.created ??
+        message.timestamp ??
+        message.time ??
         conversation.last_message_at ??
+        conversation.lastMessageAt ??
         conversation.updated_at ??
+        conversation.updatedAt ??
         conversation.created_at
       );
       return localDateKey(date);
