@@ -3318,7 +3318,7 @@
           return;
         }
 
-        const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+        const headingMatch = trimmed.match(/^#{1,6}\s*(.+)$/);
         if (headingMatch) {
           closeList();
           html.push(`<p class="md-heading">${renderInlineMarkdown(headingMatch[1])}</p>`);
