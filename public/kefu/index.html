@@ -4119,8 +4119,8 @@
       }).join("");
     }
 
-    function loadOlderHistoryMessages() {
-      if (Date.now() < chatState.historyArmedAt) return;
+    function loadOlderHistoryMessages(options = {}) {
+      if (!options.force && Date.now() < chatState.historyArmedAt) return;
       if (chatState.historyLoading) return;
       const total = mockHistoryMessages.length;
       if (chatState.historyLoadedCount >= total) {
@@ -4138,7 +4138,6 @@
       chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("正在加载历史消息...", true));
 
       window.setTimeout(() => {
-        const preservePosition = chatState.historyLoadedCount > 0;
         const end = total - chatState.historyLoadedCount;
         const start = Math.max(0, end - chatState.historyBatchSize);
         const batch = mockHistoryMessages.slice(start, end);
@@ -4154,11 +4153,7 @@
         updateHistoryToggleText();
         iconRefresh();
 
-        if (preservePosition) {
-          chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
-        } else {
-          chatList.scrollTop = 0;
-        }
+        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
       }, 480);
     }
 
@@ -4172,9 +4167,10 @@
       closeUploadModal();
       chatList.classList.add("history-mode");
       chatState.historyActivated = true;
-      chatState.historyArmedAt = Date.now() + 320;
+      chatState.historyArmedAt = 0;
       lastChatScrollTop = chatList.scrollTop;
       updateHistoryToggleText();
+      loadOlderHistoryMessages({ force: true });
     }
 
     function collapseHistoryInChat() {
