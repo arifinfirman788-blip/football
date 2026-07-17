@@ -1002,6 +1002,14 @@
       font-weight: 700;
     }
 
+    .bubble .md-heading {
+      margin: 0 0 8px;
+      color: #172a62;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
     .bubble .md-gap {
       height: 8px;
     }
@@ -3307,6 +3315,13 @@
         if (!trimmed) {
           closeList();
           html.push('<div class="md-gap"></div>');
+          return;
+        }
+
+        const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+        if (headingMatch) {
+          closeList();
+          html.push(`<p class="md-heading">${renderInlineMarkdown(headingMatch[1])}</p>`);
           return;
         }
 
