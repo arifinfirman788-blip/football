@@ -4177,9 +4177,17 @@
       return dateKey === localDateKey();
     }
 
+    function offsetDateKey(offsetDays) {
+      const date = new Date();
+      date.setDate(date.getDate() + offsetDays);
+      return localDateKey(date);
+    }
+
     function formatHistoryDate(dateKey) {
       const [year, month, day] = String(dateKey || "").split("-").map(Number);
       if (!year || !month || !day) return "";
+      if (dateKey === localDateKey()) return "今天";
+      if (dateKey === offsetDateKey(-1)) return "昨天";
       return `${year}年${month}月${day}日`;
     }
 
@@ -4230,10 +4238,10 @@
     function historyBatchHtml(batch) {
       let lastDate = "";
       return batch.map((message) => {
-        const dateDivider = message.date && !isTodayDate(message.date) && message.date !== lastDate
+        const dateDivider = message.date && message.date !== lastDate
           ? historyDateDividerHtml(message.date)
           : "";
-        if (message.date && !isTodayDate(message.date)) lastDate = message.date;
+        if (message.date) lastDate = message.date;
         return `${dateDivider}${historyMessageHtml(message)}`;
       }).join("");
     }
