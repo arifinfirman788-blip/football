@@ -445,6 +445,16 @@
       z-index: 2;
     }
 
+    .screen.chat-expanded .hero,
+    .screen.chat-expanded .ask-panel {
+      display: none;
+    }
+
+    .screen.chat-expanded .history-wrap {
+      margin-top: 0;
+      padding-top: 2px;
+    }
+
     .eyebrow-row {
       margin-bottom: 8px;
       display: flex;
@@ -3708,6 +3718,10 @@
       chatList.scrollTop = chatList.scrollHeight;
     }
 
+    function activateChatReadingMode() {
+      entryScreen?.classList.add("chat-expanded");
+    }
+
     function focusChatMessage(messageNode) {
       if (!messageNode) return;
       window.requestAnimationFrame(() => {
@@ -3963,6 +3977,7 @@
       closeEmojiPanel();
       closeUploadModal();
       setScreen("entry");
+      activateChatReadingMode();
       appendUser(question);
       scrollChatBottom();
 
@@ -4165,6 +4180,7 @@
       setScreen("entry");
       closeEmojiPanel();
       closeUploadModal();
+      activateChatReadingMode();
       chatList.classList.add("history-mode");
       chatState.historyActivated = true;
       chatState.historyArmedAt = 0;
@@ -4180,6 +4196,7 @@
       chatState.historyLoadedCount = 0;
       chatState.historyArmedAt = 0;
       chatList.classList.remove("history-mode");
+      entryScreen?.classList.remove("chat-expanded");
       historyWrap.classList.remove("loading");
       updateHistoryToggleText();
       iconRefresh();
