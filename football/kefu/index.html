@@ -3460,14 +3460,52 @@
       return `${month}-${day} ${formatClock(date)}`;
     }
 
-    function formatMessageTime(message = {}) {
-      const raw = message.created_at ?? message.createdAt ?? message.created_time ?? message.createdTime ?? message.updated_at ?? "";
-      if (!raw) return formatClock();
-      const date = typeof raw === "number"
-        ? new Date(raw > 100000000000 ? raw : raw * 1000)
-        : new Date(raw);
-      if (Number.isNaN(date.getTime())) return formatClock();
-      return formatClock(date);
+    function resolveMessageTimeRaw(message = {}, conversation = {}) {
+      return message.created_at ??
+        message.createdAt ??
+        message.created_time ??
+        message.createdTime ??
+        message.createTime ??
+        message.created ??
+        message.timestamp ??
+        message.time ??
+        message.updated_at ??
+        message.updatedAt ??
+        conversation.last_message_at ??
+        conversation.lastMessageAt ??
+        conversation.updated_at ??
+        conversation.updatedAt ??
+        conversation.created_at ??
+        conversation.createdAt ??
+        "";
+    }
+
+    function parseFlexibleDate(raw) {
+      if (!raw) return null;
+      if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
+      const normalized = typeof raw === "string" && /^\d+$/.test(raw.trim())
+        ? Number(raw.trim())
+        : raw;
+      if (typeof normalized === "number") {
+        const date = new Date(normalized > 100000000000 ? normalized : normalized * 1000);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+      const direct = new Date(normalized);
+      if (!Number.isNaN(direct.getTime())) return direct;
+      if (typeof normalized === "string") {
+        const fallback = new Date(normalized.replace(/-/g, "/"));
+        if (!Number.isNaN(fallback.getTime())) return fallback;
+      }
+      return null;
+    }
+
+    function historyTimestamp(message = {}, conversation = {}) {
+      return parseFlexibleDate(resolveMessageTimeRaw(message, conversation))?.getTime() || 0;
+    }
+
+    function formatMessageTime(message = {}, conversation = {}) {
+      const date = parseFlexibleDate(resolveMessageTimeRaw(message, conversation));
+      return date ? formatClock(date) : formatClock();
     }
 
     function aiMessageHtml(innerHtml, time = formatClock()) {
@@ -4146,48 +4184,28 @@
     }
 
     function parseAiHistoryDate(raw) {
-      if (!raw) return new Date();
-      const normalized = typeof raw === "string" && /^\d+$/.test(raw.trim())
-        ? Number(raw.trim())
-        : raw;
-      const date = typeof normalized === "number"
-        ? new Date(normalized > 100000000000 ? normalized : normalized * 1000)
-        : new Date(normalized);
-      return Number.isNaN(date.getTime()) ? new Date() : date;
+      return parseFlexibleDate(raw) || new Date();
     }
 
     function aiHistoryDateKey(message = {}, conversation = {}) {
-      const date = parseAiHistoryDate(
-        message.created_at ??
-        message.createdAt ??
-        message.created_time ??
-        message.createdTime ??
-        message.createTime ??
-        message.created ??
-        message.timestamp ??
-        message.time ??
-        conversation.last_message_at ??
-        conversation.lastMessageAt ??
-        conversation.updated_at ??
-        conversation.updatedAt ??
-        conversation.created_at
-      );
+      const date = parseAiHistoryDate(resolveMessageTimeRaw(message, conversation));
       return localDateKey(date);
     }
 
     function normalizeAiHistoryMessages(messages = [], conversation = {}) {
       return messages.flatMap((message) => {
         const date = aiHistoryDateKey(message, conversation);
-        const time = formatMessageTime(message);
+        const time = formatMessageTime(message, conversation);
+        const timestamp = historyTimestamp(message, conversation);
         const rows = [];
-        if (message.query) rows.push({ role: "user", date, text: message.query, time });
-        if (message.answer) rows.push({ role: "ai", date, text: message.answer, time });
+        if (message.query) rows.push({ role: "user", date, text: message.query, time, timestamp });
+        if (message.answer) rows.push({ role: "ai", date, text: message.answer, time, timestamp: timestamp + 1 });
         return rows;
       });
     }
 
     function setAiHistoryMessages(messages = []) {
-      mockHistoryMessages = messages;
+      mockHistoryMessages = [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       chatState.historyTotal = mockHistoryMessages.length;
       chatState.historyLoadedCount = 0;
       chatState.historyLoading = false;
