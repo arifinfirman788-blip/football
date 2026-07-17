@@ -288,7 +288,10 @@
     }
 
     .screen[data-panel="entry"] {
-      padding-bottom: 220px;
+      padding-bottom: calc(128px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .bottom-bar {
@@ -801,33 +804,32 @@
     }
 
     .history-wrap {
-      margin-top: 12px;
-      display: grid;
-      gap: 8px;
+      margin: 10px 0 4px;
+      display: flex;
+      justify-content: center;
+      flex: none;
     }
 
     .history-toggle {
       width: fit-content;
       max-width: 100%;
-      min-height: 36px;
+      min-height: 30px;
       border: 0;
       border-radius: 999px;
-      padding: 0 13px;
+      padding: 0 12px;
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      color: #2f7df8;
-      background: rgba(255,255,255,.32);
-      backdrop-filter: blur(18px) saturate(1.2);
-      -webkit-backdrop-filter: blur(18px) saturate(1.2);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.58);
-      font-size: 13px;
+      gap: 6px;
+      color: #6880a2;
+      background: rgba(255,255,255,.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.42);
+      font-size: 11px;
       font-weight: 600;
     }
 
     .history-toggle svg {
-      width: 15px;
-      height: 15px;
+      width: 13px;
+      height: 13px;
       transition: transform .18s ease;
     }
 
@@ -837,29 +839,46 @@
 
     .history-inline-status {
       justify-self: center;
-      border: 1px solid rgba(255,255,255,.62);
-      border-radius: 999px;
-      padding: 6px 12px;
-      color: #5b6e8d;
-      background: rgba(255,255,255,.42);
-      backdrop-filter: blur(16px) saturate(1.18);
-      -webkit-backdrop-filter: blur(16px) saturate(1.18);
+      width: min(78%, 260px);
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #7b8ca7;
       font-size: 11px;
-      line-height: 1;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.62);
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .history-inline-status::before,
+    .history-inline-status::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: linear-gradient(90deg, rgba(123,140,167,0), rgba(123,140,167,.24));
+    }
+
+    .history-inline-status::after {
+      background: linear-gradient(90deg, rgba(123,140,167,.24), rgba(123,140,167,0));
     }
 
     .history-inline-status.loading::before {
       content: "";
       width: 11px;
+      min-width: 11px;
       height: 11px;
       border: 2px solid rgba(72, 116, 198, .18);
       border-top-color: #4078ee;
       border-radius: 50%;
       display: inline-block;
-      margin-right: 6px;
-      vertical-align: -2px;
+      flex: none;
+      background: none;
       animation: spin .8s linear infinite;
+    }
+
+    .history-inline-status.loading::after {
+      display: none;
     }
 
     .history-date-divider {
@@ -876,18 +895,20 @@
     .chat-list {
       display: grid;
       gap: 12px;
-      overflow: visible;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
       overflow-anchor: none;
       overscroll-behavior: contain;
-      padding-top: 14px;
+      padding-top: 8px;
       padding-right: 2px;
-      padding-bottom: 128px;
+      padding-bottom: 12px;
       scrollbar-width: none;
+      scroll-behavior: smooth;
     }
 
     .chat-list.history-mode {
-      max-height: min(48vh, 430px);
-      overflow-y: auto;
+      scroll-behavior: auto;
     }
 
     .chat-list::-webkit-scrollbar { display: none; }
@@ -1000,6 +1021,12 @@
     .bubble strong {
       color: #172a62;
       font-weight: 700;
+    }
+
+    .bubble em {
+      color: #42557a;
+      font-style: normal;
+      font-weight: 600;
     }
 
     .bubble .md-heading {
@@ -3291,7 +3318,8 @@
     function renderInlineMarkdown(value) {
       return escapeHtml(value || "")
         .replace(/\*\*\s*([^*]+?)\s*\*\*/g, "<strong>$1</strong>")
-        .replace(/__\s*([^_]+?)\s*__/g, "<strong>$1</strong>");
+        .replace(/__\s*([^_]+?)\s*__/g, "<strong>$1</strong>")
+        .replace(/(^|[^*])\*\s*([^*\n]+?)\s*\*(?!\*)/g, "$1<em>$2</em>");
     }
 
     function formatPlainText(value) {
@@ -3677,26 +3705,16 @@
     }
 
     function scrollChatBottom(options = {}) {
-      const activeScreen = document.querySelector(".screen.active");
-      const screenTop = options.screenTop ?? (activeScreen?.scrollTop || 0);
-      if (chatList.classList.contains("history-mode")) {
-        chatList.scrollTop = chatList.scrollHeight;
-      } else if (activeScreen) {
-        activeScreen.scrollTop = activeScreen.scrollHeight;
-      }
-      if (options.preserveScreen) keepScreenScroll(activeScreen, screenTop);
+      chatList.scrollTop = chatList.scrollHeight;
     }
 
     function focusChatMessage(messageNode) {
-      if (!messageNode || !entryScreen) return;
+      if (!messageNode) return;
       window.requestAnimationFrame(() => {
-        if (chatList.classList.contains("history-mode")) {
-          chatList.scrollTop = Math.max(0, messageNode.offsetTop - chatList.offsetTop - 12);
-        }
-        const screenRect = entryScreen.getBoundingClientRect();
-        const messageRect = messageNode.getBoundingClientRect();
-        const nextTop = entryScreen.scrollTop + messageRect.top - screenRect.top - 18;
-        entryScreen.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+        chatList.scrollTo({
+          top: Math.max(0, messageNode.offsetTop - chatList.offsetTop - 12),
+          behavior: "smooth"
+        });
       });
     }
 
@@ -4000,10 +4018,10 @@
         return;
       }
       if (chatState.historyActivated) {
-        historyToggleText.textContent = `在对话区上滑加载（${loaded}/${total}）`;
+        historyToggleText.textContent = `上滑加载更早消息（${loaded}/${total}）`;
         return;
       }
-      historyToggleText.textContent = `查看历史消息（${total}条）`;
+      historyToggleText.textContent = `上滑查看历史消息（${total}条）`;
     }
 
     function renderHistoryList(conversations = []) {
@@ -4086,7 +4104,7 @@
     function historyMessageHtml(message) {
       const html = message.role === "user"
         ? userMessageHtml(message.text, message.time)
-        : aiMessageHtml(`<div class="bubble">${escapeHtml(message.text)}</div>`, message.time);
+        : aiMessageHtml(`<div class="bubble">${formatPlainText(message.text)}</div>`, message.time);
       return html.replace('class="message ', 'class="message history-loaded ');
     }
 
@@ -4128,7 +4146,7 @@
         if (loadingStatus) loadingStatus.remove();
 
         const reachedTop = start === 0;
-        const statusText = reachedTop ? "已加载全部历史消息" : "继续上滑加载更早消息";
+        const statusText = reachedTop ? "已加载全部历史消息" : "上滑继续查看更早消息";
         chatList.insertAdjacentHTML("afterbegin", `${historyInlineStatusHtml(statusText)}${historyBatchHtml(batch)}`);
         chatState.historyLoadedCount += batch.length;
         chatState.historyLoading = false;
@@ -4153,9 +4171,9 @@
       closeEmojiPanel();
       closeUploadModal();
       chatList.classList.add("history-mode");
-      chatList.scrollTop = 0;
       chatState.historyActivated = true;
       chatState.historyArmedAt = Date.now() + 320;
+      lastChatScrollTop = chatList.scrollTop;
       updateHistoryToggleText();
     }
 
