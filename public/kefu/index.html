@@ -3715,12 +3715,12 @@
       if (type === "points") {
         appendUser("积分规则");
         const aiNode = appendAi(`
-          <div class="bubble">您想了解哪类积分规则？我会按知识库中的会员消费积分、不可积分商品、支付页积分提示和活动发放规则继续查询。</div>
+          <div class="bubble">您可以直接点选下面的问题，我会按贵客荟现有规则为您说明。</div>
           ${promptList([
-            { icon: "plus-circle", title: "消费积分", desc: "酒店民宿、线路、餐饮、门票", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票是一元积一分吗？" },
-            { icon: "badge-percent", title: "不积分商品", desc: "积分商城、精选住宿、票务等", prompt: "贵客荟哪些商品或服务不产生积分？" },
-            { icon: "receipt-text", title: "支付页提示", desc: "下单时查看预计获得积分", prompt: "贵客荟下单支付页面会显示预计获得积分吗？" },
-            { icon: "gift", title: "活动积分", desc: "打卡送积分等活动规则", prompt: "贵客荟打卡送积分等活动积分规则在哪里查看？" }
+            { icon: "plus-circle", title: "哪些消费能积分", desc: "住宿、线路、餐饮、景点门票", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
+            { icon: "badge-percent", title: "哪些商品不积分", desc: "商城、精选住宿、机票等", prompt: "贵客荟哪些商品或服务不产生积分？" },
+            { icon: "receipt-text", title: "下单怎么看积分", desc: "支付页预计获得积分提示", prompt: "贵客荟下单时在哪里查看预计获得积分？" },
+            { icon: "gift", title: "活动送积分规则", desc: "打卡送积分等活动说明", prompt: "贵客荟打卡送积分等活动积分规则在哪里查看？" }
           ])}
         `);
         focusChatMessage(aiNode);
@@ -3730,16 +3730,16 @@
       if (type === "product") {
         appendUser("产品咨询");
         const aiNode = appendAi(`
-          <div class="bubble">您想咨询哪类文旅服务？当前知识库更适合按贵客荟“吃、住、行、游、购、娱”场景，或结合具体产品名称继续查询。</div>
+          <div class="bubble">您想了解哪类服务或商品规则？我可以先帮您说明贵客荟服务范围，以及常见文旅商品是否产生积分。</div>
           ${promptList([
-            { icon: "sparkles", title: "平台服务", desc: "吃住行游购娱六大场景", prompt: "贵客荟的吃住行游购娱六大服务场景是什么？" },
-            { icon: "ticket", title: "可积分产品", desc: "住宿、线路、餐饮、门票", prompt: "贵客荟景点门票、酒店民宿、旅游线路、餐饮消费是否可以获得积分？" },
-            { icon: "shopping-bag", title: "不积分产品", desc: "商城、精选住宿、机票等", prompt: "贵客荟积分商城、精选住宿、特惠商品专区、机票、火车票、电影票是否积分？" },
-            { icon: "search", title: "具体产品", desc: "输入名称后查询购买使用规则", prompt: "我想咨询贵客荟具体文旅产品的购买、使用或售后规则，需要提供哪些信息？" }
+            { icon: "sparkles", title: "贵客荟能做什么", desc: "吃、住、行、游、购、娱", prompt: "贵客荟是什么？提供哪些服务？" },
+            { icon: "bed", title: "住宿和线路积分", desc: "酒店民宿、旅游线路", prompt: "贵客荟酒店民宿和旅游线路消费可以获得积分吗？" },
+            { icon: "ticket", title: "餐饮和门票积分", desc: "餐饮、景点门票", prompt: "贵客荟餐饮和景点门票消费可以获得积分吗？" },
+            { icon: "plane", title: "票务是否积分", desc: "机票、火车票、电影票", prompt: "贵客荟机票、火车票、电影票会产生积分吗？" }
           ])}
         `);
         focusChatMessage(aiNode);
-        chatInput.placeholder = "请输入服务场景或具体产品名称";
+        chatInput.placeholder = "请输入想咨询的服务或商品名称";
       }
     }
 
@@ -3782,10 +3782,10 @@
       if (has("积分", "成长值", "会员分")) {
         return {
           html: `
-            <div class="bubble">当前知识库可查询贵客荟会员消费积分、不可积分商品、支付页预计积分提示和活动积分规则。您可以先选择一个问题继续问。</div>
+            <div class="bubble">您可以先选择一个常见问题，我会按贵客荟现有积分规则继续说明。</div>
             ${promptList([
-              { icon: "plus-circle", title: "消费积分", desc: "哪些消费一元积一分", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票是一元积一分吗？" },
-              { icon: "badge-percent", title: "不积分商品", desc: "哪些商品或服务不积分", prompt: "贵客荟哪些商品或服务不产生积分？" }
+              { icon: "plus-circle", title: "哪些消费能积分", desc: "住宿、线路、餐饮、景点门票", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
+              { icon: "badge-percent", title: "哪些商品不积分", desc: "商城、精选住宿、机票等", prompt: "贵客荟哪些商品或服务不产生积分？" }
             ])}
           `
         };
