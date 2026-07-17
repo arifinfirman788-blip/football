@@ -4186,9 +4186,10 @@
     function formatHistoryDate(dateKey) {
       const [year, month, day] = String(dateKey || "").split("-").map(Number);
       if (!year || !month || !day) return "";
-      if (dateKey === localDateKey()) return "今天";
-      if (dateKey === offsetDateKey(-1)) return "昨天";
-      return `${year}年${month}月${day}日`;
+      const fullDate = `${year}年${month}月${day}日`;
+      if (dateKey === localDateKey()) return `今天 ${fullDate}`;
+      if (dateKey === offsetDateKey(-1)) return `昨天 ${fullDate}`;
+      return fullDate;
     }
 
     function parseAiHistoryDate(raw) {
@@ -4246,6 +4247,18 @@
       }).join("");
     }
 
+    function normalizeHistoryDateDividers() {
+      const seenDates = new Set();
+      chatList.querySelectorAll("[data-history-date]").forEach((node) => {
+        const date = node.dataset.historyDate || "";
+        if (seenDates.has(date)) {
+          node.remove();
+          return;
+        }
+        seenDates.add(date);
+      });
+    }
+
     function loadOlderHistoryMessages(options = {}) {
       if (!options.force && Date.now() < chatState.historyArmedAt) return;
       if (chatState.historyLoading) return;
@@ -4274,6 +4287,7 @@
         const reachedTop = start === 0;
         const statusText = reachedTop ? "已加载全部历史消息" : "上滑继续查看更早消息";
         chatList.insertAdjacentHTML("afterbegin", `${historyInlineStatusHtml(statusText)}${historyBatchHtml(batch)}`);
+        normalizeHistoryDateDividers();
         chatState.historyLoadedCount += batch.length;
         chatState.historyLoading = false;
         historyWrap.classList.remove("loading");
@@ -4368,7 +4382,7 @@
             setAiHistoryMessages([]);
             return [];
           }
-          const conversations = chatState.conversations.slice(0, 8);
+          const conversations = chatState.conversations;
           return Promise.allSettled(conversations.map((conversation) => {
             const conversationId = conversation.conversationId || conversation.id;
             if (!conversationId && (conversation.query || conversation.answer)) {
