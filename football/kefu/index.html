@@ -445,13 +445,77 @@
       z-index: 2;
     }
 
-    .screen.chat-expanded .hero,
-    .screen.chat-expanded .ask-panel {
+    .screen.chat-expanded .hero {
+      min-height: 42px;
+      padding-top: 0;
+      grid-template-columns: 1fr;
+      align-items: center;
+    }
+
+    .screen.chat-expanded .eyebrow-row {
+      margin-bottom: 0;
+    }
+
+    .screen.chat-expanded .hello h2,
+    .screen.chat-expanded .mascot {
       display: none;
     }
 
+    .screen.chat-expanded .ask-panel {
+      margin: 4px -4px 0;
+      padding: 8px 10px;
+      border-radius: 22px;
+    }
+
+    .screen.chat-expanded .ask-panel .section-title {
+      display: none;
+    }
+
+    .screen.chat-expanded .scenario-grid {
+      gap: 8px;
+      margin-right: -10px;
+      padding-right: 10px;
+    }
+
+    .screen.chat-expanded .scenario-card {
+      flex: 0 0 auto;
+      min-height: 38px;
+      border-radius: 999px;
+      padding: 0 12px 0 8px;
+      flex-direction: row;
+      gap: 6px;
+    }
+
+    .screen.chat-expanded .scenario-card::before,
+    .screen.chat-expanded .scenario-card small {
+      display: none;
+    }
+
+    .screen.chat-expanded .scenario-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.38), 0 8px 14px rgba(72, 82, 228, .16);
+    }
+
+    .screen.chat-expanded .scenario-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .screen.chat-expanded .scenario-card > span:last-child {
+      width: auto;
+      display: block;
+    }
+
+    .screen.chat-expanded .scenario-card strong {
+      min-height: 0;
+      font-size: 12px;
+      line-height: 1;
+    }
+
     .screen.chat-expanded .history-wrap {
-      margin-top: 0;
+      margin-top: 6px;
       padding-top: 2px;
     }
 
@@ -3722,6 +3786,19 @@
       entryScreen?.classList.add("chat-expanded");
     }
 
+    function expandTopMenu() {
+      entryScreen?.classList.remove("chat-expanded");
+    }
+
+    function updateTopMenuByChatScroll() {
+      if (!entryScreen || !entryScreen.classList.contains("active")) return;
+      if (chatList.scrollTop <= 8 && !chatState.historyLoading) {
+        expandTopMenu();
+        return;
+      }
+      if (chatList.scrollTop > 40) activateChatReadingMode();
+    }
+
     function focusChatMessage(messageNode) {
       if (!messageNode) return;
       window.requestAnimationFrame(() => {
@@ -5142,6 +5219,7 @@
     let lastChatScrollTop = 0;
 
     function shouldLoadHistoryFromChat() {
+      updateTopMenuByChatScroll();
       if (!chatState.historyActivated) return;
       if (chatState.historyLoadedCount >= mockHistoryMessages.length) return;
       const currentTop = chatList.scrollTop;
