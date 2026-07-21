@@ -29,6 +29,7 @@ const bannerTrophy = assetUrl('assets/schedule/trophy-cup.png');
 const WEEKLY_PAGE_SIZE = 21;
 const TOTAL_PAGE_SIZE = 55;
 const FIRST_WEEKLY_ANNOUNCEMENT_END_DATE = '2026-06-18';
+const FINAL_ANNOUNCEMENT_AVAILABLE_AT = new Date('2026-07-20T00:00:00+08:00');
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MS_PER_WEEK = 7 * MS_PER_DAY;
 
@@ -53,6 +54,8 @@ const parseDateKey = (dateKey: string) => {
 };
 
 const formatDisplayDate = (dateKey: string) => dateKey.replace(/-/g, '.');
+
+const isFinalAnnouncementAvailable = (now = new Date()) => now.getTime() >= FINAL_ANNOUNCEMENT_AVAILABLE_AT.getTime();
 
 const getLatestCompletedWeeklyAnnouncementPeriod = (now = new Date()): WeeklyAnnouncementPeriod | null => {
   const day = now.getDay();
@@ -123,14 +126,20 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardUser[]>([]);
   const [allTimeLeaderboard, setAllTimeLeaderboard] = useState<LeaderboardUser[]>([]);
   const [weeklyAnnouncementList, setWeeklyAnnouncementList] = useState<LeaderboardUser[]>([]);
+  const [totalAnnouncementList, setTotalAnnouncementList] = useState<LeaderboardUser[]>([]);
   const [myWeeklyRanking, setMyWeeklyRanking] = useState<MyRankingSummary | null>(null);
   const [myTotalRanking, setMyTotalRanking] = useState<MyRankingSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAnnouncementLoading, setIsAnnouncementLoading] = useState<boolean>(false);
+  const [isTotalAnnouncementLoading, setIsTotalAnnouncementLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [announcementError, setAnnouncementError] = useState<string | null>(null);
+  const [totalAnnouncementError, setTotalAnnouncementError] = useState<string | null>(null);
   const [announcementPeriod, setAnnouncementPeriod] = useState<WeeklyAnnouncementPeriod | null>(() => (
     getLatestCompletedWeeklyAnnouncementPeriod()
+  ));
+  const [finalAnnouncementAvailable, setFinalAnnouncementAvailable] = useState<boolean>(() => (
+    isFinalAnnouncementAvailable()
   ));
   const todayDateKey = getTodayDateKey();
   const loadRequestIdRef = useRef(0);
@@ -234,6 +243,50 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
     };
   }, [announcementPeriod, announcementTab, showWinnerAnnouncement]);
 
+  useEffect(() => {
+    if (!showWinnerAnnouncement || announcementTab !== 'total') {
+      return;
+    }
+
+    const canShowFinalAnnouncement = isFinalAnnouncementAvailable();
+    setFinalAnnouncementAvailable(canShowFinalAnnouncement);
+
+    if (!canShowFinalAnnouncement) {
+      setTotalAnnouncementList([]);
+      setTotalAnnouncementError(null);
+      setIsTotalAnnouncementLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadTotalAnnouncement = async () => {
+      try {
+        setIsTotalAnnouncementLoading(true);
+        setTotalAnnouncementError(null);
+        const result = await fetchTotalLeaderboard(1, TOTAL_PAGE_SIZE);
+
+        if (isCancelled) return;
+        setTotalAnnouncementList(result.list);
+      } catch (error) {
+        console.error(error);
+        if (isCancelled) return;
+        setTotalAnnouncementList([]);
+        setTotalAnnouncementError(error instanceof Error ? error.message : '最终总榜公示加载失败。');
+      } finally {
+        if (!isCancelled) {
+          setIsTotalAnnouncementLoading(false);
+        }
+      }
+    };
+
+    void loadTotalAnnouncement();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [announcementTab, showWinnerAnnouncement]);
+
   const handleOpenMyRankingDetail = () => {
     track('leaderboard_view', {
       page_path: 'pages/worldcup/my-ranking',
@@ -249,6 +302,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
       extra: { action: 'winner_announcement' },
     });
     setAnnouncementPeriod(getLatestCompletedWeeklyAnnouncementPeriod());
+    setFinalAnnouncementAvailable(isFinalAnnouncementAvailable());
     setShowWinnerAnnouncement(true);
   };
 
@@ -445,10 +499,45 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ predictionHistory }) => {
             )
           )
         ) : (
-          renderAnnouncementEmptyState(
-            '最终总榜待活动结束后公示',
-            '总榜中奖用户以活动结束后的最终排名为准，当前不提前公示实时总榜，避免用户误解为最终中奖结果。',
-            '总榜中奖用户：最终排名第 1-55 名。'
+          !finalAnnouncementAvailable ? (
+            renderAnnouncementEmptyState(
+              '最终总榜待活动结束后公示',
+              '总榜中奖用户以活动结束后的最终排名为准，当前不提前公示实时总榜，避免用户误解为最终中奖结果。',
+              '预计公示时间：2026.07.20 00:00 后；总榜中奖用户：最终排名第 1-55 名。'
+            )
+          ) : isTotalAnnouncementLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-2">
+              <Award className="w-7 h-7 animate-pulse text-[#00e676]" />
+              <span className="text-xs">最终总榜加载中...</span>
+            </div>
+          ) : totalAnnouncementError ? (
+            renderAnnouncementEmptyState(
+              '最终总榜暂未加载成功',
+              totalAnnouncementError,
+              '公示范围：最终总榜第 1-55 名。'
+            )
+          ) : totalAnnouncementList.length > 0 ? (
+            <>
+              <div className="px-4 pt-3 pb-1 shrink-0">
+                <div className="rounded-2xl border border-[#00e676]/14 bg-[#071521] px-4 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.26)]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-[#00e676] font-bold tracking-[2px]">最终排名</span>
+                    <span className="text-[10px] text-slate-400">展示至领奖期结束</span>
+                  </div>
+                  <h3 className="mt-1 text-base font-black text-white">最终总榜中奖名单</h3>
+                  <p className="mt-1 text-[10.5px] text-slate-400 leading-relaxed">
+                    世界杯竞猜活动累计积分排名，公示最终总榜第 1-55 名。
+                  </p>
+                </div>
+              </div>
+              {renderAnnouncementRows(totalAnnouncementList, '最终总榜第 1-55 名')}
+            </>
+          ) : (
+            renderAnnouncementEmptyState(
+              '最终总榜暂无可公示用户',
+              '后台已返回最终总榜，但当前没有进入中奖范围的用户。',
+              '公示范围：最终总榜第 1-55 名。'
+            )
           )
         )}
       </div>
