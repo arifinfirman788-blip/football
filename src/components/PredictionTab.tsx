@@ -45,7 +45,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
   const [groupedPredictableMatches, setGroupedPredictableMatches] = useState<Record<string, { matches: Match[]; canPredictMap: Record<string, boolean> }>>({});
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
   const [isPageLoading, setIsPageLoading] = useState<boolean>(true);
-  const [isMatchesUnavailable, setIsMatchesUnavailable] = useState<boolean>(false);
+  const [hasMatchesLoadError, setHasMatchesLoadError] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [userId, setUserId] = useState<number | null>(() => getStoredUserId());
 
@@ -93,7 +93,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     setGroupedPredictableMatches({});
     setCurrentMatch(null);
     setPredictions({});
-    setIsMatchesUnavailable(true);
+    setHasMatchesLoadError(true);
   };
 
   const applyMatchPageData = (
@@ -119,7 +119,8 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     setGroupedPredictableMatches(groupedMatches);
     setPredictableMatches(initialMatches);
     setMatchCanPredictMap(initialCanPredictMap);
-    setIsMatchesUnavailable(initialMatches.length === 0);
+    // 空列表是接口的正常结果，例如活动结束后没有待竞猜场次，不应显示加载失败。
+    setHasMatchesLoadError(false);
     setPredictions(
       initialMatches.reduce<Record<string, 'home' | 'draw' | 'away' | null>>((acc, match) => {
         acc[match.id] = match.userChoice || null;
@@ -205,7 +206,7 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
     const loadPredictionPage = async () => {
       try {
         setIsPageLoading(true);
-        setIsMatchesUnavailable(false);
+        setHasMatchesLoadError(false);
 
         let resolvedWechatUser = getCachedWechatUser();
         try {
@@ -501,9 +502,11 @@ export const PredictionTab: React.FC<PredictionTabProps> = ({
             <div className="rounded-2xl border border-white/8 bg-[#091521]/80 px-4 py-8 text-center text-slate-300 space-y-3">
               <span className="text-2xl block">📭</span>
               <span className="text-sm font-bold block">
-                {isMatchesUnavailable ? '竞猜数据暂时无法加载，请稍后重试' : '当前暂无可竞猜比赛'}
+                {hasMatchesLoadError
+                  ? '竞猜数据暂时无法加载，请稍后重试'
+                  : '本次竞猜已结束，感谢参与'}
               </span>
-              {isMatchesUnavailable && (
+              {hasMatchesLoadError && (
                 <button
                   type="button"
                   onClick={() => setReloadNonce((value) => value + 1)}
