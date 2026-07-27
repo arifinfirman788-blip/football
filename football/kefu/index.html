@@ -1225,13 +1225,13 @@
 
     .prompt-card {
       width: 100%;
-      min-height: 64px;
-      border: 1px solid rgba(255,255,255,.82);
-      border-radius: 20px;
-      padding: 9px 10px;
+      min-height: 78px;
+      border: 0;
+      border-radius: 18px;
+      padding: 11px 12px;
       display: grid;
-      grid-template-columns: 42px minmax(0, 1fr) auto;
-      gap: 10px;
+      grid-template-columns: 40px minmax(0, 1fr) 28px;
+      gap: 11px;
       align-items: center;
       color: #243860;
       text-align: left;
@@ -1244,10 +1244,10 @@
     }
 
     .prompt-card > svg:first-child {
-      width: 42px;
-      height: 42px;
-      border-radius: 15px;
-      padding: 10px;
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      padding: 9px;
       color: #fff;
       background: linear-gradient(135deg, #ff6aa8, #ff3d72);
       box-shadow: 0 10px 18px rgba(255, 65, 116, .22);
@@ -1271,48 +1271,61 @@
     .prompt-copy {
       min-width: 0;
       display: grid;
-      gap: 4px;
+      justify-items: start;
+      gap: 6px;
     }
 
-    .prompt-copy strong {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .prompt-category {
+      border-radius: 6px;
+      padding: 3px 7px;
+      color: #f04f81;
+      background: rgba(255, 91, 145, .10);
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .prompt-card:nth-child(2) .prompt-category {
+      color: #d87913;
+      background: rgba(255, 166, 49, .12);
+    }
+
+    .prompt-card:nth-child(3) .prompt-category {
+      color: #5268d8;
+      background: rgba(89, 112, 239, .11);
+    }
+
+    .prompt-card:nth-child(4) .prompt-category {
+      color: #1689a5;
+      background: rgba(29, 181, 197, .11);
+    }
+
+    .prompt-question {
       color: #203660;
-      font-size: 13px;
-      line-height: 1.2;
-    }
-
-    .prompt-copy small {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: #7a8aa6;
-      font-size: 11px;
-      line-height: 1.2;
+      font-size: 12.5px;
+      line-height: 1.45;
+      font-weight: 650;
+      overflow-wrap: anywhere;
     }
 
     .prompt-ask {
-      height: 30px;
-      border: 1px solid rgba(211, 222, 240, .95);
-      border-radius: 999px;
-      padding: 0 10px;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 50%;
+      padding: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
       color: #3a56a0;
-      background: rgba(255,255,255,.78);
-      font-size: 11px;
-      font-weight: 700;
-      white-space: nowrap;
+      background: rgba(255,255,255,.86);
+      box-shadow: 0 5px 13px rgba(60, 83, 132, .14);
     }
 
     .prompt-ask svg {
-      width: 13px;
-      height: 13px;
+      width: 14px;
+      height: 14px;
       color: #7461ff;
-      fill: rgba(116, 97, 255, .14);
     }
 
     .small-btn,
@@ -2819,7 +2832,7 @@
     };
 
     const pageParams = new URLSearchParams(window.location.search);
-    const urlUserId = pageParams.get("userId");
+    const urlUserId = pageParams.get("userId") || pageParams.get("userid") || pageParams.get("uuid");
     const urlChannel = pageParams.get("channel");
     const urlAgentId = pageParams.get("agentId");
     const urlPlatformId = pageParams.get("platformId");
@@ -3199,7 +3212,9 @@
         return requestCurrentPlatformAccessToken(forceRefresh);
       },
       queryCurrentUser(payload = {}) {
-        return queryShopUserProfile(payload.uuid || currentUser.channelUserId);
+        const uuid = normalizeChannelUserId(payload.uuid || currentUser.channelUserId);
+        if (!uuid) return Promise.reject(new Error("缺少有效用户标识"));
+        return queryShopUserProfile(uuid);
       },
       agentChat(payload, handlers = {}) {
         const localResult = builtinAgent(payload.text);
@@ -3241,7 +3256,9 @@
         });
       },
       visitorLogin(payload = {}) {
-        const userId = encodeURIComponent(payload.userId || currentUser.memberId);
+        const resolvedUserId = normalizeChannelUserId(payload.userId || currentUser.channelUserId);
+        if (!resolvedUserId) return Promise.reject(new Error("缺少有效用户标识"));
+        const userId = encodeURIComponent(resolvedUserId);
         const channel = encodeURIComponent(payload.channel || currentUser.channelCode || "guikehui");
         return kefuFetch(`/kefu/chat/auth/visitor/loginByUserId?userId=${userId}&channel=${channel}`)
           .then((result) => result.data || result);
@@ -4030,13 +4047,13 @@
       return `
         <div class="prompt-list">
           ${items.map((item) => `
-            <button class="prompt-card" type="button" data-prompt="${escapeHtml(item.prompt)}">
+            <button class="prompt-card" type="button" data-prompt="${escapeHtml(item.question)}">
               <i data-lucide="${escapeHtml(item.icon)}"></i>
               <span class="prompt-copy">
-                <strong>${escapeHtml(item.title)}</strong>
-                <small>${escapeHtml(item.desc)}</small>
+                <span class="prompt-category">${escapeHtml(item.category)}</span>
+                <span class="prompt-question">${escapeHtml(item.question)}</span>
               </span>
-              <span class="prompt-ask"><i data-lucide="feather"></i>询问</span>
+              <span class="prompt-ask" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
             </button>
           `).join("")}
         </div>
@@ -4050,10 +4067,10 @@
         const aiNode = appendAi(`
           <div class="bubble">您可以直接点选下面的问题，我会按贵客荟现有规则为您说明。</div>
           ${promptList([
-            { icon: "plus-circle", title: "哪些消费能积分", desc: "住宿、线路、餐饮、景点门票", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
-            { icon: "badge-percent", title: "哪些商品不积分", desc: "商城、精选住宿、机票等", prompt: "贵客荟哪些商品或服务不产生积分？" },
-            { icon: "receipt-text", title: "下单怎么看积分", desc: "支付页预计获得积分提示", prompt: "贵客荟下单时在哪里查看预计获得积分？" },
-            { icon: "gift", title: "活动送积分规则", desc: "打卡送积分等活动说明", prompt: "贵客荟打卡送积分等活动积分规则在哪里查看？" }
+            { icon: "plus-circle", category: "积分获得", question: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
+            { icon: "badge-percent", category: "不积分范围", question: "贵客荟哪些商品或服务不产生积分？" },
+            { icon: "receipt-text", category: "积分查询", question: "贵客荟下单时在哪里查看预计获得积分？" },
+            { icon: "gift", category: "活动积分", question: "贵客荟打卡送积分等活动积分规则在哪里查看？" }
           ])}
         `);
         focusChatMessage(aiNode);
@@ -4065,10 +4082,10 @@
         const aiNode = appendAi(`
           <div class="bubble">您想了解哪类服务或商品规则？我可以先帮您说明贵客荟服务范围，以及常见文旅商品是否产生积分。</div>
           ${promptList([
-            { icon: "sparkles", title: "贵客荟能做什么", desc: "吃、住、行、游、购、娱", prompt: "贵客荟是什么？提供哪些服务？" },
-            { icon: "bed", title: "住宿和线路积分", desc: "酒店民宿、旅游线路", prompt: "贵客荟酒店民宿和旅游线路消费可以获得积分吗？" },
-            { icon: "ticket", title: "餐饮和门票积分", desc: "餐饮、景点门票", prompt: "贵客荟餐饮和景点门票消费可以获得积分吗？" },
-            { icon: "plane", title: "票务是否积分", desc: "机票、火车票、电影票", prompt: "贵客荟机票、火车票、电影票会产生积分吗？" }
+            { icon: "sparkles", category: "平台服务", question: "贵客荟是什么？提供哪些服务？" },
+            { icon: "bed", category: "住宿线路", question: "贵客荟酒店民宿和旅游线路消费可以获得积分吗？" },
+            { icon: "ticket", category: "餐饮门票", question: "贵客荟餐饮和景点门票消费可以获得积分吗？" },
+            { icon: "plane", category: "票务积分", question: "贵客荟机票、火车票、电影票会产生积分吗？" }
           ])}
         `);
         focusChatMessage(aiNode);
@@ -4117,8 +4134,8 @@
           html: `
             <div class="bubble">您可以先选择一个常见问题，我会按贵客荟现有积分规则继续说明。</div>
             ${promptList([
-              { icon: "plus-circle", title: "哪些消费能积分", desc: "住宿、线路、餐饮、景点门票", prompt: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
-              { icon: "badge-percent", title: "哪些商品不积分", desc: "商城、精选住宿、机票等", prompt: "贵客荟哪些商品或服务不产生积分？" }
+              { icon: "plus-circle", category: "积分获得", question: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
+              { icon: "badge-percent", category: "不积分范围", question: "贵客荟哪些商品或服务不产生积分？" }
             ])}
           `
         };
@@ -4148,18 +4165,27 @@
           <div class="prompt-list">
             <button class="prompt-card" type="button" data-open-orders>
               <i data-lucide="ticket-check"></i>
-              <span class="prompt-copy"><strong>查订单</strong><small>选择订单后继续处理</small></span>
-              <span class="prompt-ask"><i data-lucide="feather"></i>选择</span>
+              <span class="prompt-copy">
+                <span class="prompt-category">订单服务</span>
+                <span class="prompt-question">选择一笔订单继续咨询</span>
+              </span>
+              <span class="prompt-ask" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
             </button>
             <button class="prompt-card" type="button" data-clarify="points">
               <i data-lucide="badge-percent"></i>
-              <span class="prompt-copy"><strong>积分规则</strong><small>获得、消耗、到账等问题</small></span>
-              <span class="prompt-ask"><i data-lucide="feather"></i>询问</span>
+              <span class="prompt-copy">
+                <span class="prompt-category">积分规则</span>
+                <span class="prompt-question">查看积分获得、消耗与到账规则</span>
+              </span>
+              <span class="prompt-ask" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
             </button>
             <button class="prompt-card" type="button" data-open-help>
               <i data-lucide="headphones"></i>
-              <span class="prompt-copy"><strong>转人工</strong><small>售前或售后服务协助</small></span>
-              <span class="prompt-ask"><i data-lucide="feather"></i>接入</span>
+              <span class="prompt-copy">
+                <span class="prompt-category">人工服务</span>
+                <span class="prompt-question">选择售前或售后客服</span>
+              </span>
+              <span class="prompt-ask" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
             </button>
           </div>
         `
@@ -4502,10 +4528,48 @@
         });
     }
 
+    function normalizeChannelUserId(value) {
+      let normalized = String(value || "").trim();
+      if (!normalized) return "";
+      try {
+        normalized = decodeURIComponent(normalized).trim();
+      } catch (error) {
+        return "";
+      }
+      const blockedValues = new Set([
+        "index",
+        "index.html",
+        "kefu",
+        "football",
+        "null",
+        "undefined",
+        "true",
+        "false"
+      ]);
+      if (blockedValues.has(normalized.toLowerCase())) return "";
+      if (normalized.length < 6 || normalized.length > 128) return "";
+      return /^[A-Za-z0-9_-]+$/.test(normalized) ? normalized : "";
+    }
+
+    function resolvePathChannelUserId() {
+      const pathSegments = window.location.pathname.split("/").filter(Boolean);
+      const pathUserId = pathSegments[pathSegments.length - 1] || "";
+      const parentSegment = pathSegments[pathSegments.length - 2] || "";
+      return parentSegment === "kefu" ? normalizeChannelUserId(pathUserId) : "";
+    }
+
     function resolveChannelUserId() {
-      const pathUserId = decodeURIComponent(window.location.pathname.split("/").filter(Boolean).pop() || "");
-      const validPathUserId = pathUserId && !pathUserId.includes(".") && pathUserId !== "kefu" ? pathUserId : "";
-      return urlUserId || validPathUserId || window.KEFU_RUNTIME_CONFIG?.userId || currentUser.channelUserId;
+      const candidates = [
+        urlUserId,
+        window.KEFU_RUNTIME_CONFIG?.userId,
+        resolvePathChannelUserId(),
+        currentUser.channelUserId
+      ];
+      for (const candidate of candidates) {
+        const userId = normalizeChannelUserId(candidate);
+        if (userId) return userId;
+      }
+      return "";
     }
 
     async function initializeVisitorSession() {
@@ -5442,7 +5506,9 @@
       renderOrders();
       initializeVisitorSession()
         .catch((error) => console.warn("initialize visitor session failed", error))
-        .finally(loadRecentConversations);
+        .then(() => {
+          if (currentUser.kefuReady) loadRecentConversations();
+        });
       renderRatingStars();
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
       window.handleKefuMessagePacket = handleKefuMessagePacket;
