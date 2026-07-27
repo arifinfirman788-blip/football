@@ -2464,10 +2464,10 @@
             <span class="brand-name">智能客服</span>
           </div>
           <div class="user-summary top-user" aria-label="当前用户信息">
-            <span class="user-avatar" id="topUserAvatar">陈</span>
+            <span class="user-avatar" id="topUserAvatar">访</span>
             <span class="user-identity">
-              <strong id="topUserName">陈胤兵</strong>
-              <span class="member-line"><span id="topMemberName">贵客荟</span> <span class="vip-pill" id="topVipLevel">VIP1</span></span>
+              <strong id="topUserName">访客</strong>
+              <span class="member-line"><span id="topMemberName">贵客荟</span> <span class="vip-pill" id="topVipLevel">会员</span></span>
             </span>
           </div>
         </header>
@@ -2728,15 +2728,19 @@
     let lastSelectedOrder = null;
     let boardImageFile = null;
     const currentUser = {
-      channelUserId: "0efc9ea1-af26-4f44-8e95-181d0ca43dd5",
-      name: "陈胤兵",
-      shortName: "陈",
+      channelUserId: "",
+      name: "访客",
+      shortName: "访",
       memberName: "贵客荟",
-      vipLevel: "VIP1",
-      memberId: 79,
-      memberNo: "M202607141F4054",
-      teamId: 104,
-      visitorId: -79,
+      vipLevel: "会员",
+      phone: "",
+      integral: 0,
+      ledou: 0,
+      shopUserId: null,
+      memberId: null,
+      memberNo: "",
+      teamId: null,
+      visitorId: null,
       channelCode: "guikehui",
       kefuReady: false,
       kefuInitError: ""
@@ -2798,6 +2802,20 @@
       channelType: "kefu",
       channel: "gkh",
       recentLimit: 20
+    };
+
+    const memberApiConfig = {
+      accessTokenUrl: "https://e.lelv.cn/msvc-shop/v1/api/getCurrentPlatformAccessToken",
+      userProfileUrl: "https://e.lelv.cn/msvc-shop/v4/order/new/get/user/by/id",
+      bootstrapToken: window.KEFU_RUNTIME_CONFIG?.platformAccessBootstrapToken || window.PLATFORM_ACCESS_BOOTSTRAP_TOKEN || "",
+      tokenCacheMs: 90 * 60 * 1000
+    };
+
+    const platformAccessState = {
+      accessToken: "",
+      wxAppId: "",
+      expiresAt: 0,
+      pending: null
     };
 
     const pageParams = new URLSearchParams(window.location.search);
@@ -2925,6 +2943,76 @@
         }
         return data;
       });
+    }
+
+    function requestCurrentPlatformAccessToken(forceRefresh = false) {
+      if (!memberApiConfig.bootstrapToken) {
+        return Promise.reject(new Error("未配置平台访问凭证"));
+      }
+      if (!forceRefresh && platformAccessState.accessToken && Date.now() < platformAccessState.expiresAt) {
+        return Promise.resolve({
+          accessToken: platformAccessState.accessToken,
+          wxAppId: platformAccessState.wxAppId
+        });
+      }
+      if (!forceRefresh && platformAccessState.pending) return platformAccessState.pending;
+
+      platformAccessState.pending = fetch(memberApiConfig.accessTokenUrl, {
+        method: "GET",
+        headers: { token: memberApiConfig.bootstrapToken }
+      }).then((response) => {
+        if (!response.ok) throw new Error(`platform access token ${response.status}`);
+        return response.json();
+      }).then((result) => {
+        const data = result.data || result;
+        if (!data.accessToken) throw new Error("平台 accessToken 返回为空");
+        platformAccessState.accessToken = data.accessToken;
+        platformAccessState.wxAppId = data.wxAppId || "";
+        platformAccessState.expiresAt = Date.now() + memberApiConfig.tokenCacheMs;
+        return {
+          accessToken: platformAccessState.accessToken,
+          wxAppId: platformAccessState.wxAppId
+        };
+      }).finally(() => {
+        platformAccessState.pending = null;
+      });
+
+      return platformAccessState.pending;
+    }
+
+    async function queryShopUserProfile(uuid, forceRefresh = false) {
+      if (!uuid) throw new Error("缺少用户 UUID");
+      let accessToken = "";
+      if (memberApiConfig.bootstrapToken) {
+        const credentials = await requestCurrentPlatformAccessToken(forceRefresh);
+        accessToken = credentials.accessToken;
+      }
+      const url = `${memberApiConfig.userProfileUrl}?uuid=${encodeURIComponent(uuid)}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: accessToken ? { token: accessToken } : {}
+      });
+      if ([401, 403].includes(response.status) && !forceRefresh && memberApiConfig.bootstrapToken) {
+        return queryShopUserProfile(uuid, true);
+      }
+      if (!response.ok) throw new Error(`user profile ${response.status}`);
+      const result = await response.json();
+      const profile = result.data?.list?.[0] || result.data || null;
+      if (!profile || Array.isArray(profile)) throw new Error("未查询到当前用户资料");
+      return profile;
+    }
+
+    function applyShopUserProfile(profile = {}) {
+      currentUser.shopUserId = profile.id || currentUser.shopUserId;
+      currentUser.channelUserId = profile.uuid || currentUser.channelUserId;
+      currentUser.phone = profile.phone || currentUser.phone;
+      currentUser.integral = Number(profile.integral ?? currentUser.integral ?? 0);
+      currentUser.ledou = Number(profile.ledou ?? currentUser.ledou ?? 0);
+      currentUser.name = profile.real_name || profile.nick_name || currentUser.name;
+      currentUser.shortName = currentUser.name.slice(0, 1) || "访";
+      currentUser.vipLevel = profile.name || currentUser.vipLevel;
+      currentUser.memberName = profile.qy_name || currentUser.memberName;
+      updateTopUserInfo();
     }
 
     function orderStatusText(status) {
@@ -3075,7 +3163,7 @@
 
     function resolveAiUser(user = chatState.userId) {
       if (user) return user;
-      const baseId = currentUser.memberNo || currentUser.memberId || "test";
+      const baseId = currentUser.memberNo || currentUser.memberId || currentUser.channelUserId || "test";
       return `${baseId}_${difyConfig.platformId}`;
     }
 
@@ -3107,6 +3195,12 @@
     }
 
     const api = {
+      getCurrentPlatformAccessToken(forceRefresh = false) {
+        return requestCurrentPlatformAccessToken(forceRefresh);
+      },
+      queryCurrentUser(payload = {}) {
+        return queryShopUserProfile(payload.uuid || currentUser.channelUserId);
+      },
       agentChat(payload, handlers = {}) {
         const localResult = builtinAgent(payload.text);
         if (localResult.action === "human") return Promise.resolve(localResult);
@@ -4408,13 +4502,44 @@
         });
     }
 
-    function initializeVisitorSession() {
-      const pathUserId = window.location.pathname.split("/").filter(Boolean).pop();
+    function resolveChannelUserId() {
+      const pathUserId = decodeURIComponent(window.location.pathname.split("/").filter(Boolean).pop() || "");
+      const validPathUserId = pathUserId && !pathUserId.includes(".") && pathUserId !== "kefu" ? pathUserId : "";
+      return urlUserId || validPathUserId || window.KEFU_RUNTIME_CONFIG?.userId || currentUser.channelUserId;
+    }
+
+    async function initializeVisitorSession() {
+      const userId = resolveChannelUserId();
       const channel = urlChannel || currentUser.channelCode;
-      api.visitorLogin({
-        userId: urlUserId || (pathUserId && pathUserId !== "agent-chat-prototype.html" ? pathUserId : currentUser.channelUserId),
-        channel
-      }).then((visitor) => {
+      if (!userId) {
+        currentUser.kefuReady = false;
+        currentUser.kefuInitError = "缺少用户标识";
+        updateTopUserInfo();
+        return [];
+      }
+      currentUser.channelUserId = userId;
+
+      const [profileResult, visitorResult] = await Promise.allSettled([
+        api.queryCurrentUser({ uuid: userId }),
+        api.visitorLogin({ userId, channel })
+      ]);
+
+      if (profileResult.status === "fulfilled") {
+        applyShopUserProfile(profileResult.value);
+      } else {
+        console.warn("shop user profile failed", profileResult.reason);
+      }
+
+      if (visitorResult.status === "rejected") {
+        const error = visitorResult.reason || new Error("访客初始化失败");
+        console.warn("visitor init failed", error);
+        currentUser.kefuReady = false;
+        currentUser.kefuInitError = error.message || "访客初始化失败";
+        updateTopUserInfo();
+        return [];
+      }
+
+      const visitor = visitorResult.value;
         currentUser.memberId = visitor.memberId;
         currentUser.memberNo = visitor.memberNo;
         currentUser.teamId = visitor.teamId;
@@ -4426,12 +4551,12 @@
         currentUser.memberName = visitor.channelName || currentUser.memberName;
         updateTopUserInfo();
         currentUser.kefuReady = Boolean(visitor.memberNo && visitor.teamId && visitor.memberId);
-        currentUser.kefuInitError = "";
+        currentUser.kefuInitError = currentUser.kefuReady ? "" : "人工客服访客资料不完整";
         renderOrders();
-        return api.listKefuConversations(currentUser.visitorId);
-      }).then((conversations) => {
+      if (!currentUser.kefuReady) return [];
+      const conversations = await api.listKefuConversations(currentUser.visitorId);
         const activeConversation = (conversations || []).find((item) => item.status !== "closed" && item.toUser?.id > 0);
-        if (!activeConversation) return;
+        if (!activeConversation) return conversations;
         serviceState.conversationId = activeConversation.id;
         serviceState.humanActive = true;
         serviceState.currentAgent = activeConversation.toUser;
@@ -4443,24 +4568,19 @@
         } else {
           appendSystem("当前为非服务时间，已保留人工会话记录，可先提交留言或在服务时间继续咨询");
         }
-        return api.queryKefuMessages({
+        const messages = await api.queryKefuMessages({
           userId: currentUser.visitorId,
           contactUserId: activeConversation.toUser.id,
           conversationId: activeConversation.id,
           lessMessageId: 0
-        }).then((messages) => {
-          messages.forEach(appendKefuHistoryMessage);
-          if (!chatList.querySelector("[data-end-session]")) {
-            appendAi(connectedServiceHtml("人工服务"));
-          }
-          iconRefresh();
-          scrollChatBottom();
         });
-      }).catch((error) => {
-        console.warn("visitor init failed", error);
-        currentUser.kefuReady = false;
-        currentUser.kefuInitError = error.message || "访客初始化失败";
-      });
+        messages.forEach(appendKefuHistoryMessage);
+        if (!chatList.querySelector("[data-end-session]")) {
+          appendAi(connectedServiceHtml("人工服务"));
+        }
+        iconRefresh();
+        scrollChatBottom();
+        return conversations;
     }
 
     function getFilteredOrders() {
@@ -4934,6 +5054,7 @@
       messageBoardModal.classList.add("show");
       messageBoardModal.setAttribute("aria-hidden", "false");
       if (boardName) boardName.value = currentUser.name || "";
+      if (boardPhone) boardPhone.value = currentUser.phone || "";
       if (type) boardContent.value = `${type}：`;
     }
 
@@ -5318,9 +5439,10 @@
 
     window.addEventListener("load", () => {
       updateTopUserInfo();
-      initializeVisitorSession();
       renderOrders();
-      loadRecentConversations();
+      initializeVisitorSession()
+        .catch((error) => console.warn("initialize visitor session failed", error))
+        .finally(loadRecentConversations);
       renderRatingStars();
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
       window.handleKefuMessagePacket = handleKefuMessagePacket;
