@@ -4685,13 +4685,20 @@
     }
 
     function renderOrders() {
-      api.queryOrders({ memberId: currentUser.memberId }).then((orders) => {
+      if (!currentUser.memberId) {
+        chatState.orders = [];
+        renderOrderCards([]);
+        return Promise.resolve([]);
+      }
+      return api.queryOrders({ memberId: currentUser.memberId }).then((orders) => {
         chatState.orders = orders || [];
         renderOrderCards();
+        return chatState.orders;
       }).catch((error) => {
         console.warn("queryOrders failed", error);
         chatState.orders = [];
         renderOrderCards([]);
+        return [];
       });
     }
 
