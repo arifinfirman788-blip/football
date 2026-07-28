@@ -339,6 +339,32 @@
       color: #1e63e8;
     }
 
+    .session-end-tool {
+      display: none;
+      min-width: 102px;
+      margin-left: auto;
+      border: 0;
+      color: #9f3f54;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,235,240,.72)),
+        rgba(255,255,255,.76);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.88),
+        0 10px 24px rgba(175, 64, 91, .16);
+    }
+
+    .session-end-tool.show {
+      display: inline-flex;
+    }
+
+    .session-end-tool svg {
+      color: #cf4c67;
+    }
+
+    .session-end-tool:disabled {
+      opacity: .62;
+    }
+
     .composer {
       height: 46px;
       display: grid;
@@ -2568,6 +2594,7 @@
           <div class="chat-tools">
             <button class="tool-pill" type="button" data-open-orders><i data-lucide="ticket-check"></i>订单</button>
             <button class="tool-pill" type="button" data-open-help><i data-lucide="headphones"></i>帮助</button>
+            <button class="tool-pill session-end-tool" id="persistentEndSession" type="button" data-end-session aria-hidden="true"><i data-lucide="log-out"></i>结束会话</button>
           </div>
           <div class="emoji-panel" id="emojiPanel" aria-label="常用表情">
             <button type="button" data-emoji="😊">😊</button>
@@ -2734,6 +2761,7 @@
     const boardPhone = document.querySelector("#boardPhone");
     const boardContent = document.querySelector("#boardContent");
     const boardImageHint = document.querySelector("#boardImageHint");
+    const persistentEndSession = document.querySelector("#persistentEndSession");
     const topUserAvatar = document.querySelector("#topUserAvatar");
     const topUserName = document.querySelector("#topUserName");
     const topMemberName = document.querySelector("#topMemberName");
@@ -3716,6 +3744,23 @@
       return agent.nickname || agent.username || "人工客服";
     }
 
+    function updateSessionControls() {
+      if (!persistentEndSession) return;
+      const visible = serviceState.humanActive && !serviceState.queued;
+      persistentEndSession.classList.toggle("show", visible);
+      persistentEndSession.setAttribute("aria-hidden", String(!visible));
+    }
+
+    function setEndSessionPending(pending) {
+      document.querySelectorAll("[data-end-session]").forEach((button) => {
+        button.disabled = pending;
+        button.innerHTML = pending
+          ? '<i data-lucide="loader-circle"></i>结束中'
+          : '<i data-lucide="log-out"></i>结束会话';
+      });
+      iconRefresh();
+    }
+
     function humanAgentMessageHtml(text, time = formatClock()) {
       const agent = serviceState.currentAgent || { nickname: "人工客服" };
       return `
@@ -4624,6 +4669,7 @@
         serviceState.conversationId = activeConversation.id;
         serviceState.humanActive = true;
         serviceState.currentAgent = activeConversation.toUser;
+        updateSessionControls();
         appendSystem("已恢复未结束的人工会话");
         clearRobotHintTimer();
         startAgentReplyWatcher();
@@ -4844,6 +4890,7 @@
     function assignHumanAgent(type, fromQueue = false) {
       serviceState.queued = false;
       serviceState.humanActive = true;
+      updateSessionControls();
       clearQueueTimer();
       clearRobotHintTimer();
       resetPostSessionState();
@@ -4996,6 +5043,7 @@
       serviceState.conversationId = conversationId || serviceState.conversationId || 10001;
       serviceState.humanActive = false;
       serviceState.queued = false;
+      updateSessionControls();
       serviceState.serviceType = "";
       serviceState.currentAgent = null;
       clearQueueTimer();
@@ -5069,6 +5117,7 @@
         }
         serviceState.queued = false;
         serviceState.humanActive = true;
+        updateSessionControls();
         appendSystem("您的咨询已提交，平台客服将尽快为您服务，请耐心等待");
         startAgentReplyWatcher();
         scrollChatBottom();
@@ -5111,9 +5160,18 @@
     }
 
     function endActiveSession() {
+      if (!serviceState.humanActive) {
+        updateSessionControls();
+        return;
+      }
       const conversationId = serviceState.conversationId || 10001;
+      setEndSessionPending(true);
       api.endSession(conversationId).then((result) => {
         handleServiceSessionEnded(result.conversationId || conversationId, "您已主动结束本次会话，感谢您的咨询！如有需要可重新发起咨询。");
+      }).catch((error) => {
+        showToast(error.message || "结束会话失败，请稍后重试");
+      }).finally(() => {
+        setEndSessionPending(false);
       });
     }
 
@@ -5517,6 +5575,7 @@
           if (currentUser.kefuReady) loadRecentConversations();
         });
       renderRatingStars();
+      updateSessionControls();
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
       window.handleKefuMessagePacket = handleKefuMessagePacket;
       iconRefresh();
