@@ -1949,6 +1949,16 @@
       font-size: 12px;
     }
 
+    .queue-message-action {
+      width: min(100%, 282px);
+    }
+
+    .queue-message-action .primary-btn {
+      width: 100%;
+      height: 42px;
+      border-radius: 15px;
+    }
+
     .system-note {
       justify-self: center;
       width: fit-content;
@@ -4112,7 +4122,7 @@
         const aiNode = appendAi(`
           <div class="bubble">您可以直接点选下面的问题，我会按贵客荟现有规则为您说明。</div>
           ${promptList([
-            { icon: "plus-circle", category: "积分获得", question: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
+            { icon: "plus-circle", category: "积分获得", question: "贵客荟会员积分怎么获得？" },
             { icon: "badge-percent", category: "不积分范围", question: "贵客荟哪些商品或服务不产生积分？" },
             { icon: "receipt-text", category: "积分查询", question: "贵客荟下单时在哪里查看预计获得积分？" },
             { icon: "gift", category: "活动积分", question: "贵客荟打卡送积分等活动积分规则在哪里查看？" }
@@ -4130,7 +4140,7 @@
             { icon: "sparkles", category: "平台服务", question: "贵客荟是什么？提供哪些服务？" },
             { icon: "bed", category: "住宿线路", question: "贵客荟酒店民宿和旅游线路消费可以获得积分吗？" },
             { icon: "ticket", category: "餐饮门票", question: "贵客荟餐饮和景点门票消费可以获得积分吗？" },
-            { icon: "plane", category: "票务积分", question: "贵客荟机票、火车票、电影票会产生积分吗？" }
+            { icon: "plane", category: "会员积分范围", question: "贵客荟会员消费哪些产品可以获得积分？机票、火车票和电影票是否属于不积分范围？" }
           ])}
         `);
         focusChatMessage(aiNode);
@@ -4179,7 +4189,7 @@
           html: `
             <div class="bubble">您可以先选择一个常见问题，我会按贵客荟现有积分规则继续说明。</div>
             ${promptList([
-              { icon: "plus-circle", category: "积分获得", question: "贵客荟酒店民宿、旅游线路、餐饮、景点门票消费怎么获得积分？" },
+              { icon: "plus-circle", category: "积分获得", question: "贵客荟会员积分怎么获得？" },
               { icon: "badge-percent", category: "不积分范围", question: "贵客荟哪些商品或服务不产生积分？" }
             ])}
           `
@@ -4220,7 +4230,7 @@
               <i data-lucide="badge-percent"></i>
               <span class="prompt-copy">
                 <span class="prompt-category">积分规则</span>
-                <span class="prompt-question">查看积分获得、消耗与到账规则</span>
+                <span class="prompt-question">贵客荟会员积分怎么获得？</span>
               </span>
               <span class="prompt-ask" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
             </button>
@@ -4867,6 +4877,37 @@
       `;
     }
 
+    function queueMessageActionHtml() {
+      return `
+        <div class="queue-message-action" data-queue-message-action>
+          <button class="primary-btn" type="button" data-open-board><i data-lucide="clipboard-pen"></i>留言</button>
+        </div>
+      `;
+    }
+
+    function clearQueuePresentation({ removeMessageAction = false } = {}) {
+      clearQueueTimer();
+      serviceState.queuePosition = 0;
+      serviceState.queueTotal = 0;
+      serviceState.estimatedWaitSeconds = 0;
+      serviceState.queueElapsedSeconds = 0;
+      chatList.querySelectorAll("[data-active-queue-card], [data-cancel-queue-card]").forEach((node) => {
+        node.closest(".message")?.remove();
+      });
+      if (removeMessageAction) {
+        chatList.querySelectorAll("[data-queue-message-action]").forEach((node) => {
+          node.closest(".message")?.remove();
+        });
+      }
+    }
+
+    function showQueueMessageAction() {
+      chatList.querySelectorAll("[data-queue-message-action]").forEach((node) => {
+        node.closest(".message")?.remove();
+      });
+      appendAi(queueMessageActionHtml());
+    }
+
     function connectedServiceHtml(type) {
       const agent = serviceState.currentAgent || { nickname: "客服小王" };
       return `
@@ -4891,12 +4932,9 @@
       serviceState.queued = false;
       serviceState.humanActive = true;
       updateSessionControls();
-      clearQueueTimer();
+      clearQueuePresentation({ removeMessageAction: true });
       clearRobotHintTimer();
       resetPostSessionState();
-      chatList.querySelectorAll("[data-active-queue-card], [data-cancel-queue-card]").forEach((node) => {
-        node.closest(".message")?.remove();
-      });
       const assignedAgent = serviceState.currentAgent || {};
       serviceState.currentAgent = {
         id: assignedAgent.id || 456,
@@ -4931,8 +4969,12 @@
 
     function handleQueueExpired() {
       serviceState.queued = false;
-      clearQueueTimer();
-      appendSystem("您上次的排队因长时间未连接已被自动取消，已重新为您安排，请稍候...");
+      serviceState.serviceType = "";
+      clearQueuePresentation();
+      kefuSocket.close(true);
+      startRobotHintTimer();
+      appendSystem("本次排队已超时结束，您可以重新发起人工服务或先留言");
+      showQueueMessageAction();
       scrollChatBottom();
     }
 
@@ -5046,7 +5088,7 @@
       updateSessionControls();
       serviceState.serviceType = "";
       serviceState.currentAgent = null;
-      clearQueueTimer();
+      clearQueuePresentation({ removeMessageAction: true });
       clearAgentReplyWatcher();
       clearRobotHintTimer();
       kefuSocket.close(true);
@@ -5093,12 +5135,16 @@
       if (appendServiceType) appendUser(type);
       serviceState.serviceType = type;
       serviceState.queued = true;
+      clearQueuePresentation({ removeMessageAction: true });
       resetPostSessionState();
       clearRobotHintTimer();
       api.transferHuman({ type, visitorId: currentUser.visitorId }).then((result) => {
         if (!result.success) throw new Error(result.message || result.msg || result.content || "人工客服登录失败");
         serviceState.conversationId = result.conversationId || serviceState.conversationId || "";
-        if (result.queueExpired) handleQueueExpired();
+        if (result.queueExpired) {
+          handleQueueExpired();
+          return;
+        }
         if (result.contact?.id) {
           serviceState.queued = false;
           serviceState.currentAgent = result.contact;
@@ -5123,10 +5169,12 @@
         scrollChatBottom();
       }).catch((error) => {
         serviceState.queued = false;
-        clearQueueTimer();
+        serviceState.serviceType = "";
+        clearQueuePresentation();
         kefuSocket.close(true);
         startRobotHintTimer();
         appendSystem(error.message || "转人工失败，请稍后再试");
+        showQueueMessageAction();
         scrollChatBottom();
       });
     }
@@ -5147,15 +5195,32 @@
     }
 
     function cancelQueue() {
+      const confirmButton = chatList.querySelector("[data-confirm-cancel-queue]");
+      if (confirmButton) {
+        confirmButton.disabled = true;
+        confirmButton.innerHTML = '<i data-lucide="loader-circle"></i>取消中';
+        iconRefresh();
+      }
       api.leaveQueue().then(() => {
+        if (serviceState.humanActive) {
+          showToast("人工客服已接入，无需取消排队");
+          return;
+        }
         serviceState.queued = false;
         serviceState.serviceType = "";
-        clearQueueTimer();
+        clearQueuePresentation();
         kefuSocket.close(true);
         startRobotHintTimer();
-        chatList.querySelector("[data-cancel-queue-card]")?.closest(".message")?.remove();
         appendSystem("已取消排队，不会自动重连人工客服");
+        showQueueMessageAction();
         scrollChatBottom();
+      }).catch((error) => {
+        if (confirmButton) {
+          confirmButton.disabled = false;
+          confirmButton.innerHTML = '<i data-lucide="check"></i>确认取消';
+          iconRefresh();
+        }
+        showToast(error.message || "取消排队失败，请稍后重试");
       });
     }
 
