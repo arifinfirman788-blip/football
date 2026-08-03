@@ -3393,8 +3393,7 @@
         showToast("已预留产品详情页跳转");
       },
       openSurvey() {
-        console.log("open survey-fill", kefuConfig.surveyUrl);
-        showToast("已预留满意度问卷跳转");
+        window.location.assign(kefuConfig.surveyUrl);
       }
     };
 
@@ -3756,7 +3755,9 @@
 
     function updateSessionControls() {
       if (!persistentEndSession) return;
-      const visible = serviceState.humanActive && !serviceState.queued;
+      // Human connection is authoritative. Some presale responses can retain a
+      // stale queue flag briefly after the agent has already joined.
+      const visible = Boolean(serviceState.humanActive);
       persistentEndSession.classList.toggle("show", visible);
       persistentEndSession.setAttribute("aria-hidden", String(!visible));
     }
@@ -4970,6 +4971,7 @@
     function handleQueueExpired() {
       serviceState.queued = false;
       serviceState.serviceType = "";
+      updateSessionControls();
       clearQueuePresentation();
       kefuSocket.close(true);
       startRobotHintTimer();
@@ -5135,6 +5137,7 @@
       if (appendServiceType) appendUser(type);
       serviceState.serviceType = type;
       serviceState.queued = true;
+      updateSessionControls();
       clearQueuePresentation({ removeMessageAction: true });
       resetPostSessionState();
       clearRobotHintTimer();
@@ -5153,6 +5156,7 @@
         }
         if (result.queued) {
           serviceState.queued = true;
+          updateSessionControls();
           serviceState.queuePosition = result.queuePosition || 1;
           serviceState.queueTotal = result.queueTotal || 1;
           serviceState.estimatedWaitSeconds = result.estimatedWaitSeconds || 0;
@@ -5170,6 +5174,7 @@
       }).catch((error) => {
         serviceState.queued = false;
         serviceState.serviceType = "";
+        updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
         startRobotHintTimer();
@@ -5208,6 +5213,7 @@
         }
         serviceState.queued = false;
         serviceState.serviceType = "";
+        updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
         startRobotHintTimer();
