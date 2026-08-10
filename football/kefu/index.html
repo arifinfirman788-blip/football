@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>智能客服</title>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <style>
@@ -37,6 +37,7 @@
     html,
     body {
       height: 100%;
+      overscroll-behavior-y: none;
     }
 
     body {
@@ -44,6 +45,7 @@
       min-height: 100dvh;
       display: block;
       overflow: hidden;
+      touch-action: manipulation;
       color: var(--ink);
       letter-spacing: 0;
       -webkit-font-smoothing: antialiased;
@@ -271,8 +273,12 @@
       inset: calc(56px + env(safe-area-inset-top)) 0 0;
       padding: 0 18px 112px;
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
       overflow-anchor: none;
+      overscroll-behavior-y: contain;
+      overscroll-behavior-x: none;
       scrollbar-width: none;
+      touch-action: pan-y;
       opacity: 0;
       transform: translateX(16px);
       pointer-events: none;
@@ -292,6 +298,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      touch-action: pan-y;
     }
 
     .bottom-bar {
@@ -342,7 +349,6 @@
     .session-end-tool {
       display: none;
       min-width: 102px;
-      margin-left: auto;
       border: 0;
       color: #9f3f54;
       background:
@@ -363,6 +369,28 @@
 
     .session-end-tool:disabled {
       opacity: .62;
+    }
+
+    .session-order-tool {
+      display: none;
+      min-width: 108px;
+      margin-left: auto;
+      border: 0;
+      color: #2154b6;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.92), rgba(233,242,255,.78)),
+        rgba(255,255,255,.78);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.88),
+        0 10px 24px rgba(56, 102, 188, .14);
+    }
+
+    .session-order-tool.show {
+      display: inline-flex;
+    }
+
+    .session-order-tool svg {
+      color: #2c6cf2;
     }
 
     .composer {
@@ -998,13 +1026,16 @@
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       overflow-anchor: none;
-      overscroll-behavior: contain;
+      overscroll-behavior-y: contain;
+      overscroll-behavior-x: none;
       padding-top: 8px;
       padding-right: 2px;
       padding-bottom: 12px;
       scrollbar-width: none;
       scroll-behavior: smooth;
+      touch-action: pan-y;
     }
 
     .chat-list.history-mode {
@@ -2358,6 +2389,10 @@
       cursor: pointer;
     }
 
+    .help-option.upload-option {
+      width: 100%;
+    }
+
     .help-option > svg:first-child {
       width: 42px;
       height: 42px;
@@ -2604,6 +2639,7 @@
           <div class="chat-tools">
             <button class="tool-pill" type="button" data-open-orders><i data-lucide="ticket-check"></i>订单</button>
             <button class="tool-pill" type="button" data-open-help><i data-lucide="headphones"></i>帮助</button>
+            <button class="tool-pill session-order-tool" id="persistentOrderAction" type="button" data-open-orders aria-hidden="true"><i data-lucide="package-plus"></i>补充订单</button>
             <button class="tool-pill session-end-tool" id="persistentEndSession" type="button" data-end-session aria-hidden="true"><i data-lucide="log-out"></i>结束会话</button>
           </div>
           <div class="emoji-panel" id="emojiPanel" aria-label="常用表情">
@@ -2693,16 +2729,16 @@
               <button class="sheet-close" type="button" data-close-upload aria-label="关闭"><i data-lucide="x"></i></button>
             </div>
             <div class="help-options">
-              <button class="help-option" type="button" data-photo-upload>
+              <label class="help-option upload-option" for="photoInput">
                 <i data-lucide="camera"></i>
                 <span><strong>拍照上传</strong><small>拍摄现场照片、核销凭证或问题截图</small></span>
                 <i data-lucide="chevron-right"></i>
-              </button>
-              <button class="help-option" type="button" data-file-upload>
+              </label>
+              <label class="help-option upload-option" for="fileInput">
                 <i data-lucide="image-up"></i>
                 <span><strong>相册图片</strong><small>选择图片，人工客服仅接收图片 URL</small></span>
                 <i data-lucide="chevron-right"></i>
-              </button>
+              </label>
             </div>
           </div>
         </div>
@@ -2771,6 +2807,7 @@
     const boardPhone = document.querySelector("#boardPhone");
     const boardContent = document.querySelector("#boardContent");
     const boardImageHint = document.querySelector("#boardImageHint");
+    const persistentOrderAction = document.querySelector("#persistentOrderAction");
     const persistentEndSession = document.querySelector("#persistentEndSession");
     const topUserAvatar = document.querySelector("#topUserAvatar");
     const topUserName = document.querySelector("#topUserName");
@@ -2869,13 +2906,23 @@
       pending: null
     };
 
+    function normalizeKnowledgeChannel(value) {
+      const channel = String(value || "").trim();
+      if (!channel) return "";
+      const aliasMap = {
+        guikehui: "gkh",
+        gkh: "gkh"
+      };
+      return aliasMap[channel.toLowerCase()] || channel;
+    }
+
     const pageParams = new URLSearchParams(window.location.search);
-    const urlUserId = pageParams.get("userId") || pageParams.get("userid") || pageParams.get("uuid");
+    const urlUserId = pageParams.get("userId") || pageParams.get("userid") || pageParams.get("uuid") || "";
     const urlChannel = pageParams.get("channel");
     const urlAgentId = pageParams.get("agentId");
     const urlPlatformId = pageParams.get("platformId");
     const urlChannelType = pageParams.get("channelType");
-    difyConfig.channel = (window.KNOWLEDGE_CHANNEL || urlChannel || difyConfig.channel || "").trim();
+    difyConfig.channel = normalizeKnowledgeChannel(window.KNOWLEDGE_CHANNEL || urlChannel || difyConfig.channel || "");
     difyConfig.agentId = (window.AGENT_ID || urlAgentId || difyConfig.agentId || "").trim();
     difyConfig.platformId = (window.PLATFORM_ID || urlPlatformId || difyConfig.platformId || "").trim();
     difyConfig.channelType = (window.CHANNEL_TYPE || urlChannelType || difyConfig.channelType || "").trim();
@@ -3680,7 +3727,8 @@
       `;
     }
 
-    function orderCardInnerHtml(order) {
+    function orderCardInnerHtml(order, options = {}) {
+      const footerText = options.footerText || "已同步给人工客服";
       return `
         <div class="order-card">
           <div class="order-tagbar">
@@ -3701,7 +3749,7 @@
               <div class="info-row"><span>订单金额</span><strong>${escapeHtml(order.amount || "¥0")}</strong></div>
             </div>
             <div class="order-info-foot">
-              <span>已同步给人工客服</span>
+              <span>${escapeHtml(footerText)}</span>
               <strong>${escapeHtml(order.amount || "¥0")}</strong>
             </div>
           </div>
@@ -3709,12 +3757,12 @@
       `;
     }
 
-    function userOrderMessageHtml(order, time = formatClock()) {
+    function userOrderMessageHtml(order, time = formatClock(), options = {}) {
       return `
         <div class="message user">
           <div class="msg-body">
             <div class="msg-meta"><span>${time}</span><span>${escapeHtml(currentUser.name)}</span></div>
-            ${orderCardInnerHtml(order)}
+            ${orderCardInnerHtml(order, options)}
           </div>
           <div class="msg-avatar">${escapeHtml(currentUser.shortName)}</div>
         </div>
@@ -3754,10 +3802,12 @@
     }
 
     function updateSessionControls() {
-      if (!persistentEndSession) return;
+      if (!persistentEndSession || !persistentOrderAction) return;
       // Human connection is authoritative. Some presale responses can retain a
       // stale queue flag briefly after the agent has already joined.
       const visible = Boolean(serviceState.humanActive);
+      persistentOrderAction.classList.toggle("show", visible);
+      persistentOrderAction.setAttribute("aria-hidden", String(!visible));
       persistentEndSession.classList.toggle("show", visible);
       persistentEndSession.setAttribute("aria-hidden", String(!visible));
     }
@@ -4045,6 +4095,20 @@
     function closeUploadModal() {
       uploadModal.classList.remove("show");
       uploadModal.setAttribute("aria-hidden", "true");
+    }
+
+    function openNativeFilePicker(input) {
+      if (!input) return;
+      input.value = "";
+      try {
+        if (typeof input.showPicker === "function") {
+          input.showPicker();
+          return;
+        }
+      } catch (error) {
+        console.warn("showPicker failed", error);
+      }
+      input.click();
     }
 
     function handleAttachmentSelected(file, type) {
@@ -4772,51 +4836,40 @@
       orderModal.setAttribute("aria-hidden", "false");
     }
 
-    function closeOrders() {
+    function closeOrders(options = {}) {
+      const preservePendingAfterOrder = Boolean(options.preservePendingAfterOrder);
       orderModal.classList.remove("show");
       orderModal.setAttribute("aria-hidden", "true");
+      if (!preservePendingAfterOrder && !serviceState.humanActive && !serviceState.queued && serviceState.pendingAfterOrder) {
+        serviceState.pendingAfterOrder = "";
+      }
     }
 
     function sendOrder(order) {
       lastSelectedOrder = order;
-      closeOrders();
+      closeOrders({ preservePendingAfterOrder: true });
       setScreen("entry");
-      appendUser(`咨询订单：${order.title}`);
-      appendAi(`
-        <div class="bubble">已收到订单信息。我会基于订单状态答复，如需进一步处理可点击“帮助”转人工。</div>
-        <div class="order-card">
-          <div class="order-tagbar">
-            <span class="order-label">服务单</span>
-            <span class="status-badge">${escapeHtml(order.status)}</span>
-          </div>
-          <div class="order-card-head">
-            <strong>${escapeHtml(order.title)}</strong>
-          </div>
-          <div class="order-card-meta">
-            <div class="order-card-code"><i data-lucide="receipt-text"></i>${escapeHtml(order.id)}</div>
-          </div>
-          <div class="order-body">
-            <div class="info-grid">
-              <div class="info-row"><span>商户</span><strong>${escapeHtml(order.merchant || "平台自营")}</strong></div>
-              <div class="info-row"><span>日期数量</span><strong>${escapeHtml(order.date)} · ${escapeHtml(String(order.quantity || 1))}份</strong></div>
-              <div class="info-row"><span>订单来源</span><strong>${escapeHtml(order.source || "微信小程序")}</strong></div>
-              <div class="info-row"><span>订单金额</span><strong>${escapeHtml(order.amount)}</strong></div>
-            </div>
-            <div class="order-info-foot">
-              <span>黄小西将结合该订单继续答复</span>
-              <strong>${escapeHtml(order.amount)}</strong>
-            </div>
-            <div class="wide-actions">
-              <button class="primary-btn" data-open-orders>换个订单</button>
-              <button class="ghost-btn" data-open-help>联系人工</button>
-            </div>
-          </div>
-        </div>
-      `);
+      const renderOrderCard = (footerText) => {
+        chatList.insertAdjacentHTML("beforeend", userOrderMessageHtml(order, formatClock(), { footerText }));
+        iconRefresh();
+      };
+
+      if (serviceState.humanActive && serviceState.currentAgent?.id) {
+        syncOrderToHuman(order).then(() => {
+          renderOrderCard("已同步给人工客服");
+          scrollChatBottom();
+        }).catch((error) => {
+          showToast(error.message || "订单同步失败，请稍后重试");
+        });
+        return;
+      }
+
+      renderOrderCard("黄小西将结合该订单继续答复");
+      appendAi(`<div class="bubble">已收到订单信息。我会基于订单状态继续答复，如需进一步处理可点击“帮助”转人工。</div>`);
       scrollChatBottom();
       if (serviceState.pendingAfterOrder === "售后服务") {
         serviceState.pendingAfterOrder = "";
-        window.setTimeout(() => startHumanTransfer("售后服务", false), 360);
+        window.setTimeout(() => startHumanTransfer("售后服务", false, { skipInitialOrderSelection: true }), 360);
       }
     }
 
@@ -4828,6 +4881,26 @@
     function orderTransferText(order) {
       if (!order) return "";
       return `【订单】${order.title} 单号:${order.id} 商家:${order.merchant || "平台自营"} 日期:${order.date} 数量:${order.quantity || 1} 金额:${order.amount} 状态:${order.status} 来源:${order.source || "微信小程序"}`;
+    }
+
+    function syncOrderToHuman(order) {
+      if (!order || !serviceState.humanActive || !serviceState.currentAgent?.id) return Promise.resolve(false);
+      const content = orderTransferText(order);
+      const optimisticKey = `${currentUser.visitorId}|1|${content}`;
+      serviceState.optimisticMessageKeys.add(optimisticKey);
+      return api.sendHumanMessage({
+        version: 1,
+        command: 3000,
+        content,
+        type: 1,
+        toUserId: serviceState.currentAgent.id
+      }).then(() => {
+        startAgentReplyWatcher();
+        return true;
+      }).catch((error) => {
+        serviceState.optimisticMessageKeys.delete(optimisticKey);
+        throw error;
+      });
     }
 
     function queueCardHtml(type, state = {}) {
@@ -4947,12 +5020,14 @@
         api.sendHumanMessage({
           version: 1,
           command: 3000,
-          content: "【售前咨询提示】此访客为售前咨询，暂无关联订单，请注意引导沟通。",
+          content: lastSelectedOrder
+            ? "【售前咨询提示】此访客为售前咨询，已补充订单信息，请结合订单和当前问题继续沟通。"
+            : "【售前咨询提示】此访客为售前咨询，暂无关联订单，请注意引导沟通。",
           type: 99,
           toUserId: serviceState.currentAgent.id
         });
       }
-      if (type === "售后服务" && lastSelectedOrder) {
+      if (lastSelectedOrder) {
         api.sendHumanMessage({
           version: 1,
           command: 3000,
@@ -4971,6 +5046,7 @@
     function handleQueueExpired() {
       serviceState.queued = false;
       serviceState.serviceType = "";
+      serviceState.pendingAfterOrder = "";
       updateSessionControls();
       clearQueuePresentation();
       kefuSocket.close(true);
@@ -5087,6 +5163,7 @@
       serviceState.conversationId = conversationId || serviceState.conversationId || 10001;
       serviceState.humanActive = false;
       serviceState.queued = false;
+      serviceState.pendingAfterOrder = "";
       updateSessionControls();
       serviceState.serviceType = "";
       serviceState.currentAgent = null;
@@ -5100,7 +5177,9 @@
       renderRatingStars();
     }
 
-    function startHumanTransfer(type, appendServiceType = true) {
+    function startHumanTransfer(type, appendServiceType = true, options = {}) {
+      const skipInitialOrderSelection = Boolean(options.skipInitialOrderSelection);
+      if (type !== "售后服务") serviceState.pendingAfterOrder = "";
       helpModal.classList.remove("show");
       helpModal.setAttribute("aria-hidden", "true");
       setScreen("entry");
@@ -5126,7 +5205,7 @@
         scrollChatBottom();
         return;
       }
-      if (type === "售后服务" && !lastSelectedOrder) {
+      if (type === "售后服务" && !skipInitialOrderSelection) {
         serviceState.pendingAfterOrder = "售后服务";
         if (appendServiceType) appendUser(type);
         appendAi(`<div class="bubble">售后服务需要先选择一笔咨询订单，我会把订单编号、状态和问题一起同步给人工客服。</div>`);
@@ -5213,6 +5292,7 @@
         }
         serviceState.queued = false;
         serviceState.serviceType = "";
+        serviceState.pendingAfterOrder = "";
         updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
@@ -5531,18 +5611,7 @@
       }
 
       if (event.target.closest("[data-board-upload]")) {
-        fileInput.value = "";
-        fileInput.click();
-      }
-
-      if (event.target.closest("[data-photo-upload]")) {
-        photoInput.value = "";
-        photoInput.click();
-      }
-
-      if (event.target.closest("[data-file-upload]")) {
-        fileInput.value = "";
-        fileInput.click();
+        openNativeFilePicker(fileInput);
       }
 
       if (event.target.closest("[data-close-help]") || event.target === helpModal) {
@@ -5636,6 +5705,13 @@
         sendCurrentInput();
       }
     });
+
+    const preventGestureZoom = (event) => {
+      event.preventDefault();
+    };
+
+    document.addEventListener("gesturestart", preventGestureZoom, { passive: false });
+    document.addEventListener("gesturechange", preventGestureZoom, { passive: false });
 
     window.addEventListener("load", () => {
       updateTopUserInfo();
