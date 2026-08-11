@@ -514,10 +514,10 @@
     }
 
     .screen.chat-expanded .ask-panel {
-      margin: 4px -4px 0;
-      padding: 8px 10px;
+      margin: 4px 0 0;
+      padding: 8px 8px 10px;
       border-radius: 22px;
-      overflow: hidden;
+      overflow: visible;
     }
 
     .screen.chat-expanded .ask-panel .section-title {
@@ -525,20 +525,25 @@
     }
 
     .screen.chat-expanded .scenario-grid {
-      gap: 8px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
       margin: 0;
-      padding: 0 14px 2px 0;
+      padding: 0;
+      overflow: visible;
       scroll-padding-left: 0;
-      scroll-padding-right: 14px;
+      scroll-padding-right: 0;
+      touch-action: pan-y;
     }
 
     .screen.chat-expanded .scenario-card {
-      flex: 0 0 auto;
+      min-width: 0;
       min-height: 38px;
       border-radius: 999px;
-      padding: 0 12px 0 8px;
+      padding: 0 6px 0 5px;
       flex-direction: row;
-      gap: 6px;
+      justify-content: center;
+      gap: 4px;
     }
 
     .screen.chat-expanded .scenario-card::before,
@@ -547,26 +552,29 @@
     }
 
     .screen.chat-expanded .scenario-icon {
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.38), 0 8px 14px rgba(72, 82, 228, .16);
     }
 
     .screen.chat-expanded .scenario-icon svg {
-      width: 14px;
-      height: 14px;
+      width: 13px;
+      height: 13px;
     }
 
     .screen.chat-expanded .scenario-card > span:last-child {
-      width: auto;
+      min-width: 0;
       display: block;
+      overflow: hidden;
     }
 
     .screen.chat-expanded .scenario-card strong {
       min-height: 0;
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1;
+      white-space: nowrap;
+      overflow: hidden;
     }
 
     .screen.chat-expanded .history-wrap {
@@ -4036,8 +4044,20 @@
       });
     }
 
+    function setChatScrollTop(top) {
+      if (!chatList) return;
+      const nextTop = Math.max(0, Number(top) || 0);
+      const previousBehavior = chatList.style.scrollBehavior;
+      chatList.style.scrollBehavior = "auto";
+      chatList.scrollTop = nextTop;
+      window.requestAnimationFrame(() => {
+        chatList.scrollTop = nextTop;
+        chatList.style.scrollBehavior = previousBehavior;
+      });
+    }
+
     function scrollChatBottom(options = {}) {
-      chatList.scrollTop = chatList.scrollHeight;
+      setChatScrollTop(chatList.scrollHeight);
     }
 
     function activateChatReadingMode() {
@@ -4048,22 +4068,36 @@
       entryScreen?.classList.remove("chat-expanded");
     }
 
-    function updateTopMenuByChatScroll() {
+    function updateTopMenuByChatScroll(currentTop = chatList.scrollTop, previousTop = currentTop) {
       if (!entryScreen || !entryScreen.classList.contains("active")) return;
-      if (chatList.scrollTop <= 8 && !chatState.historyLoading) {
+      const movingTowardTop = currentTop < previousTop;
+      if (currentTop > 0) {
+        activateChatReadingMode();
+        return;
+      }
+      if (currentTop <= 2 && movingTowardTop && !chatState.historyLoading) {
         expandTopMenu();
         return;
       }
-      if (chatList.scrollTop > 40) activateChatReadingMode();
     }
 
     function focusChatMessage(messageNode) {
       if (!messageNode) return;
       window.requestAnimationFrame(() => {
-        chatList.scrollTo({
-          top: Math.max(0, messageNode.offsetTop - chatList.offsetTop - 12),
-          behavior: "smooth"
-        });
+        const chatRect = chatList.getBoundingClientRect();
+        const messageRect = messageNode.getBoundingClientRect();
+        const currentTop = chatList.scrollTop;
+        const offsetTop = messageRect.top - chatRect.top;
+        const offsetBottom = messageRect.bottom - chatRect.bottom;
+
+        if (offsetTop < 12) {
+          setChatScrollTop(currentTop + offsetTop - 12);
+          return;
+        }
+
+        if (offsetBottom > -12) {
+          setChatScrollTop(currentTop + offsetBottom + 12);
+        }
       });
     }
 
@@ -4252,6 +4286,7 @@
       const source = options.source || "inline";
       chatState.orderGuidanceActive = true;
       setScreen("entry");
+      activateChatReadingMode();
       closeEmojiPanel();
       closeUploadModal();
       if (source === "entry") appendUser("订单咨询");
@@ -4262,6 +4297,7 @@
 
     function clarifyIntent(type) {
       setScreen("entry");
+      activateChatReadingMode();
       if (type === "points") {
         chatState.orderGuidanceActive = false;
         appendUser("积分规则");
@@ -5741,12 +5777,13 @@
     let lastChatScrollTop = 0;
 
     function shouldLoadHistoryFromChat() {
-      updateTopMenuByChatScroll();
+      const currentTop = chatList.scrollTop;
+      const previousTop = lastChatScrollTop;
+      const isMovingTowardTop = currentTop < lastChatScrollTop;
+      updateTopMenuByChatScroll(currentTop, previousTop);
+      lastChatScrollTop = currentTop;
       if (!chatState.historyActivated) return;
       if (chatState.historyLoadedCount >= mockHistoryMessages.length) return;
-      const currentTop = chatList.scrollTop;
-      const isMovingTowardTop = currentTop < lastChatScrollTop;
-      lastChatScrollTop = currentTop;
       if (currentTop <= 24 && isMovingTowardTop) loadOlderHistoryMessages();
     }
 
