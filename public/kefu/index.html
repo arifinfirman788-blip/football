@@ -278,7 +278,6 @@
       overscroll-behavior-y: contain;
       overscroll-behavior-x: none;
       scrollbar-width: none;
-      touch-action: pan-y;
       opacity: 0;
       transform: translateX(16px);
       pointer-events: none;
@@ -298,7 +297,6 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      touch-action: pan-y;
     }
 
     .bottom-bar {
@@ -519,6 +517,7 @@
       margin: 4px -4px 0;
       padding: 8px 10px;
       border-radius: 22px;
+      overflow: hidden;
     }
 
     .screen.chat-expanded .ask-panel .section-title {
@@ -527,8 +526,10 @@
 
     .screen.chat-expanded .scenario-grid {
       gap: 8px;
-      margin-right: -10px;
-      padding-right: 10px;
+      margin: 0;
+      padding: 0 14px 2px 0;
+      scroll-padding-left: 0;
+      scroll-padding-right: 14px;
     }
 
     .screen.chat-expanded .scenario-card {
@@ -737,9 +738,11 @@
       margin: 0 -14px 0 0;
       padding: 2px 14px 0 0;
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       overscroll-behavior-x: contain;
       scroll-snap-type: x mandatory;
       scrollbar-width: none;
+      touch-action: pan-x;
     }
 
     .scenario-grid::-webkit-scrollbar { display: none; }
@@ -2575,7 +2578,7 @@
               <div class="title-left"><span class="bar"></span><b>您可以这样问</b></div>
             </div>
             <div class="scenario-grid">
-              <button class="scenario-card" data-open-orders>
+              <button class="scenario-card" data-open-orders data-order-consult="entry">
                 <span class="scenario-icon"><i data-lucide="ticket-check"></i></span>
                 <span><strong>订单咨询</strong><small>选择订单</small></span>
               </button>
@@ -2840,6 +2843,7 @@
       conversations: [],
       orders: [],
       orderFilter: "全部",
+      orderGuidanceActive: false,
       historyTotal: 0,
       historyLoadedCount: 0,
       historyBatchSize: 5,
@@ -4180,9 +4184,86 @@
       `;
     }
 
+    function orderServiceGuideCardHtml(options = {}) {
+      const selectedOrder = Boolean(options.selectedOrder && lastSelectedOrder);
+      return `
+        <div class="queue-card">
+          <div class="queue-top">
+            <span>${selectedOrder ? "当前订单已带入会话" : "订单问题建议先选订单"}</span>
+            <span class="tag orange">更高效</span>
+          </div>
+          <div class="handoff-list">
+            <div class="handoff"><i data-lucide="ticket-check"></i><span>${selectedOrder ? "转人工时会自动带入订单编号、使用日期和当前状态。" : "先选择要咨询的订单，我会同步订单编号、使用日期和当前状态。"}</span></div>
+            <div class="handoff"><i data-lucide="headphones"></i><span>${selectedOrder ? "下单前规则、使用前说明可选售前咨询；退款、改期、核销异常等处理问题可选售后咨询。" : "核销、退款、改期、出票异常等订单问题，由人工客服结合订单状态处理会更专业。"}</span></div>
+          </div>
+          <div class="service-actions">
+            ${selectedOrder
+              ? `
+                <button class="ghost-btn" type="button" data-transfer-type="售前咨询"><i data-lucide="message-square-text"></i>售前咨询</button>
+                <button class="primary-btn" type="button" data-transfer-type="售后服务"><i data-lucide="headphones"></i>售后咨询</button>
+              `
+              : `
+                <button class="ghost-btn" type="button" data-open-orders><i data-lucide="ticket-check"></i>选择订单</button>
+                <button class="primary-btn" type="button" data-transfer-type="售后服务"><i data-lucide="headphones"></i>转人工处理</button>
+              `}
+          </div>
+        </div>
+      `;
+    }
+
+    function orderConsultationIntroHtml() {
+      return `
+        <div class="bubble">抱歉，这类订单问题需要结合具体订单为您进一步核实。您可以先选择对应订单，我会带上订单信息，并协助您转人工客服继续处理。</div>
+        ${orderServiceGuideCardHtml()}
+      `;
+    }
+
+    function orderSelectionFollowupHtml() {
+      return `
+        <div class="bubble">已收到这笔订单。您可以直接按问题类型选择咨询入口，转人工时我会自动带入当前订单信息。</div>
+        ${orderServiceGuideCardHtml({ selectedOrder: true })}
+      `;
+    }
+
+    function orderFollowupHumanHtml() {
+      const orderSummary = lastSelectedOrder
+        ? `您当前咨询的订单是“${escapeHtml(lastSelectedOrder.title)}”。`
+        : "";
+      return `
+        <div class="bubble">${orderSummary}抱歉，这类订单问题更适合由人工客服结合订单详情为您进一步处理，我已把对应咨询入口放在下方。</div>
+        ${orderServiceGuideCardHtml({ selectedOrder: Boolean(lastSelectedOrder) })}
+      `;
+    }
+
+    function orderHumanDeclineGuideHtml() {
+      if (lastSelectedOrder) {
+        return `
+          <div class="bubble">抱歉，这类订单问题仅凭当前问答还无法给您准确结论，建议由人工客服结合这笔订单继续为您处理。您可以直接选择售前咨询或售后咨询，我会自动带入当前订单信息。</div>
+          ${orderServiceGuideCardHtml({ selectedOrder: true })}
+        `;
+      }
+      return `
+        <div class="bubble">抱歉，这类订单问题仅凭当前描述我还不能直接判断，还是需要结合具体订单为您核实。您可以先选择对应订单，我会整理好订单信息，并继续协助您转人工客服处理。</div>
+        ${orderServiceGuideCardHtml()}
+      `;
+    }
+
+    function startOrderConsultationFlow(options = {}) {
+      const source = options.source || "inline";
+      chatState.orderGuidanceActive = true;
+      setScreen("entry");
+      closeEmojiPanel();
+      closeUploadModal();
+      if (source === "entry") appendUser("订单咨询");
+      appendAi(orderConsultationIntroHtml());
+      scrollChatBottom();
+      window.setTimeout(() => openOrders(), 120);
+    }
+
     function clarifyIntent(type) {
       setScreen("entry");
       if (type === "points") {
+        chatState.orderGuidanceActive = false;
         appendUser("积分规则");
         const aiNode = appendAi(`
           <div class="bubble">您可以直接点选下面的问题，我会按贵客荟现有规则为您说明。</div>
@@ -4198,6 +4279,7 @@
       }
 
       if (type === "product") {
+        chatState.orderGuidanceActive = false;
         appendUser("产品咨询");
         const aiNode = appendAi(`
           <div class="bubble">您想了解哪类服务或商品规则？我可以先帮您说明贵客荟服务范围，以及常见文旅商品是否产生积分。</div>
@@ -4217,36 +4299,30 @@
       const raw = String(text || "").trim();
       const question = raw.toLowerCase();
       const has = (...keys) => keys.some((key) => question.includes(key));
-      const orderText = lastSelectedOrder
-        ? `您当前选中的订单是“${lastSelectedOrder.title}”，订单状态为${lastSelectedOrder.status}，使用日期为${lastSelectedOrder.date}，数量${lastSelectedOrder.quantity || 1}份。`
-        : "如果要确认具体订单，请点击下方“订单”选择要咨询的订单。";
+      const orderFlowKeywords = ["订单", "核销", "退款", "退票", "售后", "发票", "投诉", "异常", "改期", "改签", "出票", "取消", "二维码"];
+      const orderFollowupKeywords = ["怎么", "如何", "为什么", "能否", "可以", "是否", "无法", "不能", "没有", "没收到", "帮我", "帮忙", "处理", "使用", "预约", "入园"];
+      const nonOrderDomains = ["积分", "成长值", "会员分", "商品", "产品", "景区", "酒店", "民宿", "线路", "套餐", "文创", "特产", "活动"];
+      const declineHumanKeywords = ["不要人工", "不用人工", "不转人工", "不需要人工", "别转人工", "先不转人工", "不要客服", "不用客服", "不找人工", "别找人工", "不用转接", "不需要转人工", "我就要你回答", "你直接回答", "直接回答我", "你回答", "先回答我", "我不要人工", "我不要客服"];
+      const orderGuidanceContextActive = Boolean(lastSelectedOrder || chatState.orderGuidanceActive);
+      const shouldEscalateOrderFollowup = (lastSelectedOrder || chatState.orderGuidanceActive)
+        && !has(...nonOrderDomains)
+        && (has(...orderFlowKeywords) || has(...orderFollowupKeywords));
+
+      if (orderGuidanceContextActive && has(...declineHumanKeywords)) {
+        return { html: orderHumanDeclineGuideHtml(), localOnly: true };
+      }
 
       if (has("转人工", "人工", "客服", "真人")) {
         return { action: "human", type: has("售后", "退款", "退票") ? "售后服务" : "售前咨询" };
       }
 
-      if (has("订单", "核销", "二维码", "使用", "预约", "入园")) {
-        return {
-          html: `
-            <div class="bubble">${orderText}<br>订单类问题我会优先根据订单状态、使用日期和文旅产品规则答复；如果涉及核销异常或退款处理，可以继续转人工。</div>
-            <div class="action-row">
-              <button class="primary-btn" data-open-orders><i data-lucide="ticket-check"></i>选择订单</button>
-              <button class="ghost-btn" data-open-help><i data-lucide="headphones"></i>联系人工</button>
-            </div>
-          `
-        };
+      if (shouldEscalateOrderFollowup) {
+        return { html: orderFollowupHumanHtml() };
       }
 
-      if (has("退款", "退票", "售后", "投诉", "发票", "异常")) {
-        return {
-          html: `
-            <div class="bubble">这类问题通常需要结合订单状态和平台规则处理。您可以先选择订单，我会整理问题摘要；如果需要人工介入，我会把订单编号和当前问题一起带给客服。</div>
-            <div class="action-row">
-              <button class="primary-btn" data-open-orders><i data-lucide="ticket-check"></i>选择订单</button>
-              <button class="ghost-btn" data-open-help><i data-lucide="headphones"></i>售后人工</button>
-            </div>
-          `
-        };
+      if (has(...orderFlowKeywords)) {
+        chatState.orderGuidanceActive = true;
+        return { html: orderConsultationIntroHtml() };
       }
 
       if (has("积分", "成长值", "会员分")) {
@@ -4283,7 +4359,7 @@
         html: `
           <div class="bubble">您可以继续补充订单、景区、线路、酒店民宿或文创特产信息；如果问题涉及具体订单，建议先点下方“订单”选择订单，我会结合订单数据继续答复。</div>
           <div class="prompt-list">
-            <button class="prompt-card" type="button" data-open-orders>
+            <button class="prompt-card" type="button" data-open-orders data-order-consult="inline">
               <i data-lucide="ticket-check"></i>
               <span class="prompt-copy">
                 <span class="prompt-category">订单服务</span>
@@ -4337,7 +4413,7 @@
       scrollChatBottom();
 
       const localResult = builtinAgent(question);
-      if (localResult.action === "human") {
+      if (localResult.action === "human" || localResult.localOnly) {
         renderAgentResult(localResult);
         return;
       }
@@ -4847,6 +4923,7 @@
 
     function sendOrder(order) {
       lastSelectedOrder = order;
+      chatState.orderGuidanceActive = true;
       closeOrders({ preservePendingAfterOrder: true });
       setScreen("entry");
       const renderOrderCard = (footerText) => {
@@ -4865,7 +4942,7 @@
       }
 
       renderOrderCard("黄小西将结合该订单继续答复");
-      appendAi(`<div class="bubble">已收到订单信息。我会基于订单状态继续答复，如需进一步处理可点击“帮助”转人工。</div>`);
+      appendAi(orderSelectionFollowupHtml());
       scrollChatBottom();
       if (serviceState.pendingAfterOrder === "售后服务") {
         serviceState.pendingAfterOrder = "";
@@ -5205,7 +5282,7 @@
         scrollChatBottom();
         return;
       }
-      if (type === "售后服务" && !skipInitialOrderSelection) {
+      if (type === "售后服务" && !lastSelectedOrder && !skipInitialOrderSelection) {
         serviceState.pendingAfterOrder = "售后服务";
         if (appendServiceType) appendUser(type);
         appendAi(`<div class="bubble">售后服务需要先选择一笔咨询订单，我会把订单编号、状态和问题一起同步给人工客服。</div>`);
@@ -5562,6 +5639,12 @@
 
       if (event.target.closest("[data-open-board]")) {
         openMessageBoard(serviceState.serviceType);
+      }
+
+      const orderConsultTarget = event.target.closest("[data-order-consult]");
+      if (orderConsultTarget) {
+        startOrderConsultationFlow({ source: orderConsultTarget.dataset.orderConsult || "inline" });
+        return;
       }
 
       const helpCard = event.target.closest("[data-help]");
