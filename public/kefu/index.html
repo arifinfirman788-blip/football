@@ -2586,7 +2586,7 @@
               <div class="title-left"><span class="bar"></span><b>您可以这样问</b></div>
             </div>
             <div class="scenario-grid">
-              <button class="scenario-card" data-open-orders data-order-consult="entry">
+              <button class="scenario-card" data-order-consult="entry">
                 <span class="scenario-icon"><i data-lucide="ticket-check"></i></span>
                 <span><strong>订单咨询</strong><small>选择订单</small></span>
               </button>
@@ -2648,7 +2648,7 @@
 
         <footer class="bottom-bar">
           <div class="chat-tools">
-            <button class="tool-pill" type="button" data-open-orders><i data-lucide="ticket-check"></i>订单</button>
+            <button class="tool-pill" type="button" data-order-consult="entry"><i data-lucide="ticket-check"></i>订单</button>
             <button class="tool-pill" type="button" data-open-help><i data-lucide="headphones"></i>帮助</button>
             <button class="tool-pill session-order-tool" id="persistentOrderAction" type="button" data-open-orders aria-hidden="true"><i data-lucide="package-plus"></i>补充订单</button>
             <button class="tool-pill session-end-tool" id="persistentEndSession" type="button" data-end-session aria-hidden="true"><i data-lucide="log-out"></i>结束会话</button>
@@ -2885,11 +2885,11 @@
     };
 
     const kefuConfig = {
-      baseUrl: "http://8.154.20.148:8888/stage-api",
-      wsUrl: "ws://8.154.20.148:8888/kefu/ws",
+      baseUrl: "https://customers.lelv.cn/prod-api",
+      wsUrl: "wss://customers.lelv.cn/kefu/ws",
       workStart: 9,
       workEnd: 18,
-      surveyUrl: "http://8.154.20.148:8888/survey-fill",
+      surveyUrl: "https://customers.lelv.cn/survey-fill",
       postSessionTimeoutMs: 15 * 60 * 1000
     };
 
@@ -4278,16 +4278,12 @@
     }
 
     function startOrderConsultationFlow(options = {}) {
-      const source = options.source || "inline";
       chatState.orderGuidanceActive = true;
       setScreen("entry");
       activateChatReadingMode();
       closeEmojiPanel();
       closeUploadModal();
-      if (source === "entry") appendUser("订单咨询");
-      appendAi(orderConsultationIntroHtml());
-      scrollChatBottom();
-      window.setTimeout(() => openOrders(), 120);
+      openOrders();
     }
 
     function clarifyIntent(type) {
@@ -4330,8 +4326,8 @@
       const raw = String(text || "").trim();
       const question = raw.toLowerCase();
       const has = (...keys) => keys.some((key) => question.includes(key));
-      const orderFlowKeywords = ["订单", "核销", "退款", "退票", "售后", "发票", "投诉", "异常", "改期", "改签", "出票", "取消", "二维码"];
-      const orderFollowupKeywords = ["怎么", "如何", "为什么", "能否", "可以", "是否", "无法", "不能", "没有", "没收到", "帮我", "帮忙", "处理", "使用", "预约", "入园"];
+      const orderFlowKeywords = ["订单", "核销", "退款", "退票", "售后", "发票", "投诉", "异常", "改期", "改签", "出票", "取消", "二维码", "凭证", "退款到账", "退改", "订单状态", "订单详情"];
+      const orderFollowupKeywords = ["怎么", "如何", "为什么", "能否", "可以", "是否", "无法", "不能", "没有", "没收到", "帮我", "帮忙", "处理", "使用", "预约", "入园", "多久", "何时", "什么时候", "查询", "查一下", "查下", "核实", "联系", "到账", "找回", "失败"];
       const nonOrderDomains = ["积分", "成长值", "会员分", "商品", "产品", "景区", "酒店", "民宿", "线路", "套餐", "文创", "特产", "活动"];
       const declineHumanKeywords = ["不要人工", "不用人工", "不转人工", "不需要人工", "别转人工", "先不转人工", "不要客服", "不用客服", "不找人工", "别找人工", "不用转接", "不需要转人工", "我就要你回答", "你直接回答", "直接回答我", "你回答", "先回答我", "我不要人工", "我不要客服"];
       const orderGuidanceContextActive = Boolean(lastSelectedOrder || chatState.orderGuidanceActive);
@@ -4348,12 +4344,13 @@
       }
 
       if (shouldEscalateOrderFollowup) {
-        return { html: orderFollowupHumanHtml() };
+        chatState.orderGuidanceActive = true;
+        return { html: orderFollowupHumanHtml(), localOnly: true };
       }
 
       if (has(...orderFlowKeywords)) {
         chatState.orderGuidanceActive = true;
-        return { html: orderConsultationIntroHtml() };
+        return { html: orderConsultationIntroHtml(), localOnly: true };
       }
 
       if (has("积分", "成长值", "会员分")) {
@@ -4390,7 +4387,7 @@
         html: `
           <div class="bubble">您可以继续补充订单、景区、线路、酒店民宿或文创特产信息；如果问题涉及具体订单，建议先点下方“订单”选择订单，我会结合订单数据继续答复。</div>
           <div class="prompt-list">
-            <button class="prompt-card" type="button" data-open-orders data-order-consult="inline">
+            <button class="prompt-card" type="button" data-order-consult="inline">
               <i data-lucide="ticket-check"></i>
               <span class="prompt-copy">
                 <span class="prompt-category">订单服务</span>
