@@ -2648,7 +2648,6 @@
 
         <footer class="bottom-bar">
           <div class="chat-tools">
-            <button class="tool-pill" type="button" data-order-consult="entry"><i data-lucide="ticket-check"></i>订单</button>
             <button class="tool-pill" type="button" data-open-help><i data-lucide="headphones"></i>帮助</button>
             <button class="tool-pill session-order-tool" id="persistentOrderAction" type="button" data-open-orders aria-hidden="true"><i data-lucide="package-plus"></i>补充订单</button>
             <button class="tool-pill session-end-tool" id="persistentEndSession" type="button" data-end-session aria-hidden="true"><i data-lucide="log-out"></i>结束会话</button>
@@ -2852,12 +2851,16 @@
       orders: [],
       orderFilter: "全部",
       orderGuidanceActive: false,
+      historySource: "ai",
       historyTotal: 0,
       historyLoadedCount: 0,
       historyBatchSize: 5,
       historyActivated: false,
       historyLoading: false,
-      historyArmedAt: 0
+      historyArmedAt: 0,
+      humanHistoryCurrentConversation: null,
+      humanHistoryCursor: 0,
+      humanHistoryPendingConversations: []
     };
 
     const serviceState = {
@@ -2881,7 +2884,8 @@
       postSessionTimers: [],
       sessionEndedAt: 0,
       seenMessageIds: new Set(),
-      optimisticMessageKeys: new Set()
+      optimisticMessageKeys: new Set(),
+      pendingHumanUploads: []
     };
 
     const kefuConfig = {
@@ -3834,57 +3838,70 @@
       iconRefresh();
     }
 
-    function humanAgentMessageHtml(text, time = formatClock()) {
-      const agent = serviceState.currentAgent || { nickname: "人工客服" };
+    function humanAgentBubbleHtml(innerHtml, time = formatClock(), agentOverride = serviceState.currentAgent) {
+      const agent = agentOverride || { nickname: "人工客服" };
+      const avatar = agent.avatar || "assets/huangxiaoxi-3d-upperbody.png";
       return `
         <div class="message ai">
-          <div class="msg-avatar"><img src="assets/huangxiaoxi-3d-upperbody.png" alt="人工客服"></div>
+          <div class="msg-avatar"><img src="${escapeHtml(avatar)}" alt="${escapeHtml(formatAgentDisplay(agent))}"></div>
           <div class="msg-body">
             <div class="msg-meta"><span>${escapeHtml(formatAgentDisplay(agent))}</span><span>${time}</span></div>
-            <div class="bubble">${escapeHtml(text)}</div>
+            ${innerHtml}
           </div>
         </div>
       `;
     }
 
-    function appendHumanAgentMessage(text, time = formatClock()) {
+    function humanAgentMessageHtml(text, time = formatClock(), agentOverride = serviceState.currentAgent) {
+      return humanAgentBubbleHtml(`<div class="bubble">${escapeHtml(text)}</div>`, time, agentOverride);
+    }
+
+    function humanAgentImageMessageHtml(url, time = formatClock(), agentOverride = serviceState.currentAgent) {
+      return humanAgentBubbleHtml(`<div class="bubble"><img class="chat-image" src="${escapeHtml(url)}" alt="客服发送的图片"></div>`, time, agentOverride);
+    }
+
+    function appendHumanAgentMessage(text, time = formatClock(), agentOverride = serviceState.currentAgent) {
       clearAgentReplyWatcher();
-      chatList.insertAdjacentHTML("beforeend", humanAgentMessageHtml(text, time));
+      chatList.insertAdjacentHTML("beforeend", humanAgentMessageHtml(text, time, agentOverride));
       const node = chatList.lastElementChild;
       iconRefresh();
       return node;
     }
 
-    function appendKefuHistoryMessage(message = {}) {
-      if (Number(message.type) === 99) return;
+    function kefuHistoryMessageHtml(message = {}) {
+      if (Number(message.type) === 99) return "";
       const time = message.createTime ? formatClock(new Date(message.createTime)) : formatClock();
       const fromVisitor = String(message.fromUserId) === String(currentUser.visitorId);
       if (Number(message.type) === 3) {
-        appendSystem(message.content || "");
-        return;
+        return systemMessageHtml(message.content || "").replace('class="system-note"', 'class="system-note history-loaded"');
       }
       if (Number(message.type) === 2) {
-        if (fromVisitor) {
-          chatList.insertAdjacentHTML("beforeend", userImageMessageHtml(message.content, time));
-        } else {
-          appendAi(`<div class="bubble"><img class="chat-image" src="${escapeHtml(message.content)}" alt="客服发送的图片"></div>`);
-        }
-        return;
+        const html = fromVisitor
+          ? userImageMessageHtml(message.content, time)
+          : humanAgentImageMessageHtml(message.content, time, {
+            id: message.fromUserId,
+            nickname: message.fromUserNickName || "人工客服",
+            avatar: message.fromUserAvatar || ""
+          });
+        return html.replace('class="message ', 'class="message history-loaded ');
       }
       if (fromVisitor) {
         const order = parseOrderTransferText(message.content);
-        chatList.insertAdjacentHTML("beforeend", order ? userOrderMessageHtml(order, time) : userMessageHtml(message.content || "", time));
-      } else {
-        const oldAgent = serviceState.currentAgent;
-        serviceState.currentAgent = {
-          ...(oldAgent || {}),
-          id: message.fromUserId || oldAgent?.id,
-          nickname: message.fromUserNickName || oldAgent?.nickname || "人工客服",
-          avatar: message.fromUserAvatar || oldAgent?.avatar || ""
-        };
-        appendHumanAgentMessage(message.content || "", time);
-        serviceState.currentAgent = oldAgent;
+        const html = order ? userOrderMessageHtml(order, time) : userMessageHtml(message.content || "", time);
+        return html.replace('class="message ', 'class="message history-loaded ');
       }
+      return humanAgentMessageHtml(message.content || "", time, {
+        id: message.fromUserId,
+        nickname: message.fromUserNickName || "人工客服",
+        avatar: message.fromUserAvatar || ""
+      }).replace('class="message ', 'class="message history-loaded ');
+    }
+
+    function appendKefuHistoryMessage(message = {}) {
+      if (trackSeenKefuMessage(message.id)) return;
+      const html = kefuHistoryMessageHtml(message).replaceAll(" history-loaded", "");
+      if (!html) return;
+      chatList.insertAdjacentHTML("beforeend", html);
     }
 
     function userImageMessageHtml(url, time = formatClock()) {
@@ -4144,7 +4161,117 @@
       input.click();
     }
 
-    function handleAttachmentSelected(file, type) {
+    function resetAttachmentInputs() {
+      if (photoInput) photoInput.value = "";
+      if (fileInput) fileInput.value = "";
+    }
+
+    function uploadImageName(name = "chat-image") {
+      const baseName = String(name || "chat-image").replace(/\.[^.]+$/, "").trim() || "chat-image";
+      return `${baseName}.jpg`;
+    }
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(image);
+        };
+        image.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("图片读取失败"));
+        };
+        image.src = objectUrl;
+      });
+    }
+
+    async function optimizeUploadImage(file) {
+      if (!file?.type?.startsWith("image/") || file.type === "image/gif") return file;
+      const image = await loadImageFromFile(file);
+      const width = image.naturalWidth || image.width || 0;
+      const height = image.naturalHeight || image.height || 0;
+      const maxEdge = Math.max(width, height);
+      if (!maxEdge) return file;
+      if (maxEdge <= 800 && file.size <= 1.2 * 1024 * 1024) return file;
+
+      const scale = Math.min(1, 800 / maxEdge);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) return file;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (result) {
+            resolve(result);
+            return;
+          }
+          reject(new Error("图片压缩失败"));
+        }, "image/jpeg", 0.7);
+      });
+
+      if (!(blob instanceof Blob)) return file;
+      if (blob.size >= file.size && maxEdge <= 800) return file;
+      return new File([blob], uploadImageName(file.name), {
+        type: "image/jpeg",
+        lastModified: Date.now()
+      });
+    }
+
+    function queuePendingHumanUpload(file) {
+      serviceState.pendingHumanUploads.push(file);
+      appendSystem(`已为您保存图片“${file.name}”，客服接入后会自动同步。`);
+      scrollChatBottom();
+    }
+
+    function sendHumanImageFile(file) {
+      if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
+        return Promise.reject(new Error("当前未接入人工客服"));
+      }
+      return api.uploadChatImage(file).then((image) => {
+        const imageUrl = image?.url || image?.data?.url || "";
+        if (!imageUrl) throw new Error("图片上传成功但未返回可用地址");
+        const optimisticKey = `${currentUser.visitorId}|2|${imageUrl}`;
+        serviceState.optimisticMessageKeys.add(optimisticKey);
+        return api.sendHumanMessage({
+          version: 1,
+          command: 3000,
+          content: imageUrl,
+          type: 2,
+          toUserId: serviceState.currentAgent.id
+        }).then(() => {
+          chatList.insertAdjacentHTML("beforeend", userImageMessageHtml(imageUrl));
+          iconRefresh();
+          startAgentReplyWatcher();
+          scrollChatBottom();
+          return imageUrl;
+        }).catch((error) => {
+          serviceState.optimisticMessageKeys.delete(optimisticKey);
+          throw error;
+        });
+      });
+    }
+
+    async function flushPendingHumanUploads() {
+      if (!serviceState.humanActive || !serviceState.currentAgent?.id || !serviceState.pendingHumanUploads.length) return;
+      const pendingFiles = [...serviceState.pendingHumanUploads];
+      serviceState.pendingHumanUploads = [];
+      for (const file of pendingFiles) {
+        try {
+          await sendHumanImageFile(file);
+        } catch (error) {
+          console.warn("flush pending human image failed", error);
+          appendSystem(`图片“${file.name}”同步失败，请重新发送。`);
+        }
+      }
+    }
+
+    async function handleAttachmentSelected(file, type) {
+      resetAttachmentInputs();
       if (!file) return;
       closeUploadModal();
       closeEmojiPanel();
@@ -4156,31 +4283,33 @@
         showToast("图片不能超过 10MB");
         return;
       }
+      let uploadFile = file;
+      try {
+        uploadFile = await optimizeUploadImage(file);
+      } catch (error) {
+        console.warn("optimize upload image failed", error);
+      }
       if (messageBoardModal.classList.contains("show")) {
-        boardImageFile = file;
+        boardImageFile = uploadFile;
         boardImageHint.textContent = `已选择：${file.name}`;
         return;
       }
       if (serviceState.humanActive) {
-        api.uploadChatImage(file).then((image) => {
-          chatList.insertAdjacentHTML("beforeend", userImageMessageHtml(image.url));
-          serviceState.optimisticMessageKeys.add(`${currentUser.visitorId}|2|${image.url}`);
-          return api.sendHumanMessage({
-            version: 1,
-            command: 3000,
-            content: image.url,
-            type: 2,
-            toUserId: serviceState.currentAgent?.id
-          });
-        }).then(() => {
-          startAgentReplyWatcher();
-          scrollChatBottom();
-        });
+        try {
+          await sendHumanImageFile(uploadFile);
+        } catch (error) {
+          console.warn("send human image failed", error);
+          showToast(error.message || "图片发送失败，请稍后重试");
+        }
+        return;
+      }
+      if (serviceState.queued) {
+        queuePendingHumanUpload(uploadFile);
         return;
       }
       const label = type === "photo" ? "拍照上传" : "图片上传";
       appendUser(`${label}：${file.name}`);
-      appendAi(`<div class="bubble">已收到图片“${escapeHtml(file.name)}”。如需人工客服处理，我会按文档先上传图片并发送图片 URL。</div>`);
+      appendAi(`<div class="bubble">当前图片仅支持人工客服会话和留言上传。如需带图处理问题，可先发起转人工，或在留言中补充图片。</div>`);
       scrollChatBottom();
     }
 
@@ -4480,7 +4609,35 @@
       submitQuestion(text, "scene_card");
     }
 
+    function hasMoreHumanHistory() {
+      return Boolean(chatState.humanHistoryCursor > 0 || chatState.humanHistoryPendingConversations.length);
+    }
+
+    function isHumanHistorySource() {
+      return chatState.historySource === "human";
+    }
+
+    function isHistoryFullyLoaded() {
+      return isHumanHistorySource()
+        ? !hasMoreHumanHistory()
+        : chatState.historyLoadedCount >= mockHistoryMessages.length;
+    }
+
     function updateHistoryToggleText() {
+      if (isHumanHistorySource()) {
+        if (!serviceState.conversationId) {
+          historyToggleText.textContent = "暂无历史消息";
+          return;
+        }
+        if (!hasMoreHumanHistory()) {
+          historyToggleText.textContent = chatState.historyActivated ? "已加载全部历史消息" : "当前会话已是最早消息";
+          return;
+        }
+        historyToggleText.textContent = chatState.historyActivated
+          ? "上滑加载更早消息"
+          : "上滑查看历史消息";
+        return;
+      }
       const total = chatState.historyTotal || mockHistoryMessages.length;
       const loaded = chatState.historyLoadedCount;
       if (!total) {
@@ -4558,6 +4715,10 @@
     }
 
     function setAiHistoryMessages(messages = []) {
+      chatState.historySource = "ai";
+      chatState.humanHistoryCurrentConversation = null;
+      chatState.humanHistoryCursor = 0;
+      chatState.humanHistoryPendingConversations = [];
       mockHistoryMessages = [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       chatState.historyTotal = mockHistoryMessages.length;
       chatState.historyLoadedCount = 0;
@@ -4578,6 +4739,52 @@
         ? userMessageHtml(message.text, message.time)
         : aiMessageHtml(`<div class="bubble">${formatPlainText(message.text)}</div>`, message.time);
       return html.replace('class="message ', 'class="message history-loaded ');
+    }
+
+    function getConversationSortTime(conversation = {}) {
+      return parseFlexibleDate(conversation.updateTime || conversation.createTime)?.getTime() || 0;
+    }
+
+    function normalizeKefuHistoryMessages(messages = []) {
+      return [...messages].filter(Boolean).sort((a, b) => {
+        const timeDiff = (parseFlexibleDate(a.createTime)?.getTime() || 0) - (parseFlexibleDate(b.createTime)?.getTime() || 0);
+        if (timeDiff) return timeDiff;
+        return (Number(a.id) || 0) - (Number(b.id) || 0);
+      });
+    }
+
+    function getOldestKefuMessageId(messages = []) {
+      const ids = messages
+        .map((message) => Number(message.id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+      return ids.length ? Math.min(...ids) : 0;
+    }
+
+    function setHumanHistoryContext(conversations = [], activeConversation = null, messages = []) {
+      if (!activeConversation?.id) return;
+      chatState.historySource = "human";
+      chatState.historyTotal = 0;
+      chatState.historyLoadedCount = 0;
+      chatState.historyLoading = false;
+      chatState.historyActivated = false;
+      chatState.humanHistoryCurrentConversation = activeConversation;
+      chatState.humanHistoryCursor = messages.length >= 300 ? getOldestKefuMessageId(messages) : 0;
+      chatState.humanHistoryPendingConversations = (conversations || [])
+        .filter((item) => item?.toUser?.id > 0 && item.id !== activeConversation.id)
+        .sort((a, b) => getConversationSortTime(b) - getConversationSortTime(a));
+      updateHistoryToggleText();
+    }
+
+    function kefuHistoryDateKey(message = {}) {
+      return localDateKey(parseFlexibleDate(message.createTime) || new Date());
+    }
+
+    function trackSeenKefuMessage(messageId) {
+      if (!messageId && messageId !== 0) return false;
+      const key = String(messageId);
+      if (serviceState.seenMessageIds.has(key)) return true;
+      serviceState.seenMessageIds.add(key);
+      return false;
     }
 
     function historyBatchHtml(batch) {
@@ -4603,7 +4810,129 @@
       });
     }
 
+    function kefuConversationHtml(messages = []) {
+      let lastDate = "";
+      return messages.map((message) => {
+        const html = kefuHistoryMessageHtml(message).replaceAll(" history-loaded", "");
+        if (!html) return "";
+        const date = kefuHistoryDateKey(message);
+        const dateDivider = date && date !== lastDate
+          ? historyDateDividerHtml(date)
+          : "";
+        if (date) lastDate = date;
+        return `${dateDivider}${html}`;
+      }).join("");
+    }
+
+    function collectUnseenKefuMessages(messages = []) {
+      return normalizeKefuHistoryMessages(messages).filter((message) => !trackSeenKefuMessage(message.id));
+    }
+
+    function appendKefuConversationMessages(messages = []) {
+      const unseenMessages = collectUnseenKefuMessages(messages);
+      if (!unseenMessages.length) return [];
+      chatList.insertAdjacentHTML("beforeend", kefuConversationHtml(unseenMessages));
+      normalizeHistoryDateDividers();
+      iconRefresh();
+      return unseenMessages;
+    }
+
+    function humanHistoryBatchHtml(batch = []) {
+      let lastDate = "";
+      return batch.map((message) => {
+        if (trackSeenKefuMessage(message.id)) return "";
+        const html = kefuHistoryMessageHtml(message);
+        if (!html) return "";
+        const date = kefuHistoryDateKey(message);
+        const dateDivider = date && date !== lastDate
+          ? historyDateDividerHtml(date)
+          : "";
+        if (date) lastDate = date;
+        return `${dateDivider}${html}`;
+      }).join("");
+    }
+
+    async function fetchOlderHumanHistoryBatch() {
+      while (true) {
+        const currentConversation = chatState.humanHistoryCurrentConversation;
+        if (currentConversation?.id && chatState.humanHistoryCursor > 0) {
+          const messages = normalizeKefuHistoryMessages(await api.queryKefuMessages({
+            userId: currentUser.visitorId,
+            contactUserId: currentConversation.toUser?.id,
+            conversationId: currentConversation.id,
+            lessMessageId: chatState.humanHistoryCursor
+          }));
+          chatState.humanHistoryCursor = messages.length >= 300 ? getOldestKefuMessageId(messages) : 0;
+          if (messages.length) return messages;
+          chatState.humanHistoryCursor = 0;
+          continue;
+        }
+
+        const nextConversation = chatState.humanHistoryPendingConversations.shift();
+        if (!nextConversation?.id) {
+          chatState.humanHistoryCursor = 0;
+          return [];
+        }
+
+        chatState.humanHistoryCurrentConversation = nextConversation;
+        const messages = normalizeKefuHistoryMessages(await api.queryKefuMessages({
+          userId: currentUser.visitorId,
+          contactUserId: nextConversation.toUser?.id,
+          conversationId: nextConversation.id,
+          lessMessageId: 0
+        }));
+        chatState.humanHistoryCursor = messages.length >= 300 ? getOldestKefuMessageId(messages) : 0;
+        if (messages.length) return messages;
+      }
+    }
+
+    function loadOlderHumanHistoryMessages(options = {}) {
+      if (!options.force && Date.now() < chatState.historyArmedAt) return;
+      if (chatState.historyLoading) return;
+      if (!hasMoreHumanHistory()) {
+        updateHistoryToggleText();
+        return;
+      }
+
+      chatState.historyActivated = true;
+      chatState.historyLoading = true;
+      historyWrap.classList.add("loading");
+      const oldStatus = chatList.querySelector("[data-history-status]");
+      if (oldStatus) oldStatus.remove();
+      const beforeHeight = chatList.scrollHeight;
+      const beforeTop = chatList.scrollTop;
+      chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("正在加载历史消息...", true));
+
+      fetchOlderHumanHistoryBatch()
+        .then((batch) => {
+          const loadingStatus = chatList.querySelector("[data-history-status]");
+          if (loadingStatus) loadingStatus.remove();
+          const statusText = hasMoreHumanHistory() ? "上滑继续查看更早消息" : "已加载全部历史消息";
+          chatList.insertAdjacentHTML("afterbegin", `${historyInlineStatusHtml(statusText)}${humanHistoryBatchHtml(batch)}`);
+          normalizeHistoryDateDividers();
+          chatState.historyLoadedCount += batch.length;
+          chatState.historyLoading = false;
+          historyWrap.classList.remove("loading");
+          updateHistoryToggleText();
+          iconRefresh();
+          chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
+        })
+        .catch((error) => {
+          console.warn("load older human history failed", error);
+          chatState.historyLoading = false;
+          historyWrap.classList.remove("loading");
+          const loadingStatus = chatList.querySelector("[data-history-status]");
+          if (loadingStatus) loadingStatus.remove();
+          chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("历史消息加载失败，请稍后重试"));
+          updateHistoryToggleText();
+        });
+    }
+
     function loadOlderHistoryMessages(options = {}) {
+      if (isHumanHistorySource()) {
+        loadOlderHumanHistoryMessages(options);
+        return;
+      }
       if (!options.force && Date.now() < chatState.historyArmedAt) return;
       if (chatState.historyLoading) return;
       const total = mockHistoryMessages.length;
@@ -4643,7 +4972,7 @@
     }
 
     function enableHistoryInChat() {
-      if (chatState.historyActivated && chatState.historyLoadedCount >= mockHistoryMessages.length) {
+      if (chatState.historyActivated && isHistoryFullyLoaded()) {
         collapseHistoryInChat();
         return;
       }
@@ -4777,9 +5106,14 @@
 
     function resolvePathChannelUserId() {
       const pathSegments = window.location.pathname.split("/").filter(Boolean);
-      const pathUserId = pathSegments[pathSegments.length - 1] || "";
-      const parentSegment = pathSegments[pathSegments.length - 2] || "";
-      return parentSegment === "kefu" ? normalizeChannelUserId(pathUserId) : "";
+      const markers = ["kefu", "visitor"];
+      for (let index = 0; index < pathSegments.length - 1; index += 1) {
+        if (!markers.includes(String(pathSegments[index] || "").toLowerCase())) continue;
+        const candidate = normalizeChannelUserId(pathSegments[index + 1] || "");
+        if (candidate) return candidate;
+      }
+      const pathUserId = normalizeChannelUserId(pathSegments[pathSegments.length - 1] || "");
+      return pathUserId;
     }
 
     function resolveChannelUserId() {
@@ -4828,48 +5162,63 @@
       }
 
       const visitor = visitorResult.value;
-        currentUser.memberId = visitor.memberId;
-        currentUser.memberNo = visitor.memberNo;
-        currentUser.teamId = visitor.teamId;
-        currentUser.visitorId = -Math.abs(visitor.memberId);
-        currentUser.channelCode = visitor.channelCode || channel;
-        currentUser.name = visitor.realName || visitor.nickName || currentUser.name;
-        currentUser.shortName = currentUser.name.slice(0, 1) || "访";
-        currentUser.vipLevel = visitor.vipName || (visitor.vipLevel ? `VIP${visitor.vipLevel}` : currentUser.vipLevel);
-        currentUser.memberName = visitor.channelName || currentUser.memberName;
-        updateTopUserInfo();
-        currentUser.kefuReady = Boolean(visitor.memberNo && visitor.teamId && visitor.memberId);
-        currentUser.kefuInitError = currentUser.kefuReady ? "" : "人工客服访客资料不完整";
-        renderOrders();
+      currentUser.memberId = visitor.memberId;
+      currentUser.memberNo = visitor.memberNo;
+      currentUser.teamId = visitor.teamId;
+      currentUser.visitorId = -Math.abs(visitor.memberId);
+      currentUser.channelCode = visitor.channelCode || channel;
+      currentUser.name = visitor.realName || visitor.nickName || currentUser.name;
+      currentUser.shortName = currentUser.name.slice(0, 1) || "访";
+      currentUser.vipLevel = visitor.vipName || (visitor.vipLevel ? `VIP${visitor.vipLevel}` : currentUser.vipLevel);
+      currentUser.memberName = visitor.channelName || currentUser.memberName;
+      updateTopUserInfo();
+      currentUser.kefuReady = Boolean(visitor.memberNo && visitor.teamId && visitor.memberId);
+      currentUser.kefuInitError = currentUser.kefuReady ? "" : "人工客服访客资料不完整";
+      renderOrders();
       if (!currentUser.kefuReady) return [];
       const conversations = await api.listKefuConversations(currentUser.visitorId);
-        const activeConversation = (conversations || []).find((item) => item.status !== "closed" && item.toUser?.id > 0);
-        if (!activeConversation) return conversations;
-        serviceState.conversationId = activeConversation.id;
-        serviceState.humanActive = true;
-        serviceState.currentAgent = activeConversation.toUser;
-        updateSessionControls();
-        appendSystem("已恢复未结束的人工会话");
-        clearRobotHintTimer();
-        startAgentReplyWatcher();
-        if (isWorkingTime()) {
-          kefuSocket.login().catch((error) => console.warn("restore kefu ws failed", error));
-        } else {
-          appendSystem("当前为非服务时间，已保留人工会话记录，可先提交留言或在服务时间继续咨询");
-        }
-        const messages = await api.queryKefuMessages({
-          userId: currentUser.visitorId,
-          contactUserId: activeConversation.toUser.id,
-          conversationId: activeConversation.id,
-          lessMessageId: 0
-        });
-        messages.forEach(appendKefuHistoryMessage);
-        if (!chatList.querySelector("[data-end-session]")) {
-          appendAi(connectedServiceHtml("人工服务"));
-        }
-        iconRefresh();
-        scrollChatBottom();
-        return conversations;
+      const activeConversation = (conversations || []).find((item) => item.status !== "closed" && item.toUser?.id > 0);
+      if (!activeConversation) return conversations;
+      serviceState.seenMessageIds = new Set();
+      serviceState.optimisticMessageKeys = new Set();
+      serviceState.pendingHumanUploads = [];
+      serviceState.conversationId = activeConversation.id;
+      serviceState.humanActive = true;
+      serviceState.currentAgent = activeConversation.toUser;
+      updateSessionControls();
+      clearRobotHintTimer();
+      startAgentReplyWatcher();
+      chatList.innerHTML = "";
+      appendSystem("已恢复未结束的人工会话");
+      const historyPayload = {
+        userId: currentUser.visitorId,
+        contactUserId: activeConversation.toUser.id,
+        conversationId: activeConversation.id,
+        lessMessageId: 0
+      };
+      const messages = await api.queryKefuMessages(historyPayload);
+      setHumanHistoryContext(conversations, activeConversation, messages);
+      appendKefuConversationMessages(messages);
+      if (!chatList.querySelector("[data-end-session]")) {
+        appendAi(connectedServiceHtml("人工服务"));
+      }
+      iconRefresh();
+      scrollChatBottom();
+      if (isWorkingTime()) {
+        kefuSocket.login().then(() => {
+          return api.queryKefuMessages(historyPayload).then((latestMessages) => {
+            setHumanHistoryContext(conversations, activeConversation, latestMessages);
+            appendKefuConversationMessages(latestMessages);
+            if (!chatList.querySelector("[data-end-session]")) {
+              appendAi(connectedServiceHtml("人工服务"));
+            }
+            scrollChatBottom();
+          });
+        }).catch((error) => console.warn("restore kefu ws failed", error));
+      } else {
+        appendSystem("当前为非服务时间，已保留人工会话记录，可先提交留言或在服务时间继续咨询");
+      }
+      return conversations;
     }
 
     function getFilteredOrders() {
@@ -5144,6 +5493,7 @@
       appendSystem(fromQueue ? "排队完成，已为您分配人工客服" : "已为您分配人工客服");
       appendAi(connectedServiceHtml(type));
       appendHumanAgentMessage(type === "售后服务" ? "您好，我已看到您同步的订单信息，请继续说明需要处理的问题。" : "您好，我已接入当前会话，请继续说明问题。");
+      flushPendingHumanUploads().catch((error) => console.warn("flush pending uploads after assign failed", error));
       startAgentReplyWatcher();
       scrollChatBottom();
     }
@@ -5152,6 +5502,7 @@
       serviceState.queued = false;
       serviceState.serviceType = "";
       serviceState.pendingAfterOrder = "";
+      serviceState.pendingHumanUploads = [];
       updateSessionControls();
       clearQueuePresentation();
       kefuSocket.close(true);
@@ -5256,7 +5607,16 @@
       }
       if (packet.type === 2) {
         clearAgentReplyWatcher();
-        appendAi(`<div class="bubble"><img class="chat-image" src="${escapeHtml(packet.content)}" alt="客服发送的图片"></div>`);
+        chatList.insertAdjacentHTML("beforeend", humanAgentImageMessageHtml(
+          packet.content,
+          packet.createTime ? formatClock(new Date(packet.createTime)) : formatClock(),
+          {
+            id: packet.fromUserId,
+            nickname: packet.fromUserNickName || "人工客服",
+            avatar: packet.fromUserAvatar || ""
+          }
+        ));
+        iconRefresh();
         scrollChatBottom();
         return;
       }
@@ -5269,6 +5629,7 @@
       serviceState.humanActive = false;
       serviceState.queued = false;
       serviceState.pendingAfterOrder = "";
+      serviceState.pendingHumanUploads = [];
       updateSessionControls();
       serviceState.serviceType = "";
       serviceState.currentAgent = null;
@@ -5358,6 +5719,7 @@
       }).catch((error) => {
         serviceState.queued = false;
         serviceState.serviceType = "";
+        serviceState.pendingHumanUploads = [];
         updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
@@ -5398,6 +5760,7 @@
         serviceState.queued = false;
         serviceState.serviceType = "";
         serviceState.pendingAfterOrder = "";
+        serviceState.pendingHumanUploads = [];
         updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
