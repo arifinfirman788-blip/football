@@ -43,6 +43,7 @@
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       display: block;
       overflow: hidden;
       touch-action: manipulation;
@@ -80,7 +81,9 @@
     .board {
       width: 100vw;
       height: 100vh;
+      height: 100dvh;
       min-height: 100vh;
+      min-height: 100dvh;
       padding: 0;
       display: flex;
       justify-content: center;
@@ -182,7 +185,9 @@
     .phone {
       width: min(430px, 100vw);
       height: 100vh;
+      height: 100dvh;
       min-height: 100vh;
+      min-height: 100dvh;
       border: 0;
       border-radius: 0;
       overflow: hidden;
@@ -193,6 +198,7 @@
 
     .screen-shell {
       height: 100vh;
+      height: 100dvh;
       position: relative;
       overflow: hidden;
       background:
@@ -392,9 +398,10 @@
     }
 
     .composer {
+      width: 100%;
       height: 46px;
       display: grid;
-      grid-template-columns: 36px 36px 1fr 42px;
+      grid-template-columns: 36px 36px minmax(0, 1fr) 42px;
       gap: 7px;
       align-items: center;
     }
@@ -459,6 +466,7 @@
 
     .input {
       width: 100%;
+      min-width: 0;
       height: 42px;
       outline: none;
       border: 1px solid rgba(198, 216, 242, .9);
@@ -495,22 +503,42 @@
       gap: 8px;
       position: relative;
       z-index: 2;
+      overflow: hidden;
+      transition:
+        min-height .32s cubic-bezier(.22, .86, .28, 1),
+        padding .32s cubic-bezier(.22, .86, .28, 1),
+        grid-template-columns .32s cubic-bezier(.22, .86, .28, 1),
+        gap .32s cubic-bezier(.22, .86, .28, 1);
     }
 
     .screen.chat-expanded .hero {
       min-height: 42px;
       padding-top: 0;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr) 0;
       align-items: center;
+      gap: 0;
     }
 
     .screen.chat-expanded .eyebrow-row {
       margin-bottom: 0;
     }
 
-    .screen.chat-expanded .hello h2,
+    .screen.chat-expanded .hello h2 {
+      max-height: 0;
+      margin: 0;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transform: translateY(-8px);
+    }
+
     .screen.chat-expanded .mascot {
-      display: none;
+      opacity: 0;
+      height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transform: translate3d(18px, -10px, 0) scale(.88);
+      visibility: hidden;
     }
 
     .screen.chat-expanded .ask-panel {
@@ -619,11 +647,19 @@
 
     .hello h2 {
       margin: 0;
+      max-height: 64px;
       color: #20316b;
       font-size: 26px;
       line-height: 1.12;
       letter-spacing: 0;
       white-space: nowrap;
+      opacity: 1;
+      transform: translateY(0);
+      transition:
+        max-height .28s cubic-bezier(.22, .86, .28, 1),
+        margin .28s cubic-bezier(.22, .86, .28, 1),
+        opacity .2s ease,
+        transform .28s cubic-bezier(.22, .86, .28, 1);
     }
 
     .hello p {
@@ -641,6 +677,15 @@
       position: relative;
       overflow: visible;
       z-index: 1;
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      transform-origin: right bottom;
+      visibility: visible;
+      transition:
+        height .32s cubic-bezier(.22, .86, .28, 1),
+        opacity .18s ease,
+        transform .32s cubic-bezier(.22, .86, .28, 1),
+        visibility 0s linear 0s;
     }
 
     .mascot-img {
@@ -1218,6 +1263,8 @@
       display: block;
       object-fit: cover;
       box-shadow: 0 10px 20px rgba(43, 72, 126, .12);
+      cursor: zoom-in;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .source {
@@ -2124,18 +2171,130 @@
     }
 
     .modal-layer {
-      position: absolute;
+      position: fixed;
       inset: 0;
-      z-index: 40;
-      display: none;
+      z-index: 100;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
       align-items: end;
-      padding: 18px;
-      background: rgba(22, 34, 62, .22);
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(18px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(18px, env(safe-area-inset-left));
+      background: rgba(232, 242, 252, .98);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      isolation: isolate;
+      transition: opacity .24s ease, visibility 0s linear .24s;
+    }
+
+    .modal-layer.show {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition-delay: 0s;
+    }
+
+    .image-preview {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(16px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
+      display: grid;
+      place-items: center;
+      background: rgba(4, 10, 24, .94);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity .2s ease, visibility 0s linear .2s;
+      touch-action: none;
+      overscroll-behavior: contain;
+    }
+
+    .image-preview.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition-delay: 0s;
+    }
+
+    .image-preview__image {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 10px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .42);
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+      transform: translate3d(0, 0, 0) scale(1);
+      transform-origin: center center;
+      transition: none;
+      will-change: transform;
+    }
+
+    .image-preview__image.dragging {
+      cursor: grabbing;
+    }
+
+    .image-preview__image.animating {
+      transition: transform .2s cubic-bezier(.22, .86, .28, 1);
+    }
+
+    .image-preview__close {
+      position: absolute;
+      top: max(14px, env(safe-area-inset-top));
+      right: max(14px, env(safe-area-inset-right));
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255, 255, 255, .24);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: rgba(15, 23, 42, .66);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
     }
 
-    .modal-layer.show { display: flex; }
+    .image-preview__close svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    body.image-preview-open {
+      overflow: hidden;
+    }
+
+    .modal-layer > .help-sheet,
+    .modal-layer > .upload-sheet {
+      opacity: 0;
+      transform: translateY(24px) scale(.98);
+      transition:
+        opacity .2s ease,
+        transform .32s cubic-bezier(.22, .86, .28, 1);
+    }
+
+    .modal-layer.show > .help-sheet,
+    .modal-layer.show > .upload-sheet {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
 
     .help-sheet {
       width: 100%;
@@ -2166,17 +2325,19 @@
     }
 
     .order-layer {
-      display: flex;
       padding: 0;
       align-items: end;
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
-      transition: opacity .22s ease;
+      transition: opacity .22s ease, visibility 0s linear .22s;
     }
 
     .order-layer.show {
       opacity: 1;
+      visibility: visible;
       pointer-events: auto;
+      transition-delay: 0s;
     }
 
     .order-layer .order-sheet {
@@ -2540,6 +2701,7 @@
       .phone {
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
       }
     }
   </style>
@@ -2792,10 +2954,43 @@
 
   </div>
 
+  <div class="image-preview" id="imagePreview" role="dialog" aria-modal="true" aria-label="图片预览" aria-hidden="true">
+    <button class="image-preview__close" type="button" data-close-image-preview aria-label="关闭图片预览">
+      <i data-lucide="x"></i>
+    </button>
+    <img class="image-preview__image" id="imagePreviewImage" src="" alt="会话图片预览">
+  </div>
+
   <script>
     const screens = document.querySelectorAll(".screen");
     const flowItems = document.querySelectorAll(".flow-item");
     const chatList = document.querySelector("#chatList");
+    const imagePreview = document.querySelector("#imagePreview");
+    const imagePreviewImage = document.querySelector("#imagePreviewImage");
+    const imagePreviewClose = document.querySelector("[data-close-image-preview]");
+    const IMAGE_PREVIEW_MIN_SCALE = 1;
+    const IMAGE_PREVIEW_MAX_SCALE = 4;
+    const IMAGE_PREVIEW_DOUBLE_TAP_SCALE = 2.5;
+    const imagePreviewPointers = new Map();
+    const imagePreviewGesture = {
+      scale: 1,
+      translateX: 0,
+      translateY: 0,
+      startScale: 1,
+      startTranslateX: 0,
+      startTranslateY: 0,
+      startDistance: 0,
+      startCenterX: 0,
+      startCenterY: 0,
+      dragPointerId: null,
+      dragStartX: 0,
+      dragStartY: 0,
+      moved: false,
+      hadMultiplePointers: false,
+      lastTapAt: 0,
+      lastTapX: 0,
+      lastTapY: 0,
+    };
     const entryScreen = document.querySelector('[data-panel="entry"]');
     const orderList = document.querySelector("#orderList");
     const orderSearchInput = document.querySelector("#orderSearchInput");
@@ -2823,6 +3018,8 @@
     const topUserName = document.querySelector("#topUserName");
     const topMemberName = document.querySelector("#topMemberName");
     const topVipLevel = document.querySelector("#topVipLevel");
+    let imagePreviewTrigger = null;
+    let imagePreviewHistoryActive = false;
     let lastSelectedOrder = null;
     let boardImageFile = null;
     const currentUser = {
@@ -3663,6 +3860,18 @@
       return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
     }
 
+    function formatConversationTime(date, now = new Date()) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return formatClock(now);
+      const isToday = date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate();
+      if (isToday) return formatClock(date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day} ${formatClock(date)}`;
+    }
+
     function formatDateTime(seconds) {
       if (!seconds) return "";
       const date = new Date(seconds * 1000);
@@ -3716,7 +3925,7 @@
 
     function formatMessageTime(message = {}, conversation = {}) {
       const date = parseFlexibleDate(resolveMessageTimeRaw(message, conversation));
-      return date ? formatClock(date) : formatClock();
+      return date ? formatConversationTime(date) : formatClock();
     }
 
     function aiMessageHtml(innerHtml, time = formatClock()) {
@@ -3914,6 +4123,173 @@
           <div class="msg-avatar">${escapeHtml(currentUser.shortName)}</div>
         </div>
       `;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function imagePreviewPointerPair() {
+      return [...imagePreviewPointers.values()].slice(0, 2);
+    }
+
+    function pointerDistance(first, second) {
+      return Math.hypot(second.x - first.x, second.y - first.y);
+    }
+
+    function pointerCenter(first, second) {
+      return {
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+      };
+    }
+
+    function imagePreviewAvailableSize() {
+      const styles = window.getComputedStyle(imagePreview);
+      return {
+        width: imagePreview.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight),
+        height: imagePreview.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom),
+      };
+    }
+
+    function constrainImagePreviewTransform(scale, translateX, translateY) {
+      if (!imagePreviewImage || !imagePreview) {
+        return { translateX: 0, translateY: 0 };
+      }
+      const available = imagePreviewAvailableSize();
+      const maxX = Math.max(0, (imagePreviewImage.offsetWidth * scale - available.width) / 2);
+      const maxY = Math.max(0, (imagePreviewImage.offsetHeight * scale - available.height) / 2);
+      return {
+        translateX: clamp(translateX, -maxX, maxX),
+        translateY: clamp(translateY, -maxY, maxY),
+      };
+    }
+
+    function applyImagePreviewTransform({ scale, translateX, translateY }, { animate = false } = {}) {
+      if (!imagePreviewImage) return;
+      const nextScale = clamp(scale, IMAGE_PREVIEW_MIN_SCALE, IMAGE_PREVIEW_MAX_SCALE);
+      const constrained = constrainImagePreviewTransform(nextScale, translateX, translateY);
+      imagePreviewGesture.scale = nextScale;
+      imagePreviewGesture.translateX = nextScale === 1 ? 0 : constrained.translateX;
+      imagePreviewGesture.translateY = nextScale === 1 ? 0 : constrained.translateY;
+      imagePreviewImage.classList.toggle("animating", animate);
+      imagePreviewImage.style.transform = `translate3d(${imagePreviewGesture.translateX}px, ${imagePreviewGesture.translateY}px, 0) scale(${imagePreviewGesture.scale})`;
+      if (animate) {
+        window.setTimeout(() => imagePreviewImage?.classList.remove("animating"), 220);
+      }
+    }
+
+    function resetImagePreviewGesture({ animate = false } = {}) {
+      imagePreviewPointers.clear();
+      imagePreviewGesture.dragPointerId = null;
+      imagePreviewGesture.startDistance = 0;
+      imagePreviewGesture.moved = false;
+      imagePreviewGesture.hadMultiplePointers = false;
+      imagePreviewGesture.lastTapAt = 0;
+      imagePreviewImage?.classList.remove("dragging");
+      applyImagePreviewTransform({ scale: 1, translateX: 0, translateY: 0 }, { animate });
+    }
+
+    function toggleImagePreviewZoom(clientX, clientY) {
+      if (imagePreviewGesture.scale > IMAGE_PREVIEW_MIN_SCALE) {
+        resetImagePreviewGesture({ animate: true });
+        return;
+      }
+      const previewRect = imagePreview.getBoundingClientRect();
+      const centerX = previewRect.left + previewRect.width / 2;
+      const centerY = previewRect.top + previewRect.height / 2;
+      const targetScale = IMAGE_PREVIEW_DOUBLE_TAP_SCALE;
+      applyImagePreviewTransform({
+        scale: targetScale,
+        translateX: -(clientX - centerX) * (targetScale - 1),
+        translateY: -(clientY - centerY) * (targetScale - 1),
+      }, { animate: true });
+    }
+
+    function startImagePreviewPinch() {
+      const [first, second] = imagePreviewPointerPair();
+      if (!first || !second) return;
+      const center = pointerCenter(first, second);
+      imagePreviewGesture.startDistance = Math.max(1, pointerDistance(first, second));
+      imagePreviewGesture.startScale = imagePreviewGesture.scale;
+      imagePreviewGesture.startTranslateX = imagePreviewGesture.translateX;
+      imagePreviewGesture.startTranslateY = imagePreviewGesture.translateY;
+      imagePreviewGesture.startCenterX = center.x;
+      imagePreviewGesture.startCenterY = center.y;
+      imagePreviewGesture.hadMultiplePointers = true;
+    }
+
+    function finishImagePreviewPointer(event) {
+      const wasSinglePointer = imagePreviewPointers.size === 1;
+      imagePreviewPointers.delete(event.pointerId);
+      if (imagePreviewImage?.hasPointerCapture?.(event.pointerId)) {
+        imagePreviewImage.releasePointerCapture(event.pointerId);
+      }
+      imagePreviewImage?.classList.remove("dragging");
+      if (imagePreviewPointers.size >= 2) {
+        startImagePreviewPinch();
+        return;
+      }
+      if (imagePreviewPointers.size === 1) {
+        const [remaining] = imagePreviewPointerPair();
+        const [remainingId] = imagePreviewPointers.keys();
+        imagePreviewGesture.dragPointerId = remainingId;
+        imagePreviewGesture.dragStartX = remaining.x;
+        imagePreviewGesture.dragStartY = remaining.y;
+        imagePreviewGesture.startTranslateX = imagePreviewGesture.translateX;
+        imagePreviewGesture.startTranslateY = imagePreviewGesture.translateY;
+        return;
+      }
+      imagePreviewGesture.startDistance = 0;
+      imagePreviewGesture.dragPointerId = null;
+      if (!wasSinglePointer || imagePreviewGesture.hadMultiplePointers || imagePreviewGesture.moved) {
+        imagePreviewGesture.hadMultiplePointers = false;
+        return;
+      }
+      const now = Date.now();
+      const isDoubleTap = now - imagePreviewGesture.lastTapAt < 300
+        && Math.hypot(event.clientX - imagePreviewGesture.lastTapX, event.clientY - imagePreviewGesture.lastTapY) < 28;
+      if (isDoubleTap) {
+        toggleImagePreviewZoom(event.clientX, event.clientY);
+        imagePreviewGesture.lastTapAt = 0;
+      } else {
+        imagePreviewGesture.lastTapAt = now;
+        imagePreviewGesture.lastTapX = event.clientX;
+        imagePreviewGesture.lastTapY = event.clientY;
+      }
+    }
+
+    function openImagePreview(image) {
+      if (!imagePreview || !imagePreviewImage || !image?.src) return;
+      imagePreviewTrigger = image;
+      resetImagePreviewGesture();
+      imagePreviewImage.src = image.currentSrc || image.src;
+      imagePreviewImage.alt = image.alt || "会话图片预览";
+      imagePreview.classList.add("open");
+      imagePreview.setAttribute("aria-hidden", "false");
+      document.body.classList.add("image-preview-open");
+      if (!imagePreviewHistoryActive) {
+        window.history.pushState({ ...(window.history.state || {}), kefuImagePreview: true }, "");
+        imagePreviewHistoryActive = true;
+      }
+      imagePreviewClose?.focus({ preventScroll: true });
+    }
+
+    function closeImagePreview({ fromPopState = false } = {}) {
+      if (!imagePreview?.classList.contains("open")) return;
+      imagePreview.classList.remove("open");
+      imagePreview.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("image-preview-open");
+      resetImagePreviewGesture();
+      imagePreviewImage.removeAttribute("src");
+      if (imagePreviewHistoryActive && !fromPopState) {
+        imagePreviewHistoryActive = false;
+        window.history.back();
+      } else {
+        imagePreviewHistoryActive = false;
+      }
+      imagePreviewTrigger?.focus?.({ preventScroll: true });
+      imagePreviewTrigger = null;
     }
 
     function initialAiMessageHtml() {
@@ -4735,9 +5111,15 @@
     }
 
     function historyMessageHtml(message) {
+      const localMessageDate = /^\d{2}:\d{2}$/.test(message.time || "") && message.date
+        ? parseFlexibleDate(`${message.date}T${message.time}:00`)
+        : null;
+      const displayTime = localMessageDate
+        ? formatConversationTime(localMessageDate)
+        : message.time;
       const html = message.role === "user"
-        ? userMessageHtml(message.text, message.time)
-        : aiMessageHtml(`<div class="bubble">${formatPlainText(message.text)}</div>`, message.time);
+        ? userMessageHtml(message.text, displayTime)
+        : aiMessageHtml(`<div class="bubble">${formatPlainText(message.text)}</div>`, displayTime);
       return html.replace('class="message ', 'class="message history-loaded ');
     }
 
@@ -6120,6 +6502,99 @@
       if (!event.target.closest("#emojiPanel") && !event.target.closest("[data-open-emoji]")) {
         closeEmojiPanel();
       }
+    });
+
+    chatList.addEventListener("click", (event) => {
+      const image = event.target.closest(".chat-image");
+      if (!image) return;
+      openImagePreview(image);
+    });
+
+    imagePreview?.addEventListener("click", (event) => {
+      if (event.target === imagePreview || event.target.closest("[data-close-image-preview]")) {
+        closeImagePreview();
+      }
+    });
+
+    imagePreviewImage?.addEventListener("load", () => resetImagePreviewGesture());
+
+    imagePreviewImage?.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      imagePreviewImage.setPointerCapture?.(event.pointerId);
+      imagePreviewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      imagePreviewGesture.moved = false;
+      if (imagePreviewPointers.size === 1) {
+        imagePreviewGesture.dragPointerId = event.pointerId;
+        imagePreviewGesture.dragStartX = event.clientX;
+        imagePreviewGesture.dragStartY = event.clientY;
+        imagePreviewGesture.startTranslateX = imagePreviewGesture.translateX;
+        imagePreviewGesture.startTranslateY = imagePreviewGesture.translateY;
+      } else if (imagePreviewPointers.size === 2) {
+        startImagePreviewPinch();
+      }
+    });
+
+    imagePreviewImage?.addEventListener("pointermove", (event) => {
+      if (!imagePreviewPointers.has(event.pointerId)) return;
+      event.preventDefault();
+      imagePreviewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (imagePreviewPointers.size >= 2) {
+        const [first, second] = imagePreviewPointerPair();
+        const distance = pointerDistance(first, second);
+        const center = pointerCenter(first, second);
+        if (!imagePreviewGesture.startDistance) startImagePreviewPinch();
+        const nextScale = clamp(
+          imagePreviewGesture.startScale * distance / imagePreviewGesture.startDistance,
+          IMAGE_PREVIEW_MIN_SCALE,
+          IMAGE_PREVIEW_MAX_SCALE,
+        );
+        const scaleRatio = nextScale / imagePreviewGesture.startScale;
+        const previewRect = imagePreview.getBoundingClientRect();
+        const previewCenterX = previewRect.left + previewRect.width / 2;
+        const previewCenterY = previewRect.top + previewRect.height / 2;
+        const anchoredX = imagePreviewGesture.startCenterX - previewCenterX - imagePreviewGesture.startTranslateX;
+        const anchoredY = imagePreviewGesture.startCenterY - previewCenterY - imagePreviewGesture.startTranslateY;
+        applyImagePreviewTransform({
+          scale: nextScale,
+          translateX: imagePreviewGesture.startTranslateX
+            + (center.x - imagePreviewGesture.startCenterX)
+            - anchoredX * (scaleRatio - 1),
+          translateY: imagePreviewGesture.startTranslateY
+            + (center.y - imagePreviewGesture.startCenterY)
+            - anchoredY * (scaleRatio - 1),
+        });
+        imagePreviewGesture.moved = true;
+        return;
+      }
+      if (imagePreviewGesture.scale <= IMAGE_PREVIEW_MIN_SCALE || imagePreviewGesture.dragPointerId !== event.pointerId) return;
+      const deltaX = event.clientX - imagePreviewGesture.dragStartX;
+      const deltaY = event.clientY - imagePreviewGesture.dragStartY;
+      if (Math.hypot(deltaX, deltaY) > 4) imagePreviewGesture.moved = true;
+      imagePreviewImage.classList.add("dragging");
+      applyImagePreviewTransform({
+        scale: imagePreviewGesture.scale,
+        translateX: imagePreviewGesture.startTranslateX + deltaX,
+        translateY: imagePreviewGesture.startTranslateY + deltaY,
+      });
+    });
+
+    imagePreviewImage?.addEventListener("pointerup", finishImagePreviewPointer);
+    imagePreviewImage?.addEventListener("pointercancel", finishImagePreviewPointer);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && imagePreview?.classList.contains("open")) {
+        closeImagePreview();
+      }
+    });
+
+    window.addEventListener("popstate", () => {
+      if (!imagePreview?.classList.contains("open")) return;
+      closeImagePreview({ fromPopState: true });
+    });
+
+    window.addEventListener("resize", () => {
+      if (!imagePreview?.classList.contains("open")) return;
+      applyImagePreviewTransform(imagePreviewGesture);
     });
 
     sendButton.addEventListener("click", sendCurrentInput);

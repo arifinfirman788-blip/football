@@ -14,6 +14,8 @@
     "preview": "vite preview",
     "clean": "rm -rf football",
     "lint": "tsc --noEmit",
+    "test:kefu-time": "node scripts/check-kefu-message-time.mjs",
+    "test:kefu-ui": "node scripts/check-kefu-mobile-ui.mjs",
     "zip": "find football \\( -name '__MACOSX' -o -name '.DS_Store' \\) -exec rm -rf {} + && rm -f football.zip && zip -r football.zip football -x '__MACOSX/*' '*.DS_Store'"
   },
   "dependencies": {
