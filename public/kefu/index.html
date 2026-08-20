@@ -494,6 +494,14 @@
       box-shadow: 0 12px 22px rgba(71, 92, 225, .22);
     }
 
+    .send.stop-mode {
+      width: 42px;
+      height: 42px;
+      padding: 0;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e05262, #c52f4c);
+    }
+
     .hero {
       min-height: 166px;
       padding: 10px 0 0;
@@ -1074,6 +1082,20 @@
       font-size: 11px;
       line-height: 1;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.54);
+    }
+
+    [data-unified-message-key] {
+      display: contents;
+    }
+
+    [data-unified-message-key].history-focus > .message,
+    [data-unified-message-key].history-focus > .system-note {
+      animation: history-focus-pulse 1.2s ease;
+    }
+
+    @keyframes history-focus-pulse {
+      0%, 100% { filter: none; }
+      35% { filter: drop-shadow(0 0 10px rgba(64, 120, 238, .42)); }
     }
 
     .chat-list {
@@ -3057,7 +3079,16 @@
       historyArmedAt: 0,
       humanHistoryCurrentConversation: null,
       humanHistoryCursor: 0,
-      humanHistoryPendingConversations: []
+      humanHistoryPendingConversations: [],
+      unifiedHistoryMessages: [],
+      unifiedHistoryKeys: new Set(),
+      unifiedSequence: 0,
+      aiHistoryHasMore: false,
+      aiHistoryLoading: false,
+      humanHistoryLoading: false,
+      historyLoadErrors: { ai: "", human: "" },
+      aiStreaming: false,
+      aiAbortController: null
     };
 
     const serviceState = {
@@ -3464,6 +3495,24 @@
       }
     };
 
+    function ensureKefuSocketReady() {
+      if (kefuSocket.socket?.readyState === WebSocket.OPEN) return Promise.resolve();
+      if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
+        return Promise.reject(new Error("客服连接已断开，请重新进入人工客服"));
+      }
+      if (kefuSocket.loginPromise && (kefuSocket.loginResolve || kefuSocket.loginReject)) {
+        return kefuSocket.loginPromise.then((packet) => {
+          if (packet && packet.success === false) throw new Error(packet.message || "客服连接恢复失败");
+          if (kefuSocket.socket?.readyState !== WebSocket.OPEN) throw new Error("客服连接已断开，请稍后重试");
+        });
+      }
+      appendSystem("正在恢复客服连接，请稍候...");
+      return kefuSocket.login({}).then((packet) => {
+        if (packet && packet.success === false) throw new Error(packet.message || "客服连接恢复失败");
+        if (kefuSocket.socket?.readyState !== WebSocket.OPEN) throw new Error("客服连接已断开，请稍后重试");
+      });
+    }
+
     window.addEventListener("beforeunload", () => kefuSocket.close(true));
 
     function getActiveKefuConversation() {
@@ -3523,6 +3572,7 @@
           });
         }
         return streamDifyChat(payload, handlers).catch((error) => {
+          if (error?.name === "AbortError") throw error;
           console.warn("AI route chat failed", error);
           return {
             html: `<div class="bubble">当前智能问答服务暂时不可用，请稍后再试，或点击“帮助”转人工处理。</div>`
@@ -3669,6 +3719,30 @@
 
     function iconRefresh() {
       if (window.lucide) window.lucide.createIcons({ attrs: { "stroke-width": 2.2 } });
+    }
+
+    function updateSendButtonState() {
+      if (!sendButton) return;
+      const stopMode = Boolean(chatState.aiStreaming && !serviceState.humanActive);
+      sendButton.classList.toggle("stop-mode", stopMode);
+      sendButton.setAttribute("aria-label", stopMode ? "停止生成" : "发送");
+      sendButton.innerHTML = stopMode
+        ? '<i data-lucide="square"></i>'
+        : '<i data-lucide="send-horizontal"></i>';
+      iconRefresh();
+    }
+
+    function clearAiStreamingState(controller = chatState.aiAbortController) {
+      if (controller && chatState.aiAbortController !== controller) return;
+      chatState.aiStreaming = false;
+      chatState.aiAbortController = null;
+      updateSendButtonState();
+    }
+
+    function stopAiStreaming() {
+      if (!chatState.aiStreaming) return false;
+      chatState.aiAbortController?.abort();
+      return true;
     }
 
     function showToast(text) {
@@ -4317,16 +4391,22 @@
       const id = `stream-${Date.now()}`;
       chatList.insertAdjacentHTML("beforeend", aiMessageHtml(`<div class="bubble streaming" id="${id}"></div>`));
       const bubble = document.getElementById(id);
+      let currentText = "";
       scrollChatBottom();
       return {
         setText(text) {
+          currentText = text || "";
           bubble.innerHTML = formatPlainText(text);
           scrollChatBottom();
         },
         finish(text) {
+          currentText = text || currentText || "";
           bubble.classList.remove("streaming");
-          bubble.innerHTML = formatPlainText(text || "已收到，请继续说明您的问题。");
+          bubble.innerHTML = formatPlainText(currentText || "已收到，请继续说明您的问题。");
           scrollChatBottom();
+        },
+        text() {
+          return currentText;
         },
         remove() {
           bubble.closest(".message")?.remove();
@@ -4338,6 +4418,7 @@
       const response = await fetch(`${difyConfig.baseUrl}/chat-messages`, {
         method: "POST",
         headers: buildAiHeaders({ "Content-Type": "application/json" }),
+        signal: handlers.signal,
         body: JSON.stringify({
           inputs: buildAiInputs(),
           query: payload.text,
@@ -4608,19 +4689,27 @@
       if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
         return Promise.reject(new Error("当前未接入人工客服"));
       }
-      return api.uploadChatImage(file).then((image) => {
+      return ensureKefuSocketReady().then(() => api.uploadChatImage(file)).then((image) => {
         const imageUrl = image?.url || image?.data?.url || "";
         if (!imageUrl) throw new Error("图片上传成功但未返回可用地址");
         const optimisticKey = `${currentUser.visitorId}|2|${imageUrl}`;
         serviceState.optimisticMessageKeys.add(optimisticKey);
-        return api.sendHumanMessage({
+        return ensureKefuSocketReady().then(() => api.sendHumanMessage({
           version: 1,
           command: 3000,
           content: imageUrl,
           type: 2,
           toUserId: serviceState.currentAgent.id
-        }).then(() => {
+        })).then(() => {
           chatList.insertAdjacentHTML("beforeend", userImageMessageHtml(imageUrl));
+          registerUnifiedRealtimeMessage({
+            source: "human",
+            role: "user",
+            type: "image",
+            content: imageUrl,
+            conversationId: serviceState.conversationId,
+            key: `human:optimistic:${optimisticKey}`
+          });
           iconRefresh();
           startAgentReplyWatcher();
           scrollChatBottom();
@@ -4923,18 +5012,23 @@
 
     function renderAgentResult(result) {
       if (result.action === "human") {
-        appendAi(`<div class="bubble">好的，正在为您准备转人工，会把当前问题摘要同步给客服。</div>`);
+        const html = `<div class="bubble">好的，正在为您准备转人工，会把当前问题摘要同步给客服。</div>`;
+        appendAi(html);
+        registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "html", content: html, conversationId: chatState.conversationId });
         window.setTimeout(() => openHelp(result.type, false), 360);
         return;
       }
 
-      appendAi(result.html || `<div class="bubble">已收到，请继续说明您的问题。</div>`);
+      const html = result.html || `<div class="bubble">已收到，请继续说明您的问题。</div>`;
+      appendAi(html);
+      registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "html", content: html, conversationId: chatState.conversationId });
       scrollChatBottom();
     }
 
     async function submitQuestion(text, source = "input") {
       const question = String(text || "").trim();
       if (!question) return;
+      if (chatState.aiStreaming && !serviceState.humanActive) return;
 
       clearRobotHintTimer();
       closeEmojiPanel();
@@ -4943,6 +5037,7 @@
       activateChatReadingMode();
 
       appendUser(question);
+      registerUnifiedRealtimeMessage({ source: "ai", role: "user", type: "text", content: question, conversationId: chatState.conversationId });
       scrollChatBottom();
 
       const localResult = builtinAgent(question);
@@ -4953,9 +5048,16 @@
 
       const streamBubble = difyConfig.enabled ? appendStreamingAi() : null;
       const typingId = streamBubble ? "" : appendTyping();
+      const abortController = difyConfig.enabled ? new AbortController() : null;
+      if (abortController) {
+        chatState.aiAbortController = abortController;
+        chatState.aiStreaming = true;
+        updateSendButtonState();
+      }
       api.agentChat(
         { text: question, source },
         {
+          signal: abortController?.signal,
           onDelta(delta, fullText) {
             streamBubble?.setText(fullText);
           },
@@ -4967,6 +5069,7 @@
         if (typingId) removeTyping(typingId);
         if (result.streamed) {
           streamBubble?.finish(result.answer);
+          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: result.answer, conversationId: chatState.conversationId });
           if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
           return;
         }
@@ -4974,10 +5077,20 @@
         renderAgentResult(result);
         if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
       }).catch((error) => {
+        if (error?.name === "AbortError") {
+          if (typingId) removeTyping(typingId);
+          const stoppedText = streamBubble?.text() || "已停止生成";
+          if (streamBubble) streamBubble.finish(stoppedText);
+          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: stoppedText, conversationId: chatState.conversationId });
+          return;
+        }
         console.warn("agentChat failed", error);
         if (typingId) removeTyping(typingId);
         streamBubble?.finish("当前智能问答服务暂时不可用，请稍后再试，或点击“帮助”转人工处理。");
+        registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: "当前智能问答服务暂时不可用，请稍后再试，或点击“帮助”转人工处理。", conversationId: chatState.conversationId });
         if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
+      }).finally(() => {
+        clearAiStreamingState(abortController);
       });
     }
 
@@ -4989,46 +5102,29 @@
       return Boolean(chatState.humanHistoryCursor > 0 || chatState.humanHistoryPendingConversations.length);
     }
 
-    function isHumanHistorySource() {
-      return chatState.historySource === "human";
+    function hasMoreUnifiedHistory() {
+      return hasMoreHumanHistory()
+        || chatState.historyLoadedCount < mockHistoryMessages.length
+        || chatState.aiHistoryHasMore;
     }
 
     function isHistoryFullyLoaded() {
-      return isHumanHistorySource()
-        ? !hasMoreHumanHistory()
-        : chatState.historyLoadedCount >= mockHistoryMessages.length;
+      return !hasMoreUnifiedHistory();
     }
 
     function updateHistoryToggleText() {
-      if (isHumanHistorySource()) {
-        if (!serviceState.conversationId) {
-          historyToggleText.textContent = "暂无历史消息";
-          return;
-        }
-        if (!hasMoreHumanHistory()) {
-          historyToggleText.textContent = chatState.historyActivated ? "已加载全部历史消息" : "当前会话已是最早消息";
-          return;
-        }
-        historyToggleText.textContent = chatState.historyActivated
-          ? "上滑加载更早消息"
-          : "上滑查看历史消息";
-        return;
-      }
-      const total = chatState.historyTotal || mockHistoryMessages.length;
-      const loaded = chatState.historyLoadedCount;
+      const total = chatState.unifiedHistoryMessages.length;
       if (!total) {
         historyToggleText.textContent = "暂无历史消息";
         return;
       }
-      if (loaded >= total) {
+      if (!hasMoreUnifiedHistory()) {
         historyToggleText.textContent = `已加载全部历史消息（${total}条）`;
         return;
       }
-      if (chatState.historyActivated) {
-        historyToggleText.textContent = `上滑加载更早消息（${loaded}/${total}）`;
-        return;
-      }
-      historyToggleText.textContent = `上滑查看历史消息（${total}条）`;
+      historyToggleText.textContent = chatState.historyActivated
+        ? `上滑加载更早消息（已显示${total}条）`
+        : `上滑查看历史消息（已显示${total}条）`;
     }
 
     function renderHistoryList(conversations = []) {
@@ -5078,30 +5174,133 @@
       return localDateKey(date);
     }
 
+    function unifiedContentFingerprint(value) {
+      const source = typeof value === "string" ? value : JSON.stringify(value || "");
+      let hash = 0;
+      for (let index = 0; index < source.length; index += 1) {
+        hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+      }
+      return Math.abs(hash).toString(36);
+    }
+
+    function unifiedHistoryMessageKey(message = {}) {
+      if (message.messageId) return `${message.source}:id:${message.messageId}`;
+      return [
+        message.source || "unknown",
+        message.conversationId || "conversation",
+        message.role || "system",
+        message.type || "text",
+        message.timestamp || 0,
+        unifiedContentFingerprint(message.content)
+      ].join(":");
+    }
+
+    const unifiedRoleOrder = { user: 0, system: 1, ai: 2, agent: 2 };
+
+    function compareUnifiedHistoryMessages(first, second) {
+      const timeDiff = (first.timestamp || 0) - (second.timestamp || 0);
+      if (timeDiff) return timeDiff;
+      const roleDiff = (unifiedRoleOrder[first.role] ?? 9) - (unifiedRoleOrder[second.role] ?? 9);
+      if (roleDiff) return roleDiff;
+      return (first.sequence || 0) - (second.sequence || 0);
+    }
+
+    function mergeUnifiedHistoryMessages(messages = []) {
+      const merged = new Map(chatState.unifiedHistoryMessages.map((message) => [message.key, message]));
+      messages.forEach((message) => {
+        if (!message) return;
+        const normalized = {
+          ...message,
+          sequence: message.sequence || ++chatState.unifiedSequence
+        };
+        normalized.key = normalized.key || unifiedHistoryMessageKey(normalized);
+        const existing = merged.get(normalized.key);
+        merged.set(normalized.key, existing
+          ? { ...existing, ...normalized, sequence: existing.sequence }
+          : normalized);
+      });
+      chatState.unifiedHistoryMessages = [...merged.values()].sort(compareUnifiedHistoryMessages);
+      chatState.unifiedHistoryKeys = new Set(chatState.unifiedHistoryMessages.map((message) => message.key));
+      return chatState.unifiedHistoryMessages;
+    }
+
     function normalizeAiHistoryMessages(messages = [], conversation = {}) {
+      const conversationId = conversation.conversationId || conversation.id || "";
       return messages.flatMap((message) => {
         const date = aiHistoryDateKey(message, conversation);
         const time = formatMessageTime(message, conversation);
         const timestamp = historyTimestamp(message, conversation);
         const rows = [];
-        if (message.query) rows.push({ role: "user", date, text: message.query, time, timestamp });
-        if (message.answer) rows.push({ role: "ai", date, text: message.answer, time, timestamp: timestamp + 1 });
+        if (message.query) rows.push({
+          source: "ai",
+          role: "user",
+          type: "text",
+          content: message.query,
+          conversationId,
+          messageId: message.id ? `${message.id}:query` : "",
+          date,
+          time,
+          timestamp,
+          sequence: ++chatState.unifiedSequence
+        });
+        if (message.answer) rows.push({
+          source: "ai",
+          role: "ai",
+          type: "text",
+          content: message.answer,
+          conversationId,
+          messageId: message.id ? `${message.id}:answer` : "",
+          date,
+          time,
+          timestamp: timestamp ? timestamp + 1 : 0,
+          sequence: ++chatState.unifiedSequence
+        });
         return rows;
       });
     }
 
+    function humanHistoryMessageType(message = {}) {
+      if (Number(message.type) === 2) return "image";
+      if (message.order || message.orderInfo || parseOrderTransferText(message.content)) return "order";
+      if (Number(message.type) === 3) return "system";
+      return "text";
+    }
+
+    function normalizeHumanHistoryMessages(messages = [], conversation = {}) {
+      const conversationId = conversation.id || conversation.conversationId || serviceState.conversationId || "";
+      return normalizeKefuHistoryMessages(messages).map((message) => {
+        const fromUserId = Number(message.fromUserId || message.fromUser?.id || 0);
+        const isUser = fromUserId === Number(currentUser.visitorId) || fromUserId < 0;
+        const type = humanHistoryMessageType(message);
+        const timestamp = parseFlexibleDate(message.createTime || message.timestamp)?.getTime() || 0;
+        return {
+          source: "human",
+          role: type === "system" ? "system" : (isUser ? "user" : "agent"),
+          type,
+          content: message.order || message.orderInfo || (type === "order" ? parseOrderTransferText(message.content) : message.content) || "",
+          timestamp,
+          sequence: ++chatState.unifiedSequence,
+          conversationId,
+          messageId: message.id || message.messageId || "",
+          agent: message.fromUser || {
+            id: message.fromUserId,
+            nickname: message.fromUserNickName || "人工客服",
+            avatar: message.fromUserAvatar || ""
+          },
+          raw: message
+        };
+      }).filter((message) => message.type === "system" || message.content);
+    }
+
     function setAiHistoryMessages(messages = []) {
       chatState.historySource = "ai";
-      chatState.humanHistoryCurrentConversation = null;
-      chatState.humanHistoryCursor = 0;
-      chatState.humanHistoryPendingConversations = [];
       mockHistoryMessages = [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       chatState.historyTotal = mockHistoryMessages.length;
-      chatState.historyLoadedCount = 0;
+      chatState.historyLoadedCount = mockHistoryMessages.length;
       chatState.historyLoading = false;
       chatState.historyActivated = false;
-      chatList.classList.remove("history-mode");
-      chatList.querySelectorAll(".history-loaded, [data-history-date], [data-history-status]").forEach((node) => node.remove());
+      chatState.aiHistoryHasMore = false;
+      mergeUnifiedHistoryMessages(messages);
       updateHistoryToggleText();
     }
 
@@ -5121,6 +5320,75 @@
         ? userMessageHtml(message.text, displayTime)
         : aiMessageHtml(`<div class="bubble">${formatPlainText(message.text)}</div>`, displayTime);
       return html.replace('class="message ', 'class="message history-loaded ');
+    }
+
+    function renderUnifiedHistoryMessage(message = {}) {
+      const time = message.timestamp ? formatConversationTime(new Date(message.timestamp)) : "";
+      let html = "";
+      if (message.role === "system") {
+        html = systemMessageHtml(String(message.content || ""));
+      } else if (message.role === "user") {
+        if (message.type === "image") html = userImageMessageHtml(String(message.content || ""), time);
+        else if (message.type === "order") html = userOrderMessageHtml(message.content || {}, time, { footerText: "历史发送记录" });
+        else html = userMessageHtml(String(message.content || ""), time);
+      } else if (message.role === "agent") {
+        html = message.type === "image"
+          ? humanAgentImageMessageHtml(String(message.content || ""), time, message.agent)
+          : humanAgentMessageHtml(String(message.content || ""), time, message.agent);
+      } else {
+        html = message.type === "html"
+          ? aiMessageHtml(String(message.content || ""), time)
+          : aiMessageHtml(`<div class="bubble">${formatPlainText(String(message.content || ""))}</div>`, time);
+      }
+      return html
+        .replace('class="message ', 'class="message history-loaded ')
+        .replace('class="system-note"', 'class="system-note history-loaded"');
+    }
+
+    function unifiedSourceTransitionHtml(previous, current) {
+      if (!previous || !current || previous.source === current.source) return "";
+      if (previous.source === "ai" && current.source === "human") {
+        return systemMessageHtml("已转接人工客服").replace('class="system-note"', 'class="system-note history-loaded"');
+      }
+      if (previous.source === "human" && current.source === "ai") {
+        return systemMessageHtml("人工服务已结束，继续由黄小西为您服务").replace('class="system-note"', 'class="system-note history-loaded"');
+      }
+      return "";
+    }
+
+    function unifiedHistoryTimelineHtml(messages = chatState.unifiedHistoryMessages) {
+      let previous = null;
+      let previousDate = "";
+      return messages.map((message) => {
+        const transition = unifiedSourceTransitionHtml(previous, message);
+        const date = message.timestamp ? localDateKey(new Date(message.timestamp)) : "";
+        const dateDivider = date && date !== previousDate ? historyDateDividerHtml(date) : "";
+        previous = message;
+        if (date) previousDate = date;
+        return `${dateDivider}${transition}<div data-unified-message-key="${escapeHtml(message.key)}" data-conversation-id="${escapeHtml(message.conversationId || "")}">${renderUnifiedHistoryMessage(message)}</div>`;
+      }).join("");
+    }
+
+    function renderUnifiedHistoryTimeline({ preserveScroll = false } = {}) {
+      const beforeHeight = chatList.scrollHeight;
+      const beforeTop = chatList.scrollTop;
+      chatList.innerHTML = chatState.unifiedHistoryMessages.length
+        ? unifiedHistoryTimelineHtml()
+        : initialAiMessageHtml();
+      iconRefresh();
+      if (preserveScroll) {
+        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
+      }
+    }
+
+    function scrollToUnifiedConversation(conversationId) {
+      const target = [...chatList.querySelectorAll("[data-conversation-id]")]
+        .find((node) => node.dataset.conversationId === String(conversationId));
+      if (!target) return false;
+      (target.querySelector(".message, .system-note") || target).scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.add("history-focus");
+      window.setTimeout(() => target.classList.remove("history-focus"), 1200);
+      return true;
     }
 
     function getConversationSortTime(conversation = {}) {
@@ -5145,8 +5413,6 @@
     function setHumanHistoryContext(conversations = [], activeConversation = null, messages = []) {
       if (!activeConversation?.id) return;
       chatState.historySource = "human";
-      chatState.historyTotal = 0;
-      chatState.historyLoadedCount = 0;
       chatState.historyLoading = false;
       chatState.historyActivated = false;
       chatState.humanHistoryCurrentConversation = activeConversation;
@@ -5154,6 +5420,10 @@
       chatState.humanHistoryPendingConversations = (conversations || [])
         .filter((item) => item?.toUser?.id > 0 && item.id !== activeConversation.id)
         .sort((a, b) => getConversationSortTime(b) - getConversationSortTime(a));
+      messages.forEach((message) => {
+        if (message?.id || message?.id === 0) serviceState.seenMessageIds.add(String(message.id));
+      });
+      mergeUnifiedHistoryMessages(normalizeHumanHistoryMessages(messages, activeConversation));
       updateHistoryToggleText();
     }
 
@@ -5268,89 +5538,55 @@
       }
     }
 
-    function loadOlderHumanHistoryMessages(options = {}) {
+    async function loadOlderHumanHistoryMessages(options = {}) {
       if (!options.force && Date.now() < chatState.historyArmedAt) return;
-      if (chatState.historyLoading) return;
-      if (!hasMoreHumanHistory()) {
-        updateHistoryToggleText();
-        return;
+      if (!hasMoreHumanHistory()) return [];
+      chatState.humanHistoryLoading = true;
+      try {
+        const batch = await fetchOlderHumanHistoryBatch();
+        const normalized = normalizeHumanHistoryMessages(batch, chatState.humanHistoryCurrentConversation);
+        mergeUnifiedHistoryMessages(normalized);
+        return normalized;
+      } finally {
+        chatState.humanHistoryLoading = false;
       }
-
-      chatState.historyActivated = true;
-      chatState.historyLoading = true;
-      historyWrap.classList.add("loading");
-      const oldStatus = chatList.querySelector("[data-history-status]");
-      if (oldStatus) oldStatus.remove();
-      const beforeHeight = chatList.scrollHeight;
-      const beforeTop = chatList.scrollTop;
-      chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("正在加载历史消息...", true));
-
-      fetchOlderHumanHistoryBatch()
-        .then((batch) => {
-          const loadingStatus = chatList.querySelector("[data-history-status]");
-          if (loadingStatus) loadingStatus.remove();
-          const statusText = hasMoreHumanHistory() ? "上滑继续查看更早消息" : "已加载全部历史消息";
-          chatList.insertAdjacentHTML("afterbegin", `${historyInlineStatusHtml(statusText)}${humanHistoryBatchHtml(batch)}`);
-          normalizeHistoryDateDividers();
-          chatState.historyLoadedCount += batch.length;
-          chatState.historyLoading = false;
-          historyWrap.classList.remove("loading");
-          updateHistoryToggleText();
-          iconRefresh();
-          chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
-        })
-        .catch((error) => {
-          console.warn("load older human history failed", error);
-          chatState.historyLoading = false;
-          historyWrap.classList.remove("loading");
-          const loadingStatus = chatList.querySelector("[data-history-status]");
-          if (loadingStatus) loadingStatus.remove();
-          chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("历史消息加载失败，请稍后重试"));
-          updateHistoryToggleText();
-        });
     }
 
-    function loadOlderHistoryMessages(options = {}) {
-      if (isHumanHistorySource()) {
-        loadOlderHumanHistoryMessages(options);
-        return;
-      }
-      if (!options.force && Date.now() < chatState.historyArmedAt) return;
-      if (chatState.historyLoading) return;
-      const total = mockHistoryMessages.length;
-      if (chatState.historyLoadedCount >= total) {
-        updateHistoryToggleText();
-        return;
-      }
+    function loadOlderAiHistoryMessages() {
+      const end = mockHistoryMessages.length - chatState.historyLoadedCount;
+      const start = Math.max(0, end - chatState.historyBatchSize);
+      const batch = mockHistoryMessages.slice(start, end);
+      chatState.historyLoadedCount += batch.length;
+      return batch;
+    }
 
+    async function loadOlderUnifiedHistory(options = {}) {
+      if (!options.force && Date.now() < chatState.historyArmedAt) return;
+      if (chatState.historyLoading || !hasMoreUnifiedHistory()) return;
       chatState.historyActivated = true;
       chatState.historyLoading = true;
       historyWrap.classList.add("loading");
-      const oldStatus = chatList.querySelector("[data-history-status]");
-      if (oldStatus) oldStatus.remove();
       const beforeHeight = chatList.scrollHeight;
       const beforeTop = chatList.scrollTop;
-      chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("正在加载历史消息...", true));
-
-      window.setTimeout(() => {
-        const end = total - chatState.historyLoadedCount;
-        const start = Math.max(0, end - chatState.historyBatchSize);
-        const batch = mockHistoryMessages.slice(start, end);
-        const loadingStatus = chatList.querySelector("[data-history-status]");
-        if (loadingStatus) loadingStatus.remove();
-
-        const reachedTop = start === 0;
-        const statusText = reachedTop ? "已加载全部历史消息" : "上滑继续查看更早消息";
-        chatList.insertAdjacentHTML("afterbegin", `${historyInlineStatusHtml(statusText)}${historyBatchHtml(batch)}`);
-        normalizeHistoryDateDividers();
-        chatState.historyLoadedCount += batch.length;
+      const tasks = [];
+      if (hasMoreHumanHistory()) tasks.push(loadOlderHumanHistoryMessages({ ...options, force: true }));
+      if (chatState.historyLoadedCount < mockHistoryMessages.length) tasks.push(Promise.resolve(loadOlderAiHistoryMessages()));
+      try {
+        const results = await Promise.allSettled(tasks);
+        results.forEach((result) => {
+          if (result.status === "fulfilled") mergeUnifiedHistoryMessages(result.value || []);
+        });
+        renderUnifiedHistoryTimeline();
+        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
+      } finally {
         chatState.historyLoading = false;
         historyWrap.classList.remove("loading");
         updateHistoryToggleText();
-        iconRefresh();
+      }
+    }
 
-        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
-      }, 480);
+    function loadOlderHistoryMessages(options = {}) {
+      return loadOlderUnifiedHistory(options);
     }
 
     function enableHistoryInChat() {
@@ -5379,6 +5615,7 @@
       chatList.classList.remove("history-mode");
       entryScreen?.classList.remove("chat-expanded");
       historyWrap.classList.remove("loading");
+      renderUnifiedHistoryTimeline();
       updateHistoryToggleText();
       iconRefresh();
       scrollChatBottom();
@@ -5389,46 +5626,28 @@
       iconRefresh();
     }
 
-    function loadConversationMessages(conversationId) {
+    async function loadConversationMessages(conversationId) {
       if (!conversationId) return;
       chatState.conversationId = conversationId;
       historyWrap.classList.remove("open");
       setScreen("entry");
-      chatList.innerHTML = "";
-      appendAi(`<div class="bubble">正在为您加载历史会话。</div>`);
-
-      api.queryMessages({ conversationId })
-        .then((data) => {
-          const messages = data.data || [];
-          chatList.innerHTML = "";
-          if (!messages.length) {
-            resetChatMessages();
-            scrollChatBottom();
-            return;
-          }
-
-          messages.forEach((message) => {
-            const time = formatMessageTime(message);
-            if (message.query) {
-              chatList.insertAdjacentHTML("beforeend", userMessageHtml(message.query, time));
-            }
-            if (message.answer) {
-              chatList.insertAdjacentHTML("beforeend", aiMessageHtml(`<div class="bubble">${formatPlainText(message.answer)}</div>`, time));
-            }
-          });
-          iconRefresh();
-          scrollChatBottom();
-        })
-        .catch((error) => {
-          console.warn("queryMessages failed", error);
-          chatList.innerHTML = "";
-          appendAi(`<div class="bubble">历史消息暂时加载失败，请稍后再试。</div>`);
-        });
+      if (scrollToUnifiedConversation(conversationId)) return;
+      try {
+        const data = await api.queryMessages({ conversationId });
+        const conversation = chatState.conversations.find((item) => String(item.conversationId || item.id) === String(conversationId)) || {};
+        mergeUnifiedHistoryMessages(normalizeAiHistoryMessages(data.data || [], conversation));
+        renderUnifiedHistoryTimeline();
+        scrollToUnifiedConversation(conversationId);
+      } catch (error) {
+        console.warn("queryMessages failed", error);
+        showToast("历史消息暂时加载失败，请稍后再试");
+      }
     }
 
     function loadRecentConversations() {
-      if (!difyConfig.enabled) return;
-      api.queryConversations()
+      if (!difyConfig.enabled) return Promise.resolve([]);
+      chatState.aiHistoryLoading = true;
+      return api.queryConversations()
         .then((data) => {
           chatState.conversations = data.data || [];
           chatState.hasMoreConversations = Boolean(data.has_more);
@@ -5455,12 +5674,62 @@
               return normalizeAiHistoryMessages(messages, conversation);
             });
             setAiHistoryMessages(historyMessages);
+            chatState.aiHistoryLoading = false;
+            chatState.historyLoadErrors.ai = "";
+            return historyMessages;
           });
         })
         .catch((error) => {
           console.warn("queryConversations failed", error);
+          chatState.aiHistoryLoading = false;
+          chatState.historyLoadErrors.ai = error.message || "AI 历史加载失败";
           renderHistoryList(chatState.conversations);
+          return [];
         });
+    }
+
+    function sortKefuConversationsOldestFirst(conversations = []) {
+      return [...conversations]
+        .filter((conversation) => conversation?.id && conversation?.toUser?.id > 0)
+        .sort((first, second) => getConversationSortTime(first) - getConversationSortTime(second));
+    }
+
+    async function loadRecentHumanHistory(conversations = []) {
+      if (!currentUser.kefuReady) return [];
+      chatState.humanHistoryLoading = true;
+      const ordered = sortKefuConversationsOldestFirst(conversations);
+      const messageGroups = await Promise.allSettled(ordered.map((conversation) => (
+        api.queryKefuMessages({
+          userId: currentUser.visitorId,
+          contactUserId: conversation.toUser?.id,
+          conversationId: conversation.id,
+          lessMessageId: 0
+        }).then((messages) => ({ conversation, messages }))
+      )));
+      chatState.humanHistoryLoading = false;
+      return messageGroups.flatMap((result) => (
+        result.status === "fulfilled"
+          ? normalizeHumanHistoryMessages(result.value.messages, result.value.conversation)
+          : []
+      ));
+    }
+
+    async function loadUnifiedRecentHistory(kefuConversations = []) {
+      const [aiResult, humanResult] = await Promise.allSettled([
+        loadRecentConversations(),
+        currentUser.kefuReady ? loadRecentHumanHistory(kefuConversations) : Promise.resolve([])
+      ]);
+      if (aiResult.status === "fulfilled") mergeUnifiedHistoryMessages(aiResult.value || []);
+      else chatState.historyLoadErrors.ai = aiResult.reason?.message || "AI 历史加载失败";
+      if (humanResult.status === "fulfilled") {
+        mergeUnifiedHistoryMessages(humanResult.value || []);
+        chatState.historyLoadErrors.human = "";
+      } else {
+        chatState.historyLoadErrors.human = humanResult.reason?.message || "人工历史加载失败";
+      }
+      renderUnifiedHistoryTimeline();
+      updateHistoryToggleText();
+      scrollChatBottom();
     }
 
     function normalizeChannelUserId(value) {
@@ -5570,8 +5839,6 @@
       updateSessionControls();
       clearRobotHintTimer();
       startAgentReplyWatcher();
-      chatList.innerHTML = "";
-      appendSystem("已恢复未结束的人工会话");
       const historyPayload = {
         userId: currentUser.visitorId,
         contactUserId: activeConversation.toUser.id,
@@ -5580,25 +5847,13 @@
       };
       const messages = await api.queryKefuMessages(historyPayload);
       setHumanHistoryContext(conversations, activeConversation, messages);
-      appendKefuConversationMessages(messages);
-      if (!chatList.querySelector("[data-end-session]")) {
-        appendAi(connectedServiceHtml("人工服务"));
-      }
-      iconRefresh();
-      scrollChatBottom();
       if (isWorkingTime()) {
         kefuSocket.login().then(() => {
           return api.queryKefuMessages(historyPayload).then((latestMessages) => {
             setHumanHistoryContext(conversations, activeConversation, latestMessages);
-            appendKefuConversationMessages(latestMessages);
-            if (!chatList.querySelector("[data-end-session]")) {
-              appendAi(connectedServiceHtml("人工服务"));
-            }
-            scrollChatBottom();
+            mergeUnifiedHistoryMessages(normalizeHumanHistoryMessages(latestMessages, activeConversation));
           });
         }).catch((error) => console.warn("restore kefu ws failed", error));
-      } else {
-        appendSystem("当前为非服务时间，已保留人工会话记录，可先提交留言或在服务时间继续咨询");
       }
       return conversations;
     }
@@ -5941,6 +6196,18 @@
       return String(packet.fromUserId ?? "") === String(currentUser.visitorId) || serviceState.optimisticMessageKeys.has(key);
     }
 
+    function registerUnifiedRealtimeMessage(message = {}) {
+      const normalized = {
+        ...message,
+        timestamp: message.timestamp || Date.now(),
+        sequence: ++chatState.unifiedSequence
+      };
+      normalized.key = normalized.key || unifiedHistoryMessageKey(normalized);
+      if (chatState.unifiedHistoryKeys.has(normalized.key)) return false;
+      mergeUnifiedHistoryMessages([normalized]);
+      return true;
+    }
+
     function handleKefuMessagePacket(rawPacket = {}) {
       const packet = normalizeKefuPacket(rawPacket);
       if (packet.id && serviceState.seenMessageIds.has(String(packet.id))) return;
@@ -5982,6 +6249,21 @@
       }
       if (packet.type === 99 || !packet.content) return;
       if (isOwnMessageEcho(packet)) return;
+      registerUnifiedRealtimeMessage({
+        source: "human",
+        role: packet.type === 3 ? "system" : "agent",
+        type: packet.type === 2 ? "image" : (packet.type === 3 ? "system" : "text"),
+        content: packet.content,
+        conversationId: packet.conversationId || serviceState.conversationId,
+        messageId: packet.messageId || packet.id,
+        timestamp: parseFlexibleDate(packet.createTime)?.getTime() || Date.now(),
+        agent: {
+          id: packet.fromUserId,
+          nickname: packet.fromUserNickName || "人工客服",
+          avatar: packet.fromUserAvatar || ""
+        },
+        raw: packet
+      });
       if (packet.type === 3) {
         appendSystem(packet.content);
         scrollChatBottom();
@@ -6298,14 +6580,23 @@
           return;
         }
         appendUser(text);
-        serviceState.optimisticMessageKeys.add(`${currentUser.visitorId}|1|${text}`);
-        return api.sendHumanMessage({
+        const optimisticKey = `${currentUser.visitorId}|1|${text}`;
+        serviceState.optimisticMessageKeys.add(optimisticKey);
+        registerUnifiedRealtimeMessage({
+          source: "human",
+          role: "user",
+          type: "text",
+          content: text,
+          conversationId: serviceState.conversationId,
+          key: `human:optimistic:${optimisticKey}`
+        });
+        return ensureKefuSocketReady().then(() => api.sendHumanMessage({
           version: 1,
           command: 3000,
           content: text,
           type: 1,
           toUserId: serviceState.currentAgent?.id
-        });
+        }));
       }).then((sent) => {
         if (!sent) return;
         startAgentReplyWatcher();
@@ -6343,13 +6634,20 @@
     }
 
     function sendCurrentInput() {
-      const value = chatInput.value.trim();
-      if (!value) return;
-      chatInput.value = "";
       if (serviceState.humanActive) {
+        const value = chatInput.value.trim();
+        if (!value) return;
+        chatInput.value = "";
         sendHumanTextMessage(value);
         return;
       }
+      if (chatState.aiStreaming) {
+        stopAiStreaming();
+        return;
+      }
+      const value = chatInput.value.trim();
+      if (!value) return;
+      chatInput.value = "";
       if (serviceState.queued) {
         appendSystem("正在排队中，如需发送消息请等待人工客服接入");
         scrollChatBottom();
@@ -6613,7 +6911,7 @@
       updateTopMenuByChatScroll(currentTop, previousTop);
       lastChatScrollTop = currentTop;
       if (!chatState.historyActivated) return;
-      if (chatState.historyLoadedCount >= mockHistoryMessages.length) return;
+      if (!hasMoreUnifiedHistory()) return;
       if (currentTop <= 24 && isMovingTowardTop) loadOlderHistoryMessages();
     }
 
@@ -6677,10 +6975,12 @@
       updateTopUserInfo();
       renderOrders();
       initializeVisitorSession()
-        .catch((error) => console.warn("initialize visitor session failed", error))
-        .then(() => {
-          if (currentUser.kefuReady) loadRecentConversations();
-        });
+        .catch((error) => {
+          console.warn("initialize visitor session failed", error);
+          return [];
+        })
+        .then((kefuConversations) => loadUnifiedRecentHistory(kefuConversations || []))
+        .catch((error) => console.warn("load unified recent history failed", error));
       renderRatingStars();
       updateSessionControls();
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
