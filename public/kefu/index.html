@@ -2841,18 +2841,12 @@
             <button type="button" data-emoji="😄">😄</button>
             <button type="button" data-emoji="👍">👍</button>
             <button type="button" data-emoji="🙏">🙏</button>
-            <button type="button" data-emoji="🎉">🎉</button>
+            <button type="button" data-emoji="😎">😎</button>
+            <button type="button" data-emoji="🍉">🍉</button>
             <button type="button" data-emoji="❤️">❤️</button>
-            <button type="button" data-emoji="🎫">🎫</button>
-            <button type="button" data-emoji="🏞️">🏞️</button>
-            <button type="button" data-emoji="🚌">🚌</button>
-            <button type="button" data-emoji="🏨">🏨</button>
-            <button type="button" data-emoji="🛍️">🛍️</button>
-            <button type="button" data-emoji="📍">📍</button>
             <button type="button" data-emoji="👌">👌</button>
             <button type="button" data-emoji="😅">😅</button>
             <button type="button" data-emoji="🤝">🤝</button>
-            <button type="button" data-emoji="✨">✨</button>
           </div>
           <div class="composer">
             <button class="compose-icon" type="button" data-open-emoji aria-label="表情"><i data-lucide="smile"></i></button>
@@ -3062,6 +3056,223 @@
       kefuReady: false,
       kefuInitError: ""
     };
+
+    const kefuEmojiMap = new Map([
+      ["[微笑]", "😊"],
+      ["[撇嘴]", "😒"],
+      ["[色]", "😍"],
+      ["[发呆]", "😶"],
+      ["[得意]", "😏"],
+      ["[流泪]", "😢"],
+      ["[害羞]", "😳"],
+      ["[闭嘴]", "🤐"],
+      ["[睡]", "😴"],
+      ["[大哭]", "😭"],
+      ["[尴尬]", "😅"],
+      ["[发怒]", "😡"],
+      ["[调皮]", "😜"],
+      ["[呲牙]", "😁"],
+      ["[惊讶]", "😮"],
+      ["[难过]", "😞"],
+      ["[酷]", "😎"],
+      ["[冷汗]", "😓"],
+      ["[抓狂]", "😫"],
+      ["[吐]", "🤮"],
+      ["[偷笑]", "🤭"],
+      ["[愉快]", "😄"],
+      ["[白眼]", "🙄"],
+      ["[傲慢]", "😤"],
+      ["[饥饿]", "🤤"],
+      ["[困]", "🥱"],
+      ["[惊恐]", "😱"],
+      ["[流汗]", "😰"],
+      ["[憨笑]", "😄"],
+      ["[大兵]", "🪖"],
+      ["[奋斗]", "💪"],
+      ["[咒骂]", "🤬"],
+      ["[疑问]", "❓"],
+      ["[嘘]", "🤫"],
+      ["[晕]", "😵‍💫"],
+      ["[折磨]", "😖"],
+      ["[衰]", "😩"],
+      ["[骷髅]", "💀"],
+      ["[敲打]", "🔨"],
+      ["[再见]", "👋"],
+      ["[擦汗]", "😅"],
+      ["[抠鼻]", "🤏"],
+      ["[鼓掌]", "👏"],
+      ["[糗大了]", "🤦"],
+      ["[坏笑]", "😈"],
+      ["[左哼哼]", "😤"],
+      ["[右哼哼]", "😤"],
+      ["[哈欠]", "🥱"],
+      ["[鄙视]", "😒"],
+      ["[委屈]", "🥺"],
+      ["[快哭了]", "🥹"],
+      ["[阴险]", "😏"],
+      ["[亲亲]", "😘"],
+      ["[吓]", "😨"],
+      ["[可怜]", "🥺"],
+      ["[菜刀]", "🔪"],
+      ["[西瓜]", "🍉"],
+      ["[啤酒]", "🍺"],
+      ["[篮球]", "🏀"],
+      ["[乒乓]", "🏓"],
+      ["[咖啡]", "☕"],
+      ["[饭]", "🍚"],
+      ["[猪头]", "🐷"],
+      ["[玫瑰]", "🌹"],
+      ["[凋谢]", "🥀"],
+      ["[示爱]", "💝"],
+      ["[爱心]", "❤️"],
+      ["[心碎]", "💔"],
+      ["[蛋糕]", "🎂"],
+      ["[闪电]", "⚡"],
+      ["[炸弹]", "💣"],
+      ["[刀]", "🔪"],
+      ["[足球]", "⚽"],
+      ["[瓢虫]", "🐞"],
+      ["[便便]", "💩"],
+      ["[月亮]", "🌙"],
+      ["[太阳]", "☀️"],
+      ["[礼物]", "🎁"],
+      ["[拥抱]", "🤗"],
+      ["[强]", "👍"],
+      ["[弱]", "👎"],
+      ["[握手]", "🤝"],
+      ["[胜利]", "✌️"],
+      ["[抱拳]", "🙏"],
+      ["[勾引]", "🫴"],
+      ["[拳头]", "👊"],
+      ["[差劲]", "👎"],
+      ["[爱你]", "🤟"],
+      ["[NO]", "🚫"],
+      ["[OK]", "👌"],
+      ["[爱情]", "💕"],
+      ["[飞吻]", "😘"],
+      ["[跳跳]", "🐇"],
+      ["[发抖]", "🫨"],
+      ["[怄火]", "😤"],
+      ["[转圈]", "🌀"],
+      ["[磕头]", "🙇"],
+      ["[回头]", "👀"],
+      ["[跳绳]", "🪢"],
+      ["[挥手]", "👋"],
+      ["[激动]", "🤩"],
+      ["[街舞]", "💃"],
+      ["[献吻]", "💋"],
+      ["[左太极]", "☯️"],
+      ["[右太极]", "☯️"]
+    ]);
+    const kefuEmojiReverseMap = new Map([
+      ["😊", "[微笑]"],
+      ["😒", "[鄙视]"],
+      ["😍", "[色]"],
+      ["😶", "[发呆]"],
+      ["😏", "[阴险]"],
+      ["😢", "[流泪]"],
+      ["😳", "[害羞]"],
+      ["🤐", "[闭嘴]"],
+      ["😴", "[睡]"],
+      ["😭", "[大哭]"],
+      ["😅", "[擦汗]"],
+      ["😡", "[发怒]"],
+      ["😜", "[调皮]"],
+      ["😁", "[呲牙]"],
+      ["😮", "[惊讶]"],
+      ["😞", "[难过]"],
+      ["😎", "[酷]"],
+      ["😓", "[冷汗]"],
+      ["😫", "[抓狂]"],
+      ["🤮", "[吐]"],
+      ["🤭", "[偷笑]"],
+      ["😄", "[憨笑]"],
+      ["🙄", "[白眼]"],
+      ["😤", "[怄火]"],
+      ["🤤", "[饥饿]"],
+      ["🥱", "[哈欠]"],
+      ["😱", "[惊恐]"],
+      ["😰", "[流汗]"],
+      ["🪖", "[大兵]"],
+      ["💪", "[奋斗]"],
+      ["🤬", "[咒骂]"],
+      ["❓", "[疑问]"],
+      ["🤫", "[嘘]"],
+      ["😵‍💫", "[晕]"],
+      ["😖", "[折磨]"],
+      ["😩", "[衰]"],
+      ["💀", "[骷髅]"],
+      ["🔨", "[敲打]"],
+      ["👋", "[挥手]"],
+      ["🤏", "[抠鼻]"],
+      ["👏", "[鼓掌]"],
+      ["🤦", "[糗大了]"],
+      ["😈", "[坏笑]"],
+      ["🥺", "[可怜]"],
+      ["🥹", "[快哭了]"],
+      ["😘", "[飞吻]"],
+      ["😨", "[吓]"],
+      ["🔪", "[刀]"],
+      ["🍉", "[西瓜]"],
+      ["🍺", "[啤酒]"],
+      ["🏀", "[篮球]"],
+      ["🏓", "[乒乓]"],
+      ["☕", "[咖啡]"],
+      ["🍚", "[饭]"],
+      ["🐷", "[猪头]"],
+      ["🌹", "[玫瑰]"],
+      ["🥀", "[凋谢]"],
+      ["💝", "[示爱]"],
+      ["❤️", "[爱心]"],
+      ["💔", "[心碎]"],
+      ["🎂", "[蛋糕]"],
+      ["⚡", "[闪电]"],
+      ["💣", "[炸弹]"],
+      ["⚽", "[足球]"],
+      ["🐞", "[瓢虫]"],
+      ["💩", "[便便]"],
+      ["🌙", "[月亮]"],
+      ["☀️", "[太阳]"],
+      ["🎁", "[礼物]"],
+      ["🤗", "[拥抱]"],
+      ["👍", "[强]"],
+      ["👎", "[差劲]"],
+      ["🤝", "[握手]"],
+      ["✌️", "[胜利]"],
+      ["🙏", "[抱拳]"],
+      ["🫴", "[勾引]"],
+      ["👊", "[拳头]"],
+      ["🤟", "[爱你]"],
+      ["🚫", "[NO]"],
+      ["👌", "[OK]"],
+      ["💕", "[爱情]"],
+      ["🐇", "[跳跳]"],
+      ["🫨", "[发抖]"],
+      ["🌀", "[转圈]"],
+      ["🙇", "[磕头]"],
+      ["👀", "[回头]"],
+      ["🪢", "[跳绳]"],
+      ["🤩", "[激动]"],
+      ["💃", "[街舞]"],
+      ["💋", "[献吻]"],
+      ["☯️", "[右太极]"]
+    ]);
+
+    function decodeKefuEmoji(text = "") {
+      return [...kefuEmojiMap.entries()].reduce(
+        (result, [token, emoji]) => result.replaceAll(token, emoji),
+        String(text)
+      );
+    }
+
+    function encodeKefuEmoji(text = "") {
+      return [...kefuEmojiReverseMap.entries()]
+        .sort(([left], [right]) => right.length - left.length)
+        .reduce(
+          (result, [emoji, token]) => result.replaceAll(emoji, token),
+          String(text)
+        );
+    }
 
     const chatState = {
       conversationId: "",
@@ -4136,7 +4347,7 @@
     }
 
     function humanAgentMessageHtml(text, time = formatClock(), agentOverride = serviceState.currentAgent) {
-      return humanAgentBubbleHtml(`<div class="bubble">${escapeHtml(text)}</div>`, time, agentOverride);
+      return humanAgentBubbleHtml(`<div class="bubble">${escapeHtml(decodeKefuEmoji(text))}</div>`, time, agentOverride);
     }
 
     function humanAgentImageMessageHtml(url, time = formatClock(), agentOverride = serviceState.currentAgent) {
@@ -5277,7 +5488,10 @@
           source: "human",
           role: type === "system" ? "system" : (isUser ? "user" : "agent"),
           type,
-          content: message.order || message.orderInfo || (type === "order" ? parseOrderTransferText(message.content) : message.content) || "",
+          content: (() => {
+            const content = message.order || message.orderInfo || (type === "order" ? parseOrderTransferText(message.content) : message.content) || "";
+            return type === "text" || type === "system" ? decodeKefuEmoji(content) : content;
+          })(),
           timestamp,
           sequence: ++chatState.unifiedSequence,
           conversationId,
@@ -6253,7 +6467,7 @@
         source: "human",
         role: packet.type === 3 ? "system" : "agent",
         type: packet.type === 2 ? "image" : (packet.type === 3 ? "system" : "text"),
-        content: packet.content,
+        content: packet.type === 2 ? packet.content : decodeKefuEmoji(packet.content),
         conversationId: packet.conversationId || serviceState.conversationId,
         messageId: packet.messageId || packet.id,
         timestamp: parseFlexibleDate(packet.createTime)?.getTime() || Date.now(),
@@ -6284,7 +6498,7 @@
         scrollChatBottom();
         return;
       }
-      appendHumanAgentMessage(packet.content, packet.createTime ? formatClock(new Date(packet.createTime)) : formatClock());
+      appendHumanAgentMessage(decodeKefuEmoji(packet.content), packet.createTime ? formatClock(new Date(packet.createTime)) : formatClock());
       scrollChatBottom();
     }
 
@@ -6593,7 +6807,7 @@
         return ensureKefuSocketReady().then(() => api.sendHumanMessage({
           version: 1,
           command: 3000,
-          content: text,
+          content: encodeKefuEmoji(text),
           type: 1,
           toUserId: serviceState.currentAgent?.id
         }));

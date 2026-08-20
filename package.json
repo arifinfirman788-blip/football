@@ -19,6 +19,7 @@
     "test:kefu-history": "node scripts/check-kefu-unified-history.mjs",
     "test:kefu-upload": "node scripts/check-kefu-mobile-upload.mjs",
     "test:kefu-ai-stop": "node scripts/check-kefu-ai-stop.mjs",
+    "test:kefu-emoji": "node scripts/check-kefu-emoji-mapping.mjs",
     "zip": "find football \\( -name '__MACOSX' -o -name '.DS_Store' \\) -exec rm -rf {} + && rm -f football.zip && zip -r football.zip football -x '__MACOSX/*' '*.DS_Store'"
   },
   "dependencies": {
