@@ -4309,7 +4309,7 @@
 
     function formatAgentDisplay(agent = {}) {
       const workNumber = agent.username || agent.userName || agent.agentNo || agent.workNo || agent.id;
-      return workNumber ? `工号 ${workNumber}` : "人工客服";
+      return workNumber ? `客服 ${workNumber}` : "人工客服";
     }
 
     function updateSessionControls() {
