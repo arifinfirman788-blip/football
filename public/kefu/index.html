@@ -4308,7 +4308,8 @@
     }
 
     function formatAgentDisplay(agent = {}) {
-      return agent.nickname || agent.username || "人工客服";
+      const workNumber = agent.username || agent.userName || agent.agentNo || agent.workNo || agent.id;
+      return workNumber ? `工号 ${workNumber}` : "人工客服";
     }
 
     function updateSessionControls() {
@@ -4374,6 +4375,7 @@
           ? userImageMessageHtml(message.content, time)
           : humanAgentImageMessageHtml(message.content, time, {
             id: message.fromUserId,
+            username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
             nickname: message.fromUserNickName || "人工客服",
             avatar: message.fromUserAvatar || ""
           });
@@ -4386,6 +4388,7 @@
       }
       return humanAgentMessageHtml(message.content || "", time, {
         id: message.fromUserId,
+        username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
         nickname: message.fromUserNickName || "人工客服",
         avatar: message.fromUserAvatar || ""
       }).replace('class="message ', 'class="message history-loaded ');
@@ -5498,6 +5501,7 @@
           messageId: message.id || message.messageId || "",
           agent: message.fromUser || {
             id: message.fromUserId,
+            username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
             nickname: message.fromUserNickName || "人工客服",
             avatar: message.fromUserAvatar || ""
           },
@@ -6473,6 +6477,7 @@
         timestamp: parseFlexibleDate(packet.createTime)?.getTime() || Date.now(),
         agent: {
           id: packet.fromUserId,
+          username: packet.fromUserUserName || packet.fromUserUsername || packet.fromUserAgentNo || packet.fromUserWorkNo,
           nickname: packet.fromUserNickName || "人工客服",
           avatar: packet.fromUserAvatar || ""
         },
@@ -6490,6 +6495,7 @@
           packet.createTime ? formatClock(new Date(packet.createTime)) : formatClock(),
           {
             id: packet.fromUserId,
+            username: packet.fromUserUserName || packet.fromUserUsername || packet.fromUserAgentNo || packet.fromUserWorkNo,
             nickname: packet.fromUserNickName || "人工客服",
             avatar: packet.fromUserAvatar || ""
           }
