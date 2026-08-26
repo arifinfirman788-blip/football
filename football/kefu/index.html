@@ -5911,6 +5911,10 @@
       chatList.innerHTML = chatState.unifiedHistoryMessages.length
         ? unifiedHistoryTimelineHtml()
         : initialAiMessageHtml();
+      for (const record of serviceState.pendingImageUploads.values()) {
+        chatList.insertAdjacentHTML("beforeend", humanImageUploadMessageHtml(record));
+        record.node = chatList.lastElementChild;
+      }
       iconRefresh();
       if (preserveScroll) {
         chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
