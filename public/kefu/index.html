@@ -1301,6 +1301,140 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    .message.user.image-upload .bubble {
+      width: fit-content;
+      max-width: min(100%, 266px);
+      padding: 10px;
+      border-top-right-radius: 8px;
+      color: #162233;
+      background: rgba(255,255,255,.94);
+      border: 1px solid rgba(220, 228, 237, .98);
+      box-shadow: 0 10px 20px rgba(43, 72, 126, .08);
+    }
+
+    .image-upload-card {
+      min-width: 0;
+    }
+
+    .image-upload-media {
+      position: relative;
+      min-width: 0;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #eef4fb;
+    }
+
+    .image-upload-preview {
+      width: 100%;
+      max-width: 246px;
+      display: block;
+      border-radius: 14px;
+      object-fit: cover;
+      aspect-ratio: 4 / 3;
+    }
+
+    .image-upload-state-layer {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      display: grid;
+      gap: 4px;
+      background: rgba(11, 20, 37, .48);
+      color: #fff;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .image-upload-card[data-upload-state="failed"] .image-upload-state-layer {
+      background: rgba(185, 28, 28, .62);
+    }
+
+    .image-upload-card[data-upload-state="success"] .image-upload-state-layer {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    .image-upload-state-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(255,255,255,.16);
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .image-upload-state-pill svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 2.5;
+      animation: spin 1s linear infinite;
+    }
+
+    .image-upload-card[data-upload-state="failed"] .image-upload-state-pill svg,
+    .image-upload-card[data-upload-state="success"] .image-upload-state-pill svg {
+      animation: none;
+    }
+
+    .image-upload-state-detail {
+      font-size: 11px;
+      line-height: 1.35;
+      color: rgba(255,255,255,.94);
+    }
+
+    .image-upload-footer {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .image-upload-filename {
+      flex: 1 1 auto;
+      min-width: 0;
+      color: #4a5b74;
+      font-size: 11px;
+      line-height: 1.35;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .image-upload-retry {
+      flex: none;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid rgba(47, 112, 240, .18);
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: #2f70f0;
+      background: #eef5ff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .image-upload-card[data-upload-state="failed"] .image-upload-retry {
+      display: inline-flex;
+    }
+
+    .image-upload-retry svg {
+      width: 13px;
+      height: 13px;
+      stroke-width: 2.5;
+    }
+
     .source {
       margin-top: 8px;
       min-height: 24px;
@@ -3336,7 +3470,8 @@
       sessionEndedAt: 0,
       seenMessageIds: new Set(),
       optimisticMessageKeys: new Set(),
-      pendingHumanUploads: []
+      pendingHumanUploads: [],
+      pendingImageUploads: new Map()
     };
 
     const kefuConfig = {
@@ -4426,6 +4561,131 @@
       `;
     }
 
+    function humanImageUploadId() {
+      return `human-image-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function humanImageUploadMessageHtml(record = {}) {
+      const state = record.state || "uploading";
+      const statusText = state === "failed"
+        ? "上传失败"
+        : state === "success"
+          ? "已发送"
+          : "上传中";
+      const detailText = state === "failed"
+        ? (record.errorMessage || "点击重试继续发送")
+        : state === "success"
+          ? "已发送到客服"
+          : "正在发送到客服";
+      const iconName = state === "failed" ? "triangle-alert" : (state === "success" ? "check-circle-2" : "loader-circle");
+      const previewUrl = record.previewUrl || record.remoteUrl || "";
+      return `
+        <div class="message user image-upload" data-upload-id="${escapeHtml(record.id)}" data-upload-state="${escapeHtml(state)}">
+          <div class="msg-body">
+            <div class="msg-meta"><span>${escapeHtml(record.time || formatClock())}</span><span>${escapeHtml(currentUser.name)}</span></div>
+            <div class="bubble image-upload-card" data-upload-state="${escapeHtml(state)}">
+              <div class="image-upload-media">
+                <img class="chat-image image-upload-preview" src="${escapeHtml(previewUrl)}" alt="待发送图片">
+                <div class="image-upload-state-layer">
+                  <span class="image-upload-state-pill"><i data-lucide="${iconName}"></i><span data-image-upload-state-text>${escapeHtml(statusText)}</span></span>
+                  <span class="image-upload-state-detail" data-image-upload-state-detail>${escapeHtml(detailText)}</span>
+                </div>
+              </div>
+              <div class="image-upload-footer">
+                <div class="image-upload-filename">${escapeHtml(record.fileName || "图片")}</div>
+                <button class="image-upload-retry" type="button" data-image-upload-retry data-upload-id="${escapeHtml(record.id)}" ${state === "failed" ? "" : "hidden"}>
+                  <i data-lucide="rotate-cw"></i><span>重试</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="msg-avatar">${escapeHtml(currentUser.shortName)}</div>
+        </div>
+      `;
+    }
+
+    function getHumanImageUploadRecord(uploadId) {
+      if (!uploadId) return null;
+      return serviceState.pendingImageUploads.get(uploadId) || null;
+    }
+
+    function updateHumanImageUploadRecord(uploadId, patch = {}) {
+      const record = getHumanImageUploadRecord(uploadId);
+      if (!record || !record.node) return null;
+      Object.assign(record, patch);
+      const node = record.node;
+      node.dataset.uploadState = record.state || "uploading";
+      const card = node.querySelector(".image-upload-card");
+      const preview = node.querySelector(".image-upload-preview");
+      const stateText = node.querySelector("[data-image-upload-state-text]");
+      const stateDetail = node.querySelector("[data-image-upload-state-detail]");
+      const retryButton = node.querySelector("[data-image-upload-retry]");
+      if (card) card.dataset.uploadState = record.state || "uploading";
+      if (preview && record.previewUrl && preview.src !== record.previewUrl && record.state !== "success") {
+        preview.src = record.previewUrl;
+      }
+      if (stateText) {
+        stateText.textContent = record.state === "failed"
+          ? "上传失败"
+          : record.state === "success"
+            ? "已发送"
+            : "上传中";
+      }
+      if (stateDetail) {
+        stateDetail.textContent = record.state === "failed"
+          ? (record.errorMessage || "点击重试继续发送")
+          : record.state === "success"
+            ? "已发送到客服"
+            : "正在发送到客服";
+      }
+      if (retryButton) retryButton.hidden = record.state !== "failed";
+      if (record.state === "success" && record.remoteUrl) {
+        const remoteUrl = record.remoteUrl;
+        if (preview) {
+          preview.onload = () => {
+            if (record.previewUrl?.startsWith("blob:")) {
+              try { URL.revokeObjectURL(record.previewUrl); } catch (error) { /* noop */ }
+              record.previewUrl = "";
+            }
+          };
+          preview.onerror = () => {
+            if (record.previewUrl && preview.src !== record.previewUrl) preview.src = record.previewUrl;
+          };
+          preview.src = remoteUrl;
+        }
+      }
+      iconRefresh();
+      return record;
+    }
+
+    function createHumanImageUploadRecord(file, uploadId = humanImageUploadId()) {
+      const id = uploadId;
+      const record = {
+        id,
+        file,
+        fileName: file?.name || "图片",
+        previewUrl: URL.createObjectURL(file),
+        remoteUrl: "",
+        state: "uploading",
+        errorMessage: "",
+        time: formatClock(),
+        node: null
+      };
+      chatList.insertAdjacentHTML("beforeend", humanImageUploadMessageHtml(record));
+      record.node = chatList.lastElementChild;
+      serviceState.pendingImageUploads.set(id, record);
+      iconRefresh();
+      scrollChatBottom();
+      return record;
+    }
+
+    function retryHumanImageUpload(uploadId) {
+      const record = getHumanImageUploadRecord(uploadId);
+      if (!record?.file) return Promise.resolve(false);
+      if (record.state === "uploading") return Promise.resolve(false);
+      return sendHumanImageFile(record.file, { uploadId });
+    }
+
     function clamp(value, min, max) {
       return Math.min(max, Math.max(min, value));
     }
@@ -4912,46 +5172,87 @@
       scrollChatBottom();
     }
 
-    function sendHumanImageFile(file) {
-      if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
-        return Promise.reject(new Error("当前未接入人工客服"));
+    function resetHumanUploadState() {
+      serviceState.pendingHumanUploads = [];
+      for (const record of serviceState.pendingImageUploads.values()) {
+        if (record?.previewUrl?.startsWith("blob:")) {
+          try { URL.revokeObjectURL(record.previewUrl); } catch (error) { /* noop */ }
+        }
       }
-      return ensureKefuSocketReady().then(() => api.uploadChatImage(file)).then((image) => {
+      serviceState.pendingImageUploads = new Map();
+    }
+
+    async function sendHumanImageFile(file, options = {}) {
+      if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
+        throw new Error("当前未接入人工客服");
+      }
+
+      const uploadId = options.uploadId || humanImageUploadId();
+      const conversationSnapshot = serviceState.conversationId;
+      const agentIdSnapshot = serviceState.currentAgent.id;
+      let record = getHumanImageUploadRecord(uploadId);
+      if (!record) {
+        record = createHumanImageUploadRecord(file, uploadId);
+      } else {
+        record.file = file;
+        record.fileName = file?.name || record.fileName || "图片";
+        record.errorMessage = "";
+        updateHumanImageUploadRecord(uploadId, { state: "uploading" });
+      }
+
+      try {
+        await ensureKefuSocketReady();
+        const image = await api.uploadChatImage(file);
         const imageUrl = image?.url || image?.data?.url || "";
         if (!imageUrl) throw new Error("图片上传成功但未返回可用地址");
+        if (!serviceState.humanActive || !serviceState.currentAgent?.id || serviceState.conversationId !== conversationSnapshot || serviceState.currentAgent.id !== agentIdSnapshot) {
+          throw new Error("会话状态已变化，请重新发送");
+        }
         const optimisticKey = `${currentUser.visitorId}|2|${imageUrl}`;
         serviceState.optimisticMessageKeys.add(optimisticKey);
-        return ensureKefuSocketReady().then(() => api.sendHumanMessage({
+        await ensureKefuSocketReady();
+        await api.sendHumanMessage({
           version: 1,
           command: 3000,
           content: imageUrl,
           type: 2,
           toUserId: serviceState.currentAgent.id
-        })).then(() => {
-          chatList.insertAdjacentHTML("beforeend", userImageMessageHtml(imageUrl));
-          registerUnifiedRealtimeMessage({
-            source: "human",
-            role: "user",
-            type: "image",
-            content: imageUrl,
-            conversationId: serviceState.conversationId,
-            key: `human:optimistic:${optimisticKey}`
-          });
-          iconRefresh();
-          startAgentReplyWatcher();
-          scrollChatBottom();
-          return imageUrl;
-        }).catch((error) => {
-          serviceState.optimisticMessageKeys.delete(optimisticKey);
-          throw error;
         });
-      });
+        record.remoteUrl = imageUrl;
+        record.state = "success";
+        record.errorMessage = "";
+        updateHumanImageUploadRecord(uploadId, {
+          state: "success",
+          remoteUrl: imageUrl,
+          errorMessage: ""
+        });
+        registerUnifiedRealtimeMessage({
+          source: "human",
+          role: "user",
+          type: "image",
+          content: imageUrl,
+          conversationId: serviceState.conversationId,
+          key: `human:optimistic:${optimisticKey}`
+        });
+        serviceState.pendingImageUploads.delete(uploadId);
+        startAgentReplyWatcher();
+        scrollChatBottom();
+        return imageUrl;
+      } catch (error) {
+        record.state = "failed";
+        record.errorMessage = error?.message || "图片发送失败，请稍后重试";
+        updateHumanImageUploadRecord(uploadId, {
+          state: "failed",
+          errorMessage: record.errorMessage
+        });
+        throw error;
+      }
     }
 
     async function flushPendingHumanUploads() {
       if (!serviceState.humanActive || !serviceState.currentAgent?.id || !serviceState.pendingHumanUploads.length) return;
       const pendingFiles = [...serviceState.pendingHumanUploads];
-      serviceState.pendingHumanUploads = [];
+      resetHumanUploadState();
       for (const file of pendingFiles) {
         try {
           await sendHumanImageFile(file);
@@ -6067,7 +6368,7 @@
       if (!activeConversation) return conversations;
       serviceState.seenMessageIds = new Set();
       serviceState.optimisticMessageKeys = new Set();
-      serviceState.pendingHumanUploads = [];
+      resetHumanUploadState();
       serviceState.conversationId = activeConversation.id;
       serviceState.humanActive = true;
       serviceState.currentAgent = activeConversation.toUser;
@@ -6375,7 +6676,7 @@
       serviceState.queued = false;
       serviceState.serviceType = "";
       serviceState.pendingAfterOrder = "";
-      serviceState.pendingHumanUploads = [];
+      resetHumanUploadState();
       updateSessionControls();
       clearQueuePresentation();
       kefuSocket.close(true);
@@ -6623,7 +6924,7 @@
       }).catch((error) => {
         serviceState.queued = false;
         serviceState.serviceType = "";
-        serviceState.pendingHumanUploads = [];
+        resetHumanUploadState();
         updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
@@ -6664,7 +6965,7 @@
         serviceState.queued = false;
         serviceState.serviceType = "";
         serviceState.pendingAfterOrder = "";
-        serviceState.pendingHumanUploads = [];
+        resetHumanUploadState();
         updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
@@ -7043,6 +7344,17 @@
     });
 
     chatList.addEventListener("click", (event) => {
+      const retryButton = event.target.closest("[data-image-upload-retry]");
+      if (retryButton) {
+        const uploadId = retryButton.dataset.uploadId || retryButton.closest("[data-upload-id]")?.dataset.uploadId;
+        if (uploadId) {
+          retryHumanImageUpload(uploadId).catch((error) => {
+            console.warn("retry human image upload failed", error);
+            showToast(error.message || "图片发送失败，请稍后重试");
+          });
+        }
+        return;
+      }
       const image = event.target.closest(".chat-image");
       if (!image) return;
       openImagePreview(image);

@@ -43,6 +43,7 @@
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       display: block;
       overflow: hidden;
       touch-action: manipulation;
@@ -80,7 +81,9 @@
     .board {
       width: 100vw;
       height: 100vh;
+      height: 100dvh;
       min-height: 100vh;
+      min-height: 100dvh;
       padding: 0;
       display: flex;
       justify-content: center;
@@ -182,7 +185,9 @@
     .phone {
       width: min(430px, 100vw);
       height: 100vh;
+      height: 100dvh;
       min-height: 100vh;
+      min-height: 100dvh;
       border: 0;
       border-radius: 0;
       overflow: hidden;
@@ -193,6 +198,7 @@
 
     .screen-shell {
       height: 100vh;
+      height: 100dvh;
       position: relative;
       overflow: hidden;
       background:
@@ -392,9 +398,10 @@
     }
 
     .composer {
+      width: 100%;
       height: 46px;
       display: grid;
-      grid-template-columns: 36px 36px 1fr 42px;
+      grid-template-columns: 36px 36px minmax(0, 1fr) 42px;
       gap: 7px;
       align-items: center;
     }
@@ -459,6 +466,7 @@
 
     .input {
       width: 100%;
+      min-width: 0;
       height: 42px;
       outline: none;
       border: 1px solid rgba(198, 216, 242, .9);
@@ -486,6 +494,14 @@
       box-shadow: 0 12px 22px rgba(71, 92, 225, .22);
     }
 
+    .send.stop-mode {
+      width: 42px;
+      height: 42px;
+      padding: 0;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e05262, #c52f4c);
+    }
+
     .hero {
       min-height: 166px;
       padding: 10px 0 0;
@@ -495,22 +511,42 @@
       gap: 8px;
       position: relative;
       z-index: 2;
+      overflow: hidden;
+      transition:
+        min-height .32s cubic-bezier(.22, .86, .28, 1),
+        padding .32s cubic-bezier(.22, .86, .28, 1),
+        grid-template-columns .32s cubic-bezier(.22, .86, .28, 1),
+        gap .32s cubic-bezier(.22, .86, .28, 1);
     }
 
     .screen.chat-expanded .hero {
       min-height: 42px;
       padding-top: 0;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr) 0;
       align-items: center;
+      gap: 0;
     }
 
     .screen.chat-expanded .eyebrow-row {
       margin-bottom: 0;
     }
 
-    .screen.chat-expanded .hello h2,
+    .screen.chat-expanded .hello h2 {
+      max-height: 0;
+      margin: 0;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transform: translateY(-8px);
+    }
+
     .screen.chat-expanded .mascot {
-      display: none;
+      opacity: 0;
+      height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transform: translate3d(18px, -10px, 0) scale(.88);
+      visibility: hidden;
     }
 
     .screen.chat-expanded .ask-panel {
@@ -619,11 +655,19 @@
 
     .hello h2 {
       margin: 0;
+      max-height: 64px;
       color: #20316b;
       font-size: 26px;
       line-height: 1.12;
       letter-spacing: 0;
       white-space: nowrap;
+      opacity: 1;
+      transform: translateY(0);
+      transition:
+        max-height .28s cubic-bezier(.22, .86, .28, 1),
+        margin .28s cubic-bezier(.22, .86, .28, 1),
+        opacity .2s ease,
+        transform .28s cubic-bezier(.22, .86, .28, 1);
     }
 
     .hello p {
@@ -641,6 +685,15 @@
       position: relative;
       overflow: visible;
       z-index: 1;
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      transform-origin: right bottom;
+      visibility: visible;
+      transition:
+        height .32s cubic-bezier(.22, .86, .28, 1),
+        opacity .18s ease,
+        transform .32s cubic-bezier(.22, .86, .28, 1),
+        visibility 0s linear 0s;
     }
 
     .mascot-img {
@@ -751,6 +804,18 @@
       scroll-snap-type: x mandatory;
       scrollbar-width: none;
       touch-action: pan-x;
+    }
+
+    .human-chat-active .scenario-grid {
+      display: none;
+    }
+
+    .human-chat-active .ask-panel {
+      display: none;
+    }
+
+    .human-chat-active .screen.chat-expanded .scenario-grid {
+      display: none;
     }
 
     .scenario-grid::-webkit-scrollbar { display: none; }
@@ -1031,6 +1096,20 @@
       box-shadow: inset 0 1px 0 rgba(255,255,255,.54);
     }
 
+    [data-unified-message-key] {
+      display: contents;
+    }
+
+    [data-unified-message-key].history-focus > .message,
+    [data-unified-message-key].history-focus > .system-note {
+      animation: history-focus-pulse 1.2s ease;
+    }
+
+    @keyframes history-focus-pulse {
+      0%, 100% { filter: none; }
+      35% { filter: drop-shadow(0 0 10px rgba(64, 120, 238, .42)); }
+    }
+
     .chat-list {
       display: grid;
       gap: 12px;
@@ -1218,6 +1297,142 @@
       display: block;
       object-fit: cover;
       box-shadow: 0 10px 20px rgba(43, 72, 126, .12);
+      cursor: zoom-in;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .message.user.image-upload .bubble {
+      width: fit-content;
+      max-width: min(100%, 266px);
+      padding: 10px;
+      border-top-right-radius: 8px;
+      color: #162233;
+      background: rgba(255,255,255,.94);
+      border: 1px solid rgba(220, 228, 237, .98);
+      box-shadow: 0 10px 20px rgba(43, 72, 126, .08);
+    }
+
+    .image-upload-card {
+      min-width: 0;
+    }
+
+    .image-upload-media {
+      position: relative;
+      min-width: 0;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #eef4fb;
+    }
+
+    .image-upload-preview {
+      width: 100%;
+      max-width: 246px;
+      display: block;
+      border-radius: 14px;
+      object-fit: cover;
+      aspect-ratio: 4 / 3;
+    }
+
+    .image-upload-state-layer {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      display: grid;
+      gap: 4px;
+      background: rgba(11, 20, 37, .48);
+      color: #fff;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .image-upload-card[data-upload-state="failed"] .image-upload-state-layer {
+      background: rgba(185, 28, 28, .62);
+    }
+
+    .image-upload-card[data-upload-state="success"] .image-upload-state-layer {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    .image-upload-state-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(255,255,255,.16);
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .image-upload-state-pill svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 2.5;
+      animation: spin 1s linear infinite;
+    }
+
+    .image-upload-card[data-upload-state="failed"] .image-upload-state-pill svg,
+    .image-upload-card[data-upload-state="success"] .image-upload-state-pill svg {
+      animation: none;
+    }
+
+    .image-upload-state-detail {
+      font-size: 11px;
+      line-height: 1.35;
+      color: rgba(255,255,255,.94);
+    }
+
+    .image-upload-footer {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .image-upload-filename {
+      flex: 1 1 auto;
+      min-width: 0;
+      color: #4a5b74;
+      font-size: 11px;
+      line-height: 1.35;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .image-upload-retry {
+      flex: none;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid rgba(47, 112, 240, .18);
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: #2f70f0;
+      background: #eef5ff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .image-upload-card[data-upload-state="failed"] .image-upload-retry {
+      display: inline-flex;
+    }
+
+    .image-upload-retry svg {
+      width: 13px;
+      height: 13px;
+      stroke-width: 2.5;
     }
 
     .source {
@@ -2124,18 +2339,130 @@
     }
 
     .modal-layer {
-      position: absolute;
+      position: fixed;
       inset: 0;
-      z-index: 40;
-      display: none;
+      z-index: 100;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
       align-items: end;
-      padding: 18px;
-      background: rgba(22, 34, 62, .22);
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(18px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(18px, env(safe-area-inset-left));
+      background: rgba(232, 242, 252, .98);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      isolation: isolate;
+      transition: opacity .24s ease, visibility 0s linear .24s;
+    }
+
+    .modal-layer.show {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition-delay: 0s;
+    }
+
+    .image-preview {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(16px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
+      display: grid;
+      place-items: center;
+      background: rgba(4, 10, 24, .94);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity .2s ease, visibility 0s linear .2s;
+      touch-action: none;
+      overscroll-behavior: contain;
+    }
+
+    .image-preview.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition-delay: 0s;
+    }
+
+    .image-preview__image {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 10px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .42);
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+      transform: translate3d(0, 0, 0) scale(1);
+      transform-origin: center center;
+      transition: none;
+      will-change: transform;
+    }
+
+    .image-preview__image.dragging {
+      cursor: grabbing;
+    }
+
+    .image-preview__image.animating {
+      transition: transform .2s cubic-bezier(.22, .86, .28, 1);
+    }
+
+    .image-preview__close {
+      position: absolute;
+      top: max(14px, env(safe-area-inset-top));
+      right: max(14px, env(safe-area-inset-right));
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255, 255, 255, .24);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: rgba(15, 23, 42, .66);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
     }
 
-    .modal-layer.show { display: flex; }
+    .image-preview__close svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    body.image-preview-open {
+      overflow: hidden;
+    }
+
+    .modal-layer > .help-sheet,
+    .modal-layer > .upload-sheet {
+      opacity: 0;
+      transform: translateY(24px) scale(.98);
+      transition:
+        opacity .2s ease,
+        transform .32s cubic-bezier(.22, .86, .28, 1);
+    }
+
+    .modal-layer.show > .help-sheet,
+    .modal-layer.show > .upload-sheet {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
 
     .help-sheet {
       width: 100%;
@@ -2166,17 +2493,19 @@
     }
 
     .order-layer {
-      display: flex;
       padding: 0;
       align-items: end;
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
-      transition: opacity .22s ease;
+      transition: opacity .22s ease, visibility 0s linear .22s;
     }
 
     .order-layer.show {
       opacity: 1;
+      visibility: visible;
       pointer-events: auto;
+      transition-delay: 0s;
     }
 
     .order-layer .order-sheet {
@@ -2540,6 +2869,7 @@
       .phone {
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
       }
     }
   </style>
@@ -2657,18 +2987,12 @@
             <button type="button" data-emoji="😄">😄</button>
             <button type="button" data-emoji="👍">👍</button>
             <button type="button" data-emoji="🙏">🙏</button>
-            <button type="button" data-emoji="🎉">🎉</button>
+            <button type="button" data-emoji="😎">😎</button>
+            <button type="button" data-emoji="🍉">🍉</button>
             <button type="button" data-emoji="❤️">❤️</button>
-            <button type="button" data-emoji="🎫">🎫</button>
-            <button type="button" data-emoji="🏞️">🏞️</button>
-            <button type="button" data-emoji="🚌">🚌</button>
-            <button type="button" data-emoji="🏨">🏨</button>
-            <button type="button" data-emoji="🛍️">🛍️</button>
-            <button type="button" data-emoji="📍">📍</button>
             <button type="button" data-emoji="👌">👌</button>
             <button type="button" data-emoji="😅">😅</button>
             <button type="button" data-emoji="🤝">🤝</button>
-            <button type="button" data-emoji="✨">✨</button>
           </div>
           <div class="composer">
             <button class="compose-icon" type="button" data-open-emoji aria-label="表情"><i data-lucide="smile"></i></button>
@@ -2792,10 +3116,43 @@
 
   </div>
 
+  <div class="image-preview" id="imagePreview" role="dialog" aria-modal="true" aria-label="图片预览" aria-hidden="true">
+    <button class="image-preview__close" type="button" data-close-image-preview aria-label="关闭图片预览">
+      <i data-lucide="x"></i>
+    </button>
+    <img class="image-preview__image" id="imagePreviewImage" src="" alt="会话图片预览">
+  </div>
+
   <script>
     const screens = document.querySelectorAll(".screen");
     const flowItems = document.querySelectorAll(".flow-item");
     const chatList = document.querySelector("#chatList");
+    const imagePreview = document.querySelector("#imagePreview");
+    const imagePreviewImage = document.querySelector("#imagePreviewImage");
+    const imagePreviewClose = document.querySelector("[data-close-image-preview]");
+    const IMAGE_PREVIEW_MIN_SCALE = 1;
+    const IMAGE_PREVIEW_MAX_SCALE = 4;
+    const IMAGE_PREVIEW_DOUBLE_TAP_SCALE = 2.5;
+    const imagePreviewPointers = new Map();
+    const imagePreviewGesture = {
+      scale: 1,
+      translateX: 0,
+      translateY: 0,
+      startScale: 1,
+      startTranslateX: 0,
+      startTranslateY: 0,
+      startDistance: 0,
+      startCenterX: 0,
+      startCenterY: 0,
+      dragPointerId: null,
+      dragStartX: 0,
+      dragStartY: 0,
+      moved: false,
+      hadMultiplePointers: false,
+      lastTapAt: 0,
+      lastTapX: 0,
+      lastTapY: 0,
+    };
     const entryScreen = document.querySelector('[data-panel="entry"]');
     const orderList = document.querySelector("#orderList");
     const orderSearchInput = document.querySelector("#orderSearchInput");
@@ -2823,6 +3180,8 @@
     const topUserName = document.querySelector("#topUserName");
     const topMemberName = document.querySelector("#topMemberName");
     const topVipLevel = document.querySelector("#topVipLevel");
+    let imagePreviewTrigger = null;
+    let imagePreviewHistoryActive = false;
     let lastSelectedOrder = null;
     let boardImageFile = null;
     const currentUser = {
@@ -2844,6 +3203,223 @@
       kefuInitError: ""
     };
 
+    const kefuEmojiMap = new Map([
+      ["[微笑]", "😊"],
+      ["[撇嘴]", "😒"],
+      ["[色]", "😍"],
+      ["[发呆]", "😶"],
+      ["[得意]", "😏"],
+      ["[流泪]", "😢"],
+      ["[害羞]", "😳"],
+      ["[闭嘴]", "🤐"],
+      ["[睡]", "😴"],
+      ["[大哭]", "😭"],
+      ["[尴尬]", "😅"],
+      ["[发怒]", "😡"],
+      ["[调皮]", "😜"],
+      ["[呲牙]", "😁"],
+      ["[惊讶]", "😮"],
+      ["[难过]", "😞"],
+      ["[酷]", "😎"],
+      ["[冷汗]", "😓"],
+      ["[抓狂]", "😫"],
+      ["[吐]", "🤮"],
+      ["[偷笑]", "🤭"],
+      ["[愉快]", "😄"],
+      ["[白眼]", "🙄"],
+      ["[傲慢]", "😤"],
+      ["[饥饿]", "🤤"],
+      ["[困]", "🥱"],
+      ["[惊恐]", "😱"],
+      ["[流汗]", "😰"],
+      ["[憨笑]", "😄"],
+      ["[大兵]", "🪖"],
+      ["[奋斗]", "💪"],
+      ["[咒骂]", "🤬"],
+      ["[疑问]", "❓"],
+      ["[嘘]", "🤫"],
+      ["[晕]", "😵‍💫"],
+      ["[折磨]", "😖"],
+      ["[衰]", "😩"],
+      ["[骷髅]", "💀"],
+      ["[敲打]", "🔨"],
+      ["[再见]", "👋"],
+      ["[擦汗]", "😅"],
+      ["[抠鼻]", "🤏"],
+      ["[鼓掌]", "👏"],
+      ["[糗大了]", "🤦"],
+      ["[坏笑]", "😈"],
+      ["[左哼哼]", "😤"],
+      ["[右哼哼]", "😤"],
+      ["[哈欠]", "🥱"],
+      ["[鄙视]", "😒"],
+      ["[委屈]", "🥺"],
+      ["[快哭了]", "🥹"],
+      ["[阴险]", "😏"],
+      ["[亲亲]", "😘"],
+      ["[吓]", "😨"],
+      ["[可怜]", "🥺"],
+      ["[菜刀]", "🔪"],
+      ["[西瓜]", "🍉"],
+      ["[啤酒]", "🍺"],
+      ["[篮球]", "🏀"],
+      ["[乒乓]", "🏓"],
+      ["[咖啡]", "☕"],
+      ["[饭]", "🍚"],
+      ["[猪头]", "🐷"],
+      ["[玫瑰]", "🌹"],
+      ["[凋谢]", "🥀"],
+      ["[示爱]", "💝"],
+      ["[爱心]", "❤️"],
+      ["[心碎]", "💔"],
+      ["[蛋糕]", "🎂"],
+      ["[闪电]", "⚡"],
+      ["[炸弹]", "💣"],
+      ["[刀]", "🔪"],
+      ["[足球]", "⚽"],
+      ["[瓢虫]", "🐞"],
+      ["[便便]", "💩"],
+      ["[月亮]", "🌙"],
+      ["[太阳]", "☀️"],
+      ["[礼物]", "🎁"],
+      ["[拥抱]", "🤗"],
+      ["[强]", "👍"],
+      ["[弱]", "👎"],
+      ["[握手]", "🤝"],
+      ["[胜利]", "✌️"],
+      ["[抱拳]", "🙏"],
+      ["[勾引]", "🫴"],
+      ["[拳头]", "👊"],
+      ["[差劲]", "👎"],
+      ["[爱你]", "🤟"],
+      ["[NO]", "🚫"],
+      ["[OK]", "👌"],
+      ["[爱情]", "💕"],
+      ["[飞吻]", "😘"],
+      ["[跳跳]", "🐇"],
+      ["[发抖]", "🫨"],
+      ["[怄火]", "😤"],
+      ["[转圈]", "🌀"],
+      ["[磕头]", "🙇"],
+      ["[回头]", "👀"],
+      ["[跳绳]", "🪢"],
+      ["[挥手]", "👋"],
+      ["[激动]", "🤩"],
+      ["[街舞]", "💃"],
+      ["[献吻]", "💋"],
+      ["[左太极]", "☯️"],
+      ["[右太极]", "☯️"]
+    ]);
+    const kefuEmojiReverseMap = new Map([
+      ["😊", "[微笑]"],
+      ["😒", "[鄙视]"],
+      ["😍", "[色]"],
+      ["😶", "[发呆]"],
+      ["😏", "[阴险]"],
+      ["😢", "[流泪]"],
+      ["😳", "[害羞]"],
+      ["🤐", "[闭嘴]"],
+      ["😴", "[睡]"],
+      ["😭", "[大哭]"],
+      ["😅", "[擦汗]"],
+      ["😡", "[发怒]"],
+      ["😜", "[调皮]"],
+      ["😁", "[呲牙]"],
+      ["😮", "[惊讶]"],
+      ["😞", "[难过]"],
+      ["😎", "[酷]"],
+      ["😓", "[冷汗]"],
+      ["😫", "[抓狂]"],
+      ["🤮", "[吐]"],
+      ["🤭", "[偷笑]"],
+      ["😄", "[憨笑]"],
+      ["🙄", "[白眼]"],
+      ["😤", "[怄火]"],
+      ["🤤", "[饥饿]"],
+      ["🥱", "[哈欠]"],
+      ["😱", "[惊恐]"],
+      ["😰", "[流汗]"],
+      ["🪖", "[大兵]"],
+      ["💪", "[奋斗]"],
+      ["🤬", "[咒骂]"],
+      ["❓", "[疑问]"],
+      ["🤫", "[嘘]"],
+      ["😵‍💫", "[晕]"],
+      ["😖", "[折磨]"],
+      ["😩", "[衰]"],
+      ["💀", "[骷髅]"],
+      ["🔨", "[敲打]"],
+      ["👋", "[挥手]"],
+      ["🤏", "[抠鼻]"],
+      ["👏", "[鼓掌]"],
+      ["🤦", "[糗大了]"],
+      ["😈", "[坏笑]"],
+      ["🥺", "[可怜]"],
+      ["🥹", "[快哭了]"],
+      ["😘", "[飞吻]"],
+      ["😨", "[吓]"],
+      ["🔪", "[刀]"],
+      ["🍉", "[西瓜]"],
+      ["🍺", "[啤酒]"],
+      ["🏀", "[篮球]"],
+      ["🏓", "[乒乓]"],
+      ["☕", "[咖啡]"],
+      ["🍚", "[饭]"],
+      ["🐷", "[猪头]"],
+      ["🌹", "[玫瑰]"],
+      ["🥀", "[凋谢]"],
+      ["💝", "[示爱]"],
+      ["❤️", "[爱心]"],
+      ["💔", "[心碎]"],
+      ["🎂", "[蛋糕]"],
+      ["⚡", "[闪电]"],
+      ["💣", "[炸弹]"],
+      ["⚽", "[足球]"],
+      ["🐞", "[瓢虫]"],
+      ["💩", "[便便]"],
+      ["🌙", "[月亮]"],
+      ["☀️", "[太阳]"],
+      ["🎁", "[礼物]"],
+      ["🤗", "[拥抱]"],
+      ["👍", "[强]"],
+      ["👎", "[差劲]"],
+      ["🤝", "[握手]"],
+      ["✌️", "[胜利]"],
+      ["🙏", "[抱拳]"],
+      ["🫴", "[勾引]"],
+      ["👊", "[拳头]"],
+      ["🤟", "[爱你]"],
+      ["🚫", "[NO]"],
+      ["👌", "[OK]"],
+      ["💕", "[爱情]"],
+      ["🐇", "[跳跳]"],
+      ["🫨", "[发抖]"],
+      ["🌀", "[转圈]"],
+      ["🙇", "[磕头]"],
+      ["👀", "[回头]"],
+      ["🪢", "[跳绳]"],
+      ["🤩", "[激动]"],
+      ["💃", "[街舞]"],
+      ["💋", "[献吻]"],
+      ["☯️", "[右太极]"]
+    ]);
+
+    function decodeKefuEmoji(text = "") {
+      return [...kefuEmojiMap.entries()].reduce(
+        (result, [token, emoji]) => result.replaceAll(token, emoji),
+        String(text)
+      );
+    }
+
+    function encodeKefuEmoji(text = "") {
+      return [...kefuEmojiReverseMap.entries()]
+        .sort(([left], [right]) => right.length - left.length)
+        .reduce(
+          (result, [emoji, token]) => result.replaceAll(emoji, token),
+          String(text)
+        );
+    }
+
     const chatState = {
       conversationId: "",
       userId: "",
@@ -2860,7 +3436,16 @@
       historyArmedAt: 0,
       humanHistoryCurrentConversation: null,
       humanHistoryCursor: 0,
-      humanHistoryPendingConversations: []
+      humanHistoryPendingConversations: [],
+      unifiedHistoryMessages: [],
+      unifiedHistoryKeys: new Set(),
+      unifiedSequence: 0,
+      aiHistoryHasMore: false,
+      aiHistoryLoading: false,
+      humanHistoryLoading: false,
+      historyLoadErrors: { ai: "", human: "" },
+      aiStreaming: false,
+      aiAbortController: null
     };
 
     const serviceState = {
@@ -2885,7 +3470,8 @@
       sessionEndedAt: 0,
       seenMessageIds: new Set(),
       optimisticMessageKeys: new Set(),
-      pendingHumanUploads: []
+      pendingHumanUploads: [],
+      pendingImageUploads: new Map()
     };
 
     const kefuConfig = {
@@ -3267,6 +3853,24 @@
       }
     };
 
+    function ensureKefuSocketReady() {
+      if (kefuSocket.socket?.readyState === WebSocket.OPEN) return Promise.resolve();
+      if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
+        return Promise.reject(new Error("客服连接已断开，请重新进入人工客服"));
+      }
+      if (kefuSocket.loginPromise && (kefuSocket.loginResolve || kefuSocket.loginReject)) {
+        return kefuSocket.loginPromise.then((packet) => {
+          if (packet && packet.success === false) throw new Error(packet.message || "客服连接恢复失败");
+          if (kefuSocket.socket?.readyState !== WebSocket.OPEN) throw new Error("客服连接已断开，请稍后重试");
+        });
+      }
+      appendSystem("正在恢复客服连接，请稍候...");
+      return kefuSocket.login({}).then((packet) => {
+        if (packet && packet.success === false) throw new Error(packet.message || "客服连接恢复失败");
+        if (kefuSocket.socket?.readyState !== WebSocket.OPEN) throw new Error("客服连接已断开，请稍后重试");
+      });
+    }
+
     window.addEventListener("beforeunload", () => kefuSocket.close(true));
 
     function getActiveKefuConversation() {
@@ -3326,6 +3930,7 @@
           });
         }
         return streamDifyChat(payload, handlers).catch((error) => {
+          if (error?.name === "AbortError") throw error;
           console.warn("AI route chat failed", error);
           return {
             html: `<div class="bubble">当前智能问答服务暂时不可用，请稍后再试，或点击“帮助”转人工处理。</div>`
@@ -3472,6 +4077,30 @@
 
     function iconRefresh() {
       if (window.lucide) window.lucide.createIcons({ attrs: { "stroke-width": 2.2 } });
+    }
+
+    function updateSendButtonState() {
+      if (!sendButton) return;
+      const stopMode = Boolean(chatState.aiStreaming && !serviceState.humanActive);
+      sendButton.classList.toggle("stop-mode", stopMode);
+      sendButton.setAttribute("aria-label", stopMode ? "停止生成" : "发送");
+      sendButton.innerHTML = stopMode
+        ? '<i data-lucide="square"></i>'
+        : '<i data-lucide="send-horizontal"></i>';
+      iconRefresh();
+    }
+
+    function clearAiStreamingState(controller = chatState.aiAbortController) {
+      if (controller && chatState.aiAbortController !== controller) return;
+      chatState.aiStreaming = false;
+      chatState.aiAbortController = null;
+      updateSendButtonState();
+    }
+
+    function stopAiStreaming() {
+      if (!chatState.aiStreaming) return false;
+      chatState.aiAbortController?.abort();
+      return true;
     }
 
     function showToast(text) {
@@ -3663,6 +4292,18 @@
       return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
     }
 
+    function formatConversationTime(date, now = new Date()) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return formatClock(now);
+      const isToday = date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate();
+      if (isToday) return formatClock(date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day} ${formatClock(date)}`;
+    }
+
     function formatDateTime(seconds) {
       if (!seconds) return "";
       const date = new Date(seconds * 1000);
@@ -3716,7 +4357,7 @@
 
     function formatMessageTime(message = {}, conversation = {}) {
       const date = parseFlexibleDate(resolveMessageTimeRaw(message, conversation));
-      return date ? formatClock(date) : formatClock();
+      return date ? formatConversationTime(date) : formatClock();
     }
 
     function aiMessageHtml(innerHtml, time = formatClock()) {
@@ -3814,10 +4455,12 @@
     }
 
     function formatAgentDisplay(agent = {}) {
-      return agent.nickname || agent.username || "人工客服";
+      const workNumber = agent.workNo || agent.agentNo || agent.userWorkNo || agent.userNo || agent.id;
+      return workNumber ? `客服 ${workNumber}` : "人工客服";
     }
 
     function updateSessionControls() {
+      document.body.classList.toggle("human-chat-active", Boolean(serviceState.humanActive));
       if (!persistentEndSession || !persistentOrderAction) return;
       // Human connection is authoritative. Some presale responses can retain a
       // stale queue flag briefly after the agent has already joined.
@@ -3853,7 +4496,7 @@
     }
 
     function humanAgentMessageHtml(text, time = formatClock(), agentOverride = serviceState.currentAgent) {
-      return humanAgentBubbleHtml(`<div class="bubble">${escapeHtml(text)}</div>`, time, agentOverride);
+      return humanAgentBubbleHtml(`<div class="bubble">${escapeHtml(decodeKefuEmoji(text))}</div>`, time, agentOverride);
     }
 
     function humanAgentImageMessageHtml(url, time = formatClock(), agentOverride = serviceState.currentAgent) {
@@ -3880,6 +4523,7 @@
           ? userImageMessageHtml(message.content, time)
           : humanAgentImageMessageHtml(message.content, time, {
             id: message.fromUserId,
+            username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
             nickname: message.fromUserNickName || "人工客服",
             avatar: message.fromUserAvatar || ""
           });
@@ -3892,6 +4536,7 @@
       }
       return humanAgentMessageHtml(message.content || "", time, {
         id: message.fromUserId,
+        username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
         nickname: message.fromUserNickName || "人工客服",
         avatar: message.fromUserAvatar || ""
       }).replace('class="message ', 'class="message history-loaded ');
@@ -3914,6 +4559,298 @@
           <div class="msg-avatar">${escapeHtml(currentUser.shortName)}</div>
         </div>
       `;
+    }
+
+    function humanImageUploadId() {
+      return `human-image-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function humanImageUploadMessageHtml(record = {}) {
+      const state = record.state || "uploading";
+      const statusText = state === "failed"
+        ? "上传失败"
+        : state === "success"
+          ? "已发送"
+          : "上传中";
+      const detailText = state === "failed"
+        ? (record.errorMessage || "点击重试继续发送")
+        : state === "success"
+          ? "已发送到客服"
+          : "正在发送到客服";
+      const iconName = state === "failed" ? "triangle-alert" : (state === "success" ? "check-circle-2" : "loader-circle");
+      const previewUrl = record.previewUrl || record.remoteUrl || "";
+      return `
+        <div class="message user image-upload" data-upload-id="${escapeHtml(record.id)}" data-upload-state="${escapeHtml(state)}">
+          <div class="msg-body">
+            <div class="msg-meta"><span>${escapeHtml(record.time || formatClock())}</span><span>${escapeHtml(currentUser.name)}</span></div>
+            <div class="bubble image-upload-card" data-upload-state="${escapeHtml(state)}">
+              <div class="image-upload-media">
+                <img class="chat-image image-upload-preview" src="${escapeHtml(previewUrl)}" alt="待发送图片">
+                <div class="image-upload-state-layer">
+                  <span class="image-upload-state-pill"><i data-lucide="${iconName}"></i><span data-image-upload-state-text>${escapeHtml(statusText)}</span></span>
+                  <span class="image-upload-state-detail" data-image-upload-state-detail>${escapeHtml(detailText)}</span>
+                </div>
+              </div>
+              <div class="image-upload-footer">
+                <div class="image-upload-filename">${escapeHtml(record.fileName || "图片")}</div>
+                <button class="image-upload-retry" type="button" data-image-upload-retry data-upload-id="${escapeHtml(record.id)}" ${state === "failed" ? "" : "hidden"}>
+                  <i data-lucide="rotate-cw"></i><span>重试</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="msg-avatar">${escapeHtml(currentUser.shortName)}</div>
+        </div>
+      `;
+    }
+
+    function getHumanImageUploadRecord(uploadId) {
+      if (!uploadId) return null;
+      return serviceState.pendingImageUploads.get(uploadId) || null;
+    }
+
+    function updateHumanImageUploadRecord(uploadId, patch = {}) {
+      const record = getHumanImageUploadRecord(uploadId);
+      if (!record || !record.node) return null;
+      Object.assign(record, patch);
+      const node = record.node;
+      node.dataset.uploadState = record.state || "uploading";
+      const card = node.querySelector(".image-upload-card");
+      const preview = node.querySelector(".image-upload-preview");
+      const stateText = node.querySelector("[data-image-upload-state-text]");
+      const stateDetail = node.querySelector("[data-image-upload-state-detail]");
+      const retryButton = node.querySelector("[data-image-upload-retry]");
+      if (card) card.dataset.uploadState = record.state || "uploading";
+      if (preview && record.previewUrl && preview.src !== record.previewUrl && record.state !== "success") {
+        preview.src = record.previewUrl;
+      }
+      if (stateText) {
+        stateText.textContent = record.state === "failed"
+          ? "上传失败"
+          : record.state === "success"
+            ? "已发送"
+            : "上传中";
+      }
+      if (stateDetail) {
+        stateDetail.textContent = record.state === "failed"
+          ? (record.errorMessage || "点击重试继续发送")
+          : record.state === "success"
+            ? "已发送到客服"
+            : "正在发送到客服";
+      }
+      if (retryButton) retryButton.hidden = record.state !== "failed";
+      if (record.state === "success" && record.remoteUrl) {
+        const remoteUrl = record.remoteUrl;
+        if (preview) {
+          preview.onload = () => {
+            if (record.previewUrl?.startsWith("blob:")) {
+              try { URL.revokeObjectURL(record.previewUrl); } catch (error) { /* noop */ }
+              record.previewUrl = "";
+            }
+          };
+          preview.onerror = () => {
+            if (record.previewUrl && preview.src !== record.previewUrl) preview.src = record.previewUrl;
+          };
+          preview.src = remoteUrl;
+        }
+      }
+      iconRefresh();
+      return record;
+    }
+
+    function createHumanImageUploadRecord(file, uploadId = humanImageUploadId()) {
+      const id = uploadId;
+      const record = {
+        id,
+        file,
+        fileName: file?.name || "图片",
+        previewUrl: URL.createObjectURL(file),
+        remoteUrl: "",
+        state: "uploading",
+        errorMessage: "",
+        time: formatClock(),
+        node: null
+      };
+      chatList.insertAdjacentHTML("beforeend", humanImageUploadMessageHtml(record));
+      record.node = chatList.lastElementChild;
+      serviceState.pendingImageUploads.set(id, record);
+      iconRefresh();
+      scrollChatBottom();
+      return record;
+    }
+
+    function retryHumanImageUpload(uploadId) {
+      const record = getHumanImageUploadRecord(uploadId);
+      if (!record?.file) return Promise.resolve(false);
+      if (record.state === "uploading") return Promise.resolve(false);
+      return sendHumanImageFile(record.file, { uploadId });
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function imagePreviewPointerPair() {
+      return [...imagePreviewPointers.values()].slice(0, 2);
+    }
+
+    function pointerDistance(first, second) {
+      return Math.hypot(second.x - first.x, second.y - first.y);
+    }
+
+    function pointerCenter(first, second) {
+      return {
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+      };
+    }
+
+    function imagePreviewAvailableSize() {
+      const styles = window.getComputedStyle(imagePreview);
+      return {
+        width: imagePreview.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight),
+        height: imagePreview.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom),
+      };
+    }
+
+    function constrainImagePreviewTransform(scale, translateX, translateY) {
+      if (!imagePreviewImage || !imagePreview) {
+        return { translateX: 0, translateY: 0 };
+      }
+      const available = imagePreviewAvailableSize();
+      const maxX = Math.max(0, (imagePreviewImage.offsetWidth * scale - available.width) / 2);
+      const maxY = Math.max(0, (imagePreviewImage.offsetHeight * scale - available.height) / 2);
+      return {
+        translateX: clamp(translateX, -maxX, maxX),
+        translateY: clamp(translateY, -maxY, maxY),
+      };
+    }
+
+    function applyImagePreviewTransform({ scale, translateX, translateY }, { animate = false } = {}) {
+      if (!imagePreviewImage) return;
+      const nextScale = clamp(scale, IMAGE_PREVIEW_MIN_SCALE, IMAGE_PREVIEW_MAX_SCALE);
+      const constrained = constrainImagePreviewTransform(nextScale, translateX, translateY);
+      imagePreviewGesture.scale = nextScale;
+      imagePreviewGesture.translateX = nextScale === 1 ? 0 : constrained.translateX;
+      imagePreviewGesture.translateY = nextScale === 1 ? 0 : constrained.translateY;
+      imagePreviewImage.classList.toggle("animating", animate);
+      imagePreviewImage.style.transform = `translate3d(${imagePreviewGesture.translateX}px, ${imagePreviewGesture.translateY}px, 0) scale(${imagePreviewGesture.scale})`;
+      if (animate) {
+        window.setTimeout(() => imagePreviewImage?.classList.remove("animating"), 220);
+      }
+    }
+
+    function resetImagePreviewGesture({ animate = false } = {}) {
+      imagePreviewPointers.clear();
+      imagePreviewGesture.dragPointerId = null;
+      imagePreviewGesture.startDistance = 0;
+      imagePreviewGesture.moved = false;
+      imagePreviewGesture.hadMultiplePointers = false;
+      imagePreviewGesture.lastTapAt = 0;
+      imagePreviewImage?.classList.remove("dragging");
+      applyImagePreviewTransform({ scale: 1, translateX: 0, translateY: 0 }, { animate });
+    }
+
+    function toggleImagePreviewZoom(clientX, clientY) {
+      if (imagePreviewGesture.scale > IMAGE_PREVIEW_MIN_SCALE) {
+        resetImagePreviewGesture({ animate: true });
+        return;
+      }
+      const previewRect = imagePreview.getBoundingClientRect();
+      const centerX = previewRect.left + previewRect.width / 2;
+      const centerY = previewRect.top + previewRect.height / 2;
+      const targetScale = IMAGE_PREVIEW_DOUBLE_TAP_SCALE;
+      applyImagePreviewTransform({
+        scale: targetScale,
+        translateX: -(clientX - centerX) * (targetScale - 1),
+        translateY: -(clientY - centerY) * (targetScale - 1),
+      }, { animate: true });
+    }
+
+    function startImagePreviewPinch() {
+      const [first, second] = imagePreviewPointerPair();
+      if (!first || !second) return;
+      const center = pointerCenter(first, second);
+      imagePreviewGesture.startDistance = Math.max(1, pointerDistance(first, second));
+      imagePreviewGesture.startScale = imagePreviewGesture.scale;
+      imagePreviewGesture.startTranslateX = imagePreviewGesture.translateX;
+      imagePreviewGesture.startTranslateY = imagePreviewGesture.translateY;
+      imagePreviewGesture.startCenterX = center.x;
+      imagePreviewGesture.startCenterY = center.y;
+      imagePreviewGesture.hadMultiplePointers = true;
+    }
+
+    function finishImagePreviewPointer(event) {
+      const wasSinglePointer = imagePreviewPointers.size === 1;
+      imagePreviewPointers.delete(event.pointerId);
+      if (imagePreviewImage?.hasPointerCapture?.(event.pointerId)) {
+        imagePreviewImage.releasePointerCapture(event.pointerId);
+      }
+      imagePreviewImage?.classList.remove("dragging");
+      if (imagePreviewPointers.size >= 2) {
+        startImagePreviewPinch();
+        return;
+      }
+      if (imagePreviewPointers.size === 1) {
+        const [remaining] = imagePreviewPointerPair();
+        const [remainingId] = imagePreviewPointers.keys();
+        imagePreviewGesture.dragPointerId = remainingId;
+        imagePreviewGesture.dragStartX = remaining.x;
+        imagePreviewGesture.dragStartY = remaining.y;
+        imagePreviewGesture.startTranslateX = imagePreviewGesture.translateX;
+        imagePreviewGesture.startTranslateY = imagePreviewGesture.translateY;
+        return;
+      }
+      imagePreviewGesture.startDistance = 0;
+      imagePreviewGesture.dragPointerId = null;
+      if (!wasSinglePointer || imagePreviewGesture.hadMultiplePointers || imagePreviewGesture.moved) {
+        imagePreviewGesture.hadMultiplePointers = false;
+        return;
+      }
+      const now = Date.now();
+      const isDoubleTap = now - imagePreviewGesture.lastTapAt < 300
+        && Math.hypot(event.clientX - imagePreviewGesture.lastTapX, event.clientY - imagePreviewGesture.lastTapY) < 28;
+      if (isDoubleTap) {
+        toggleImagePreviewZoom(event.clientX, event.clientY);
+        imagePreviewGesture.lastTapAt = 0;
+      } else {
+        imagePreviewGesture.lastTapAt = now;
+        imagePreviewGesture.lastTapX = event.clientX;
+        imagePreviewGesture.lastTapY = event.clientY;
+      }
+    }
+
+    function openImagePreview(image) {
+      if (!imagePreview || !imagePreviewImage || !image?.src) return;
+      imagePreviewTrigger = image;
+      resetImagePreviewGesture();
+      imagePreviewImage.src = image.currentSrc || image.src;
+      imagePreviewImage.alt = image.alt || "会话图片预览";
+      imagePreview.classList.add("open");
+      imagePreview.setAttribute("aria-hidden", "false");
+      document.body.classList.add("image-preview-open");
+      if (!imagePreviewHistoryActive) {
+        window.history.pushState({ ...(window.history.state || {}), kefuImagePreview: true }, "");
+        imagePreviewHistoryActive = true;
+      }
+      imagePreviewClose?.focus({ preventScroll: true });
+    }
+
+    function closeImagePreview({ fromPopState = false } = {}) {
+      if (!imagePreview?.classList.contains("open")) return;
+      imagePreview.classList.remove("open");
+      imagePreview.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("image-preview-open");
+      resetImagePreviewGesture();
+      imagePreviewImage.removeAttribute("src");
+      if (imagePreviewHistoryActive && !fromPopState) {
+        imagePreviewHistoryActive = false;
+        window.history.back();
+      } else {
+        imagePreviewHistoryActive = false;
+      }
+      imagePreviewTrigger?.focus?.({ preventScroll: true });
+      imagePreviewTrigger = null;
     }
 
     function initialAiMessageHtml() {
@@ -3941,16 +4878,22 @@
       const id = `stream-${Date.now()}`;
       chatList.insertAdjacentHTML("beforeend", aiMessageHtml(`<div class="bubble streaming" id="${id}"></div>`));
       const bubble = document.getElementById(id);
+      let currentText = "";
       scrollChatBottom();
       return {
         setText(text) {
+          currentText = text || "";
           bubble.innerHTML = formatPlainText(text);
           scrollChatBottom();
         },
         finish(text) {
+          currentText = text || currentText || "";
           bubble.classList.remove("streaming");
-          bubble.innerHTML = formatPlainText(text || "已收到，请继续说明您的问题。");
+          bubble.innerHTML = formatPlainText(currentText || "已收到，请继续说明您的问题。");
           scrollChatBottom();
+        },
+        text() {
+          return currentText;
         },
         remove() {
           bubble.closest(".message")?.remove();
@@ -3962,6 +4905,7 @@
       const response = await fetch(`${difyConfig.baseUrl}/chat-messages`, {
         method: "POST",
         headers: buildAiHeaders({ "Content-Type": "application/json" }),
+        signal: handlers.signal,
         body: JSON.stringify({
           inputs: buildAiInputs(),
           query: payload.text,
@@ -4228,38 +5172,87 @@
       scrollChatBottom();
     }
 
-    function sendHumanImageFile(file) {
-      if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
-        return Promise.reject(new Error("当前未接入人工客服"));
+    function resetHumanUploadState() {
+      serviceState.pendingHumanUploads = [];
+      for (const record of serviceState.pendingImageUploads.values()) {
+        if (record?.previewUrl?.startsWith("blob:")) {
+          try { URL.revokeObjectURL(record.previewUrl); } catch (error) { /* noop */ }
+        }
       }
-      return api.uploadChatImage(file).then((image) => {
+      serviceState.pendingImageUploads = new Map();
+    }
+
+    async function sendHumanImageFile(file, options = {}) {
+      if (!serviceState.humanActive || !serviceState.currentAgent?.id) {
+        throw new Error("当前未接入人工客服");
+      }
+
+      const uploadId = options.uploadId || humanImageUploadId();
+      const conversationSnapshot = serviceState.conversationId;
+      const agentIdSnapshot = serviceState.currentAgent.id;
+      let record = getHumanImageUploadRecord(uploadId);
+      if (!record) {
+        record = createHumanImageUploadRecord(file, uploadId);
+      } else {
+        record.file = file;
+        record.fileName = file?.name || record.fileName || "图片";
+        record.errorMessage = "";
+        updateHumanImageUploadRecord(uploadId, { state: "uploading" });
+      }
+
+      try {
+        await ensureKefuSocketReady();
+        const image = await api.uploadChatImage(file);
         const imageUrl = image?.url || image?.data?.url || "";
         if (!imageUrl) throw new Error("图片上传成功但未返回可用地址");
+        if (!serviceState.humanActive || !serviceState.currentAgent?.id || serviceState.conversationId !== conversationSnapshot || serviceState.currentAgent.id !== agentIdSnapshot) {
+          throw new Error("会话状态已变化，请重新发送");
+        }
         const optimisticKey = `${currentUser.visitorId}|2|${imageUrl}`;
         serviceState.optimisticMessageKeys.add(optimisticKey);
-        return api.sendHumanMessage({
+        await ensureKefuSocketReady();
+        await api.sendHumanMessage({
           version: 1,
           command: 3000,
           content: imageUrl,
           type: 2,
           toUserId: serviceState.currentAgent.id
-        }).then(() => {
-          chatList.insertAdjacentHTML("beforeend", userImageMessageHtml(imageUrl));
-          iconRefresh();
-          startAgentReplyWatcher();
-          scrollChatBottom();
-          return imageUrl;
-        }).catch((error) => {
-          serviceState.optimisticMessageKeys.delete(optimisticKey);
-          throw error;
         });
-      });
+        record.remoteUrl = imageUrl;
+        record.state = "success";
+        record.errorMessage = "";
+        updateHumanImageUploadRecord(uploadId, {
+          state: "success",
+          remoteUrl: imageUrl,
+          errorMessage: ""
+        });
+        registerUnifiedRealtimeMessage({
+          source: "human",
+          role: "user",
+          type: "image",
+          content: imageUrl,
+          conversationId: serviceState.conversationId,
+          key: `human:optimistic:${optimisticKey}`
+        });
+        serviceState.pendingImageUploads.delete(uploadId);
+        startAgentReplyWatcher();
+        scrollChatBottom();
+        return imageUrl;
+      } catch (error) {
+        record.state = "failed";
+        record.errorMessage = error?.message || "图片发送失败，请稍后重试";
+        updateHumanImageUploadRecord(uploadId, {
+          state: "failed",
+          errorMessage: record.errorMessage
+        });
+        throw error;
+      }
     }
 
     async function flushPendingHumanUploads() {
       if (!serviceState.humanActive || !serviceState.currentAgent?.id || !serviceState.pendingHumanUploads.length) return;
       const pendingFiles = [...serviceState.pendingHumanUploads];
-      serviceState.pendingHumanUploads = [];
+      resetHumanUploadState();
       for (const file of pendingFiles) {
         try {
           await sendHumanImageFile(file);
@@ -4547,18 +5540,27 @@
 
     function renderAgentResult(result) {
       if (result.action === "human") {
-        appendAi(`<div class="bubble">好的，正在为您准备转人工，会把当前问题摘要同步给客服。</div>`);
+        const html = `<div class="bubble">好的，正在为您准备转人工，会把当前问题摘要同步给客服。</div>`;
+        appendAi(html);
+        registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "html", content: html, conversationId: chatState.conversationId });
         window.setTimeout(() => openHelp(result.type, false), 360);
         return;
       }
 
-      appendAi(result.html || `<div class="bubble">已收到，请继续说明您的问题。</div>`);
+      const html = result.html || `<div class="bubble">已收到，请继续说明您的问题。</div>`;
+      appendAi(html);
+      registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "html", content: html, conversationId: chatState.conversationId });
       scrollChatBottom();
     }
 
     async function submitQuestion(text, source = "input") {
       const question = String(text || "").trim();
       if (!question) return;
+      if (serviceState.humanActive) {
+        sendHumanTextMessage(question);
+        return;
+      }
+      if (chatState.aiStreaming && !serviceState.humanActive) return;
 
       clearRobotHintTimer();
       closeEmojiPanel();
@@ -4567,6 +5569,7 @@
       activateChatReadingMode();
 
       appendUser(question);
+      registerUnifiedRealtimeMessage({ source: "ai", role: "user", type: "text", content: question, conversationId: chatState.conversationId });
       scrollChatBottom();
 
       const localResult = builtinAgent(question);
@@ -4577,9 +5580,16 @@
 
       const streamBubble = difyConfig.enabled ? appendStreamingAi() : null;
       const typingId = streamBubble ? "" : appendTyping();
+      const abortController = difyConfig.enabled ? new AbortController() : null;
+      if (abortController) {
+        chatState.aiAbortController = abortController;
+        chatState.aiStreaming = true;
+        updateSendButtonState();
+      }
       api.agentChat(
         { text: question, source },
         {
+          signal: abortController?.signal,
           onDelta(delta, fullText) {
             streamBubble?.setText(fullText);
           },
@@ -4591,6 +5601,7 @@
         if (typingId) removeTyping(typingId);
         if (result.streamed) {
           streamBubble?.finish(result.answer);
+          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: result.answer, conversationId: chatState.conversationId });
           if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
           return;
         }
@@ -4598,10 +5609,20 @@
         renderAgentResult(result);
         if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
       }).catch((error) => {
+        if (error?.name === "AbortError") {
+          if (typingId) removeTyping(typingId);
+          const stoppedText = streamBubble?.text() || "已停止生成";
+          if (streamBubble) streamBubble.finish(stoppedText);
+          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: stoppedText, conversationId: chatState.conversationId });
+          return;
+        }
         console.warn("agentChat failed", error);
         if (typingId) removeTyping(typingId);
         streamBubble?.finish("当前智能问答服务暂时不可用，请稍后再试，或点击“帮助”转人工处理。");
+        registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: "当前智能问答服务暂时不可用，请稍后再试，或点击“帮助”转人工处理。", conversationId: chatState.conversationId });
         if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
+      }).finally(() => {
+        clearAiStreamingState(abortController);
       });
     }
 
@@ -4613,46 +5634,29 @@
       return Boolean(chatState.humanHistoryCursor > 0 || chatState.humanHistoryPendingConversations.length);
     }
 
-    function isHumanHistorySource() {
-      return chatState.historySource === "human";
+    function hasMoreUnifiedHistory() {
+      return hasMoreHumanHistory()
+        || chatState.historyLoadedCount < mockHistoryMessages.length
+        || chatState.aiHistoryHasMore;
     }
 
     function isHistoryFullyLoaded() {
-      return isHumanHistorySource()
-        ? !hasMoreHumanHistory()
-        : chatState.historyLoadedCount >= mockHistoryMessages.length;
+      return !hasMoreUnifiedHistory();
     }
 
     function updateHistoryToggleText() {
-      if (isHumanHistorySource()) {
-        if (!serviceState.conversationId) {
-          historyToggleText.textContent = "暂无历史消息";
-          return;
-        }
-        if (!hasMoreHumanHistory()) {
-          historyToggleText.textContent = chatState.historyActivated ? "已加载全部历史消息" : "当前会话已是最早消息";
-          return;
-        }
-        historyToggleText.textContent = chatState.historyActivated
-          ? "上滑加载更早消息"
-          : "上滑查看历史消息";
-        return;
-      }
-      const total = chatState.historyTotal || mockHistoryMessages.length;
-      const loaded = chatState.historyLoadedCount;
+      const total = chatState.unifiedHistoryMessages.length;
       if (!total) {
         historyToggleText.textContent = "暂无历史消息";
         return;
       }
-      if (loaded >= total) {
+      if (!hasMoreUnifiedHistory()) {
         historyToggleText.textContent = `已加载全部历史消息（${total}条）`;
         return;
       }
-      if (chatState.historyActivated) {
-        historyToggleText.textContent = `上滑加载更早消息（${loaded}/${total}）`;
-        return;
-      }
-      historyToggleText.textContent = `上滑查看历史消息（${total}条）`;
+      historyToggleText.textContent = chatState.historyActivated
+        ? `上滑加载更早消息（已显示${total}条）`
+        : `上滑查看历史消息（已显示${total}条）`;
     }
 
     function renderHistoryList(conversations = []) {
@@ -4702,30 +5706,137 @@
       return localDateKey(date);
     }
 
+    function unifiedContentFingerprint(value) {
+      const source = typeof value === "string" ? value : JSON.stringify(value || "");
+      let hash = 0;
+      for (let index = 0; index < source.length; index += 1) {
+        hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+      }
+      return Math.abs(hash).toString(36);
+    }
+
+    function unifiedHistoryMessageKey(message = {}) {
+      if (message.messageId) return `${message.source}:id:${message.messageId}`;
+      return [
+        message.source || "unknown",
+        message.conversationId || "conversation",
+        message.role || "system",
+        message.type || "text",
+        message.timestamp || 0,
+        unifiedContentFingerprint(message.content)
+      ].join(":");
+    }
+
+    const unifiedRoleOrder = { user: 0, system: 1, ai: 2, agent: 2 };
+
+    function compareUnifiedHistoryMessages(first, second) {
+      const timeDiff = (first.timestamp || 0) - (second.timestamp || 0);
+      if (timeDiff) return timeDiff;
+      const roleDiff = (unifiedRoleOrder[first.role] ?? 9) - (unifiedRoleOrder[second.role] ?? 9);
+      if (roleDiff) return roleDiff;
+      return (first.sequence || 0) - (second.sequence || 0);
+    }
+
+    function mergeUnifiedHistoryMessages(messages = []) {
+      const merged = new Map(chatState.unifiedHistoryMessages.map((message) => [message.key, message]));
+      messages.forEach((message) => {
+        if (!message) return;
+        const normalized = {
+          ...message,
+          sequence: message.sequence || ++chatState.unifiedSequence
+        };
+        normalized.key = normalized.key || unifiedHistoryMessageKey(normalized);
+        const existing = merged.get(normalized.key);
+        merged.set(normalized.key, existing
+          ? { ...existing, ...normalized, sequence: existing.sequence }
+          : normalized);
+      });
+      chatState.unifiedHistoryMessages = [...merged.values()].sort(compareUnifiedHistoryMessages);
+      chatState.unifiedHistoryKeys = new Set(chatState.unifiedHistoryMessages.map((message) => message.key));
+      return chatState.unifiedHistoryMessages;
+    }
+
     function normalizeAiHistoryMessages(messages = [], conversation = {}) {
+      const conversationId = conversation.conversationId || conversation.id || "";
       return messages.flatMap((message) => {
         const date = aiHistoryDateKey(message, conversation);
         const time = formatMessageTime(message, conversation);
         const timestamp = historyTimestamp(message, conversation);
         const rows = [];
-        if (message.query) rows.push({ role: "user", date, text: message.query, time, timestamp });
-        if (message.answer) rows.push({ role: "ai", date, text: message.answer, time, timestamp: timestamp + 1 });
+        if (message.query) rows.push({
+          source: "ai",
+          role: "user",
+          type: "text",
+          content: message.query,
+          conversationId,
+          messageId: message.id ? `${message.id}:query` : "",
+          date,
+          time,
+          timestamp,
+          sequence: ++chatState.unifiedSequence
+        });
+        if (message.answer) rows.push({
+          source: "ai",
+          role: "ai",
+          type: "text",
+          content: message.answer,
+          conversationId,
+          messageId: message.id ? `${message.id}:answer` : "",
+          date,
+          time,
+          timestamp: timestamp ? timestamp + 1 : 0,
+          sequence: ++chatState.unifiedSequence
+        });
         return rows;
       });
     }
 
+    function humanHistoryMessageType(message = {}) {
+      if (Number(message.type) === 2) return "image";
+      if (message.order || message.orderInfo || parseOrderTransferText(message.content)) return "order";
+      if (Number(message.type) === 3) return "system";
+      return "text";
+    }
+
+    function normalizeHumanHistoryMessages(messages = [], conversation = {}) {
+      const conversationId = conversation.id || conversation.conversationId || serviceState.conversationId || "";
+      return normalizeKefuHistoryMessages(messages).map((message) => {
+        const fromUserId = Number(message.fromUserId || message.fromUser?.id || 0);
+        const isUser = fromUserId === Number(currentUser.visitorId) || fromUserId < 0;
+        const type = humanHistoryMessageType(message);
+        const timestamp = parseFlexibleDate(message.createTime || message.timestamp)?.getTime() || 0;
+        return {
+          source: "human",
+          role: type === "system" ? "system" : (isUser ? "user" : "agent"),
+          type,
+          content: (() => {
+            const content = message.order || message.orderInfo || (type === "order" ? parseOrderTransferText(message.content) : message.content) || "";
+            return type === "text" || type === "system" ? decodeKefuEmoji(content) : content;
+          })(),
+          timestamp,
+          sequence: ++chatState.unifiedSequence,
+          conversationId,
+          messageId: message.id || message.messageId || "",
+          agent: message.fromUser || {
+            id: message.fromUserId,
+            username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
+            nickname: message.fromUserNickName || "人工客服",
+            avatar: message.fromUserAvatar || ""
+          },
+          raw: message
+        };
+      }).filter((message) => message.type === "system" || message.content);
+    }
+
     function setAiHistoryMessages(messages = []) {
       chatState.historySource = "ai";
-      chatState.humanHistoryCurrentConversation = null;
-      chatState.humanHistoryCursor = 0;
-      chatState.humanHistoryPendingConversations = [];
       mockHistoryMessages = [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       chatState.historyTotal = mockHistoryMessages.length;
-      chatState.historyLoadedCount = 0;
+      chatState.historyLoadedCount = mockHistoryMessages.length;
       chatState.historyLoading = false;
       chatState.historyActivated = false;
-      chatList.classList.remove("history-mode");
-      chatList.querySelectorAll(".history-loaded, [data-history-date], [data-history-status]").forEach((node) => node.remove());
+      chatState.aiHistoryHasMore = false;
+      mergeUnifiedHistoryMessages(messages);
       updateHistoryToggleText();
     }
 
@@ -4735,10 +5846,85 @@
     }
 
     function historyMessageHtml(message) {
+      const localMessageDate = /^\d{2}:\d{2}$/.test(message.time || "") && message.date
+        ? parseFlexibleDate(`${message.date}T${message.time}:00`)
+        : null;
+      const displayTime = localMessageDate
+        ? formatConversationTime(localMessageDate)
+        : message.time;
       const html = message.role === "user"
-        ? userMessageHtml(message.text, message.time)
-        : aiMessageHtml(`<div class="bubble">${formatPlainText(message.text)}</div>`, message.time);
+        ? userMessageHtml(message.text, displayTime)
+        : aiMessageHtml(`<div class="bubble">${formatPlainText(message.text)}</div>`, displayTime);
       return html.replace('class="message ', 'class="message history-loaded ');
+    }
+
+    function renderUnifiedHistoryMessage(message = {}) {
+      const time = message.timestamp ? formatConversationTime(new Date(message.timestamp)) : "";
+      let html = "";
+      if (message.role === "system") {
+        html = systemMessageHtml(String(message.content || ""));
+      } else if (message.role === "user") {
+        if (message.type === "image") html = userImageMessageHtml(String(message.content || ""), time);
+        else if (message.type === "order") html = userOrderMessageHtml(message.content || {}, time, { footerText: "历史发送记录" });
+        else html = userMessageHtml(String(message.content || ""), time);
+      } else if (message.role === "agent") {
+        html = message.type === "image"
+          ? humanAgentImageMessageHtml(String(message.content || ""), time, message.agent)
+          : humanAgentMessageHtml(String(message.content || ""), time, message.agent);
+      } else {
+        html = message.type === "html"
+          ? aiMessageHtml(String(message.content || ""), time)
+          : aiMessageHtml(`<div class="bubble">${formatPlainText(String(message.content || ""))}</div>`, time);
+      }
+      return html
+        .replace('class="message ', 'class="message history-loaded ')
+        .replace('class="system-note"', 'class="system-note history-loaded"');
+    }
+
+    function unifiedSourceTransitionHtml(previous, current) {
+      if (!previous || !current || previous.source === current.source) return "";
+      if (previous.source === "ai" && current.source === "human") {
+        return systemMessageHtml("已转接人工客服").replace('class="system-note"', 'class="system-note history-loaded"');
+      }
+      if (previous.source === "human" && current.source === "ai") {
+        return systemMessageHtml("人工服务已结束，继续由黄小西为您服务").replace('class="system-note"', 'class="system-note history-loaded"');
+      }
+      return "";
+    }
+
+    function unifiedHistoryTimelineHtml(messages = chatState.unifiedHistoryMessages) {
+      let previous = null;
+      let previousDate = "";
+      return messages.map((message) => {
+        const transition = unifiedSourceTransitionHtml(previous, message);
+        const date = message.timestamp ? localDateKey(new Date(message.timestamp)) : "";
+        const dateDivider = date && date !== previousDate ? historyDateDividerHtml(date) : "";
+        previous = message;
+        if (date) previousDate = date;
+        return `${dateDivider}${transition}<div data-unified-message-key="${escapeHtml(message.key)}" data-conversation-id="${escapeHtml(message.conversationId || "")}">${renderUnifiedHistoryMessage(message)}</div>`;
+      }).join("");
+    }
+
+    function renderUnifiedHistoryTimeline({ preserveScroll = false } = {}) {
+      const beforeHeight = chatList.scrollHeight;
+      const beforeTop = chatList.scrollTop;
+      chatList.innerHTML = chatState.unifiedHistoryMessages.length
+        ? unifiedHistoryTimelineHtml()
+        : initialAiMessageHtml();
+      iconRefresh();
+      if (preserveScroll) {
+        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
+      }
+    }
+
+    function scrollToUnifiedConversation(conversationId) {
+      const target = [...chatList.querySelectorAll("[data-conversation-id]")]
+        .find((node) => node.dataset.conversationId === String(conversationId));
+      if (!target) return false;
+      (target.querySelector(".message, .system-note") || target).scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.add("history-focus");
+      window.setTimeout(() => target.classList.remove("history-focus"), 1200);
+      return true;
     }
 
     function getConversationSortTime(conversation = {}) {
@@ -4763,8 +5949,6 @@
     function setHumanHistoryContext(conversations = [], activeConversation = null, messages = []) {
       if (!activeConversation?.id) return;
       chatState.historySource = "human";
-      chatState.historyTotal = 0;
-      chatState.historyLoadedCount = 0;
       chatState.historyLoading = false;
       chatState.historyActivated = false;
       chatState.humanHistoryCurrentConversation = activeConversation;
@@ -4772,6 +5956,10 @@
       chatState.humanHistoryPendingConversations = (conversations || [])
         .filter((item) => item?.toUser?.id > 0 && item.id !== activeConversation.id)
         .sort((a, b) => getConversationSortTime(b) - getConversationSortTime(a));
+      messages.forEach((message) => {
+        if (message?.id || message?.id === 0) serviceState.seenMessageIds.add(String(message.id));
+      });
+      mergeUnifiedHistoryMessages(normalizeHumanHistoryMessages(messages, activeConversation));
       updateHistoryToggleText();
     }
 
@@ -4886,89 +6074,55 @@
       }
     }
 
-    function loadOlderHumanHistoryMessages(options = {}) {
+    async function loadOlderHumanHistoryMessages(options = {}) {
       if (!options.force && Date.now() < chatState.historyArmedAt) return;
-      if (chatState.historyLoading) return;
-      if (!hasMoreHumanHistory()) {
-        updateHistoryToggleText();
-        return;
+      if (!hasMoreHumanHistory()) return [];
+      chatState.humanHistoryLoading = true;
+      try {
+        const batch = await fetchOlderHumanHistoryBatch();
+        const normalized = normalizeHumanHistoryMessages(batch, chatState.humanHistoryCurrentConversation);
+        mergeUnifiedHistoryMessages(normalized);
+        return normalized;
+      } finally {
+        chatState.humanHistoryLoading = false;
       }
-
-      chatState.historyActivated = true;
-      chatState.historyLoading = true;
-      historyWrap.classList.add("loading");
-      const oldStatus = chatList.querySelector("[data-history-status]");
-      if (oldStatus) oldStatus.remove();
-      const beforeHeight = chatList.scrollHeight;
-      const beforeTop = chatList.scrollTop;
-      chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("正在加载历史消息...", true));
-
-      fetchOlderHumanHistoryBatch()
-        .then((batch) => {
-          const loadingStatus = chatList.querySelector("[data-history-status]");
-          if (loadingStatus) loadingStatus.remove();
-          const statusText = hasMoreHumanHistory() ? "上滑继续查看更早消息" : "已加载全部历史消息";
-          chatList.insertAdjacentHTML("afterbegin", `${historyInlineStatusHtml(statusText)}${humanHistoryBatchHtml(batch)}`);
-          normalizeHistoryDateDividers();
-          chatState.historyLoadedCount += batch.length;
-          chatState.historyLoading = false;
-          historyWrap.classList.remove("loading");
-          updateHistoryToggleText();
-          iconRefresh();
-          chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
-        })
-        .catch((error) => {
-          console.warn("load older human history failed", error);
-          chatState.historyLoading = false;
-          historyWrap.classList.remove("loading");
-          const loadingStatus = chatList.querySelector("[data-history-status]");
-          if (loadingStatus) loadingStatus.remove();
-          chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("历史消息加载失败，请稍后重试"));
-          updateHistoryToggleText();
-        });
     }
 
-    function loadOlderHistoryMessages(options = {}) {
-      if (isHumanHistorySource()) {
-        loadOlderHumanHistoryMessages(options);
-        return;
-      }
-      if (!options.force && Date.now() < chatState.historyArmedAt) return;
-      if (chatState.historyLoading) return;
-      const total = mockHistoryMessages.length;
-      if (chatState.historyLoadedCount >= total) {
-        updateHistoryToggleText();
-        return;
-      }
+    function loadOlderAiHistoryMessages() {
+      const end = mockHistoryMessages.length - chatState.historyLoadedCount;
+      const start = Math.max(0, end - chatState.historyBatchSize);
+      const batch = mockHistoryMessages.slice(start, end);
+      chatState.historyLoadedCount += batch.length;
+      return batch;
+    }
 
+    async function loadOlderUnifiedHistory(options = {}) {
+      if (!options.force && Date.now() < chatState.historyArmedAt) return;
+      if (chatState.historyLoading || !hasMoreUnifiedHistory()) return;
       chatState.historyActivated = true;
       chatState.historyLoading = true;
       historyWrap.classList.add("loading");
-      const oldStatus = chatList.querySelector("[data-history-status]");
-      if (oldStatus) oldStatus.remove();
       const beforeHeight = chatList.scrollHeight;
       const beforeTop = chatList.scrollTop;
-      chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("正在加载历史消息...", true));
-
-      window.setTimeout(() => {
-        const end = total - chatState.historyLoadedCount;
-        const start = Math.max(0, end - chatState.historyBatchSize);
-        const batch = mockHistoryMessages.slice(start, end);
-        const loadingStatus = chatList.querySelector("[data-history-status]");
-        if (loadingStatus) loadingStatus.remove();
-
-        const reachedTop = start === 0;
-        const statusText = reachedTop ? "已加载全部历史消息" : "上滑继续查看更早消息";
-        chatList.insertAdjacentHTML("afterbegin", `${historyInlineStatusHtml(statusText)}${historyBatchHtml(batch)}`);
-        normalizeHistoryDateDividers();
-        chatState.historyLoadedCount += batch.length;
+      const tasks = [];
+      if (hasMoreHumanHistory()) tasks.push(loadOlderHumanHistoryMessages({ ...options, force: true }));
+      if (chatState.historyLoadedCount < mockHistoryMessages.length) tasks.push(Promise.resolve(loadOlderAiHistoryMessages()));
+      try {
+        const results = await Promise.allSettled(tasks);
+        results.forEach((result) => {
+          if (result.status === "fulfilled") mergeUnifiedHistoryMessages(result.value || []);
+        });
+        renderUnifiedHistoryTimeline();
+        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
+      } finally {
         chatState.historyLoading = false;
         historyWrap.classList.remove("loading");
         updateHistoryToggleText();
-        iconRefresh();
+      }
+    }
 
-        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
-      }, 480);
+    function loadOlderHistoryMessages(options = {}) {
+      return loadOlderUnifiedHistory(options);
     }
 
     function enableHistoryInChat() {
@@ -4997,6 +6151,7 @@
       chatList.classList.remove("history-mode");
       entryScreen?.classList.remove("chat-expanded");
       historyWrap.classList.remove("loading");
+      renderUnifiedHistoryTimeline();
       updateHistoryToggleText();
       iconRefresh();
       scrollChatBottom();
@@ -5007,46 +6162,28 @@
       iconRefresh();
     }
 
-    function loadConversationMessages(conversationId) {
+    async function loadConversationMessages(conversationId) {
       if (!conversationId) return;
       chatState.conversationId = conversationId;
       historyWrap.classList.remove("open");
       setScreen("entry");
-      chatList.innerHTML = "";
-      appendAi(`<div class="bubble">正在为您加载历史会话。</div>`);
-
-      api.queryMessages({ conversationId })
-        .then((data) => {
-          const messages = data.data || [];
-          chatList.innerHTML = "";
-          if (!messages.length) {
-            resetChatMessages();
-            scrollChatBottom();
-            return;
-          }
-
-          messages.forEach((message) => {
-            const time = formatMessageTime(message);
-            if (message.query) {
-              chatList.insertAdjacentHTML("beforeend", userMessageHtml(message.query, time));
-            }
-            if (message.answer) {
-              chatList.insertAdjacentHTML("beforeend", aiMessageHtml(`<div class="bubble">${formatPlainText(message.answer)}</div>`, time));
-            }
-          });
-          iconRefresh();
-          scrollChatBottom();
-        })
-        .catch((error) => {
-          console.warn("queryMessages failed", error);
-          chatList.innerHTML = "";
-          appendAi(`<div class="bubble">历史消息暂时加载失败，请稍后再试。</div>`);
-        });
+      if (scrollToUnifiedConversation(conversationId)) return;
+      try {
+        const data = await api.queryMessages({ conversationId });
+        const conversation = chatState.conversations.find((item) => String(item.conversationId || item.id) === String(conversationId)) || {};
+        mergeUnifiedHistoryMessages(normalizeAiHistoryMessages(data.data || [], conversation));
+        renderUnifiedHistoryTimeline();
+        scrollToUnifiedConversation(conversationId);
+      } catch (error) {
+        console.warn("queryMessages failed", error);
+        showToast("历史消息暂时加载失败，请稍后再试");
+      }
     }
 
     function loadRecentConversations() {
-      if (!difyConfig.enabled) return;
-      api.queryConversations()
+      if (!difyConfig.enabled) return Promise.resolve([]);
+      chatState.aiHistoryLoading = true;
+      return api.queryConversations()
         .then((data) => {
           chatState.conversations = data.data || [];
           chatState.hasMoreConversations = Boolean(data.has_more);
@@ -5073,12 +6210,62 @@
               return normalizeAiHistoryMessages(messages, conversation);
             });
             setAiHistoryMessages(historyMessages);
+            chatState.aiHistoryLoading = false;
+            chatState.historyLoadErrors.ai = "";
+            return historyMessages;
           });
         })
         .catch((error) => {
           console.warn("queryConversations failed", error);
+          chatState.aiHistoryLoading = false;
+          chatState.historyLoadErrors.ai = error.message || "AI 历史加载失败";
           renderHistoryList(chatState.conversations);
+          return [];
         });
+    }
+
+    function sortKefuConversationsOldestFirst(conversations = []) {
+      return [...conversations]
+        .filter((conversation) => conversation?.id && conversation?.toUser?.id > 0)
+        .sort((first, second) => getConversationSortTime(first) - getConversationSortTime(second));
+    }
+
+    async function loadRecentHumanHistory(conversations = []) {
+      if (!currentUser.kefuReady) return [];
+      chatState.humanHistoryLoading = true;
+      const ordered = sortKefuConversationsOldestFirst(conversations);
+      const messageGroups = await Promise.allSettled(ordered.map((conversation) => (
+        api.queryKefuMessages({
+          userId: currentUser.visitorId,
+          contactUserId: conversation.toUser?.id,
+          conversationId: conversation.id,
+          lessMessageId: 0
+        }).then((messages) => ({ conversation, messages }))
+      )));
+      chatState.humanHistoryLoading = false;
+      return messageGroups.flatMap((result) => (
+        result.status === "fulfilled"
+          ? normalizeHumanHistoryMessages(result.value.messages, result.value.conversation)
+          : []
+      ));
+    }
+
+    async function loadUnifiedRecentHistory(kefuConversations = []) {
+      const [aiResult, humanResult] = await Promise.allSettled([
+        loadRecentConversations(),
+        currentUser.kefuReady ? loadRecentHumanHistory(kefuConversations) : Promise.resolve([])
+      ]);
+      if (aiResult.status === "fulfilled") mergeUnifiedHistoryMessages(aiResult.value || []);
+      else chatState.historyLoadErrors.ai = aiResult.reason?.message || "AI 历史加载失败";
+      if (humanResult.status === "fulfilled") {
+        mergeUnifiedHistoryMessages(humanResult.value || []);
+        chatState.historyLoadErrors.human = "";
+      } else {
+        chatState.historyLoadErrors.human = humanResult.reason?.message || "人工历史加载失败";
+      }
+      renderUnifiedHistoryTimeline();
+      updateHistoryToggleText();
+      scrollChatBottom();
     }
 
     function normalizeChannelUserId(value) {
@@ -5181,15 +6368,13 @@
       if (!activeConversation) return conversations;
       serviceState.seenMessageIds = new Set();
       serviceState.optimisticMessageKeys = new Set();
-      serviceState.pendingHumanUploads = [];
+      resetHumanUploadState();
       serviceState.conversationId = activeConversation.id;
       serviceState.humanActive = true;
       serviceState.currentAgent = activeConversation.toUser;
       updateSessionControls();
       clearRobotHintTimer();
       startAgentReplyWatcher();
-      chatList.innerHTML = "";
-      appendSystem("已恢复未结束的人工会话");
       const historyPayload = {
         userId: currentUser.visitorId,
         contactUserId: activeConversation.toUser.id,
@@ -5198,25 +6383,13 @@
       };
       const messages = await api.queryKefuMessages(historyPayload);
       setHumanHistoryContext(conversations, activeConversation, messages);
-      appendKefuConversationMessages(messages);
-      if (!chatList.querySelector("[data-end-session]")) {
-        appendAi(connectedServiceHtml("人工服务"));
-      }
-      iconRefresh();
-      scrollChatBottom();
       if (isWorkingTime()) {
         kefuSocket.login().then(() => {
           return api.queryKefuMessages(historyPayload).then((latestMessages) => {
             setHumanHistoryContext(conversations, activeConversation, latestMessages);
-            appendKefuConversationMessages(latestMessages);
-            if (!chatList.querySelector("[data-end-session]")) {
-              appendAi(connectedServiceHtml("人工服务"));
-            }
-            scrollChatBottom();
+            mergeUnifiedHistoryMessages(normalizeHumanHistoryMessages(latestMessages, activeConversation));
           });
         }).catch((error) => console.warn("restore kefu ws failed", error));
-      } else {
-        appendSystem("当前为非服务时间，已保留人工会话记录，可先提交留言或在服务时间继续咨询");
       }
       return conversations;
     }
@@ -5467,6 +6640,7 @@
       serviceState.currentAgent = {
         id: assignedAgent.id || 456,
         username: assignedAgent.username || "agent01",
+        workNo: assignedAgent.workNo || assignedAgent.agentNo || assignedAgent.userWorkNo || assignedAgent.userNo || assignedAgent.id || "",
         nickname: assignedAgent.nickname || (type === "售后服务" ? "售后客服小王" : "客服小王"),
         avatar: assignedAgent.avatar || ""
       };
@@ -5502,7 +6676,7 @@
       serviceState.queued = false;
       serviceState.serviceType = "";
       serviceState.pendingAfterOrder = "";
-      serviceState.pendingHumanUploads = [];
+      resetHumanUploadState();
       updateSessionControls();
       clearQueuePresentation();
       kefuSocket.close(true);
@@ -5526,6 +6700,7 @@
       serviceState.currentAgent = {
         id: agent.id || 456,
         username: agent.username || "agent01",
+        workNo: agent.workNo || agent.agentNo || agent.userWorkNo || agent.userNo || agent.id || "",
         nickname: agent.nickname || "客服小王",
         avatar: agent.avatar || ""
       };
@@ -5537,6 +6712,7 @@
       serviceState.currentAgent = {
         id: agent.id || 789,
         username: agent.username || "agent02",
+        workNo: agent.workNo || agent.agentNo || agent.userWorkNo || agent.userNo || agent.id || "",
         nickname: agent.nickname || "客服小李",
         avatar: agent.avatar || ""
       };
@@ -5557,6 +6733,18 @@
     function isOwnMessageEcho(packet) {
       const key = `${currentUser.visitorId}|${packet.type}|${packet.content}`;
       return String(packet.fromUserId ?? "") === String(currentUser.visitorId) || serviceState.optimisticMessageKeys.has(key);
+    }
+
+    function registerUnifiedRealtimeMessage(message = {}) {
+      const normalized = {
+        ...message,
+        timestamp: message.timestamp || Date.now(),
+        sequence: ++chatState.unifiedSequence
+      };
+      normalized.key = normalized.key || unifiedHistoryMessageKey(normalized);
+      if (chatState.unifiedHistoryKeys.has(normalized.key)) return false;
+      mergeUnifiedHistoryMessages([normalized]);
+      return true;
     }
 
     function handleKefuMessagePacket(rawPacket = {}) {
@@ -5600,6 +6788,22 @@
       }
       if (packet.type === 99 || !packet.content) return;
       if (isOwnMessageEcho(packet)) return;
+      registerUnifiedRealtimeMessage({
+        source: "human",
+        role: packet.type === 3 ? "system" : "agent",
+        type: packet.type === 2 ? "image" : (packet.type === 3 ? "system" : "text"),
+        content: packet.type === 2 ? packet.content : decodeKefuEmoji(packet.content),
+        conversationId: packet.conversationId || serviceState.conversationId,
+        messageId: packet.messageId || packet.id,
+        timestamp: parseFlexibleDate(packet.createTime)?.getTime() || Date.now(),
+        agent: {
+          id: packet.fromUserId,
+          username: packet.fromUserUserName || packet.fromUserUsername || packet.fromUserAgentNo || packet.fromUserWorkNo,
+          nickname: packet.fromUserNickName || "人工客服",
+          avatar: packet.fromUserAvatar || ""
+        },
+        raw: packet
+      });
       if (packet.type === 3) {
         appendSystem(packet.content);
         scrollChatBottom();
@@ -5612,6 +6816,7 @@
           packet.createTime ? formatClock(new Date(packet.createTime)) : formatClock(),
           {
             id: packet.fromUserId,
+            username: packet.fromUserUserName || packet.fromUserUsername || packet.fromUserAgentNo || packet.fromUserWorkNo,
             nickname: packet.fromUserNickName || "人工客服",
             avatar: packet.fromUserAvatar || ""
           }
@@ -5620,7 +6825,7 @@
         scrollChatBottom();
         return;
       }
-      appendHumanAgentMessage(packet.content, packet.createTime ? formatClock(new Date(packet.createTime)) : formatClock());
+      appendHumanAgentMessage(decodeKefuEmoji(packet.content), packet.createTime ? formatClock(new Date(packet.createTime)) : formatClock());
       scrollChatBottom();
     }
 
@@ -5719,7 +6924,7 @@
       }).catch((error) => {
         serviceState.queued = false;
         serviceState.serviceType = "";
-        serviceState.pendingHumanUploads = [];
+        resetHumanUploadState();
         updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
@@ -5760,7 +6965,7 @@
         serviceState.queued = false;
         serviceState.serviceType = "";
         serviceState.pendingAfterOrder = "";
-        serviceState.pendingHumanUploads = [];
+        resetHumanUploadState();
         updateSessionControls();
         clearQueuePresentation();
         kefuSocket.close(true);
@@ -5916,14 +7121,23 @@
           return;
         }
         appendUser(text);
-        serviceState.optimisticMessageKeys.add(`${currentUser.visitorId}|1|${text}`);
-        return api.sendHumanMessage({
+        const optimisticKey = `${currentUser.visitorId}|1|${text}`;
+        serviceState.optimisticMessageKeys.add(optimisticKey);
+        registerUnifiedRealtimeMessage({
+          source: "human",
+          role: "user",
+          type: "text",
+          content: text,
+          conversationId: serviceState.conversationId,
+          key: `human:optimistic:${optimisticKey}`
+        });
+        return ensureKefuSocketReady().then(() => api.sendHumanMessage({
           version: 1,
           command: 3000,
-          content: text,
+          content: encodeKefuEmoji(text),
           type: 1,
           toUserId: serviceState.currentAgent?.id
-        });
+        }));
       }).then((sent) => {
         if (!sent) return;
         startAgentReplyWatcher();
@@ -5961,13 +7175,20 @@
     }
 
     function sendCurrentInput() {
-      const value = chatInput.value.trim();
-      if (!value) return;
-      chatInput.value = "";
       if (serviceState.humanActive) {
+        const value = chatInput.value.trim();
+        if (!value) return;
+        chatInput.value = "";
         sendHumanTextMessage(value);
         return;
       }
+      if (chatState.aiStreaming) {
+        stopAiStreaming();
+        return;
+      }
+      const value = chatInput.value.trim();
+      if (!value) return;
+      chatInput.value = "";
       if (serviceState.queued) {
         appendSystem("正在排队中，如需发送消息请等待人工客服接入");
         scrollChatBottom();
@@ -6122,6 +7343,110 @@
       }
     });
 
+    chatList.addEventListener("click", (event) => {
+      const retryButton = event.target.closest("[data-image-upload-retry]");
+      if (retryButton) {
+        const uploadId = retryButton.dataset.uploadId || retryButton.closest("[data-upload-id]")?.dataset.uploadId;
+        if (uploadId) {
+          retryHumanImageUpload(uploadId).catch((error) => {
+            console.warn("retry human image upload failed", error);
+            showToast(error.message || "图片发送失败，请稍后重试");
+          });
+        }
+        return;
+      }
+      const image = event.target.closest(".chat-image");
+      if (!image) return;
+      openImagePreview(image);
+    });
+
+    imagePreview?.addEventListener("click", (event) => {
+      if (event.target === imagePreview || event.target.closest("[data-close-image-preview]")) {
+        closeImagePreview();
+      }
+    });
+
+    imagePreviewImage?.addEventListener("load", () => resetImagePreviewGesture());
+
+    imagePreviewImage?.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      imagePreviewImage.setPointerCapture?.(event.pointerId);
+      imagePreviewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      imagePreviewGesture.moved = false;
+      if (imagePreviewPointers.size === 1) {
+        imagePreviewGesture.dragPointerId = event.pointerId;
+        imagePreviewGesture.dragStartX = event.clientX;
+        imagePreviewGesture.dragStartY = event.clientY;
+        imagePreviewGesture.startTranslateX = imagePreviewGesture.translateX;
+        imagePreviewGesture.startTranslateY = imagePreviewGesture.translateY;
+      } else if (imagePreviewPointers.size === 2) {
+        startImagePreviewPinch();
+      }
+    });
+
+    imagePreviewImage?.addEventListener("pointermove", (event) => {
+      if (!imagePreviewPointers.has(event.pointerId)) return;
+      event.preventDefault();
+      imagePreviewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (imagePreviewPointers.size >= 2) {
+        const [first, second] = imagePreviewPointerPair();
+        const distance = pointerDistance(first, second);
+        const center = pointerCenter(first, second);
+        if (!imagePreviewGesture.startDistance) startImagePreviewPinch();
+        const nextScale = clamp(
+          imagePreviewGesture.startScale * distance / imagePreviewGesture.startDistance,
+          IMAGE_PREVIEW_MIN_SCALE,
+          IMAGE_PREVIEW_MAX_SCALE,
+        );
+        const scaleRatio = nextScale / imagePreviewGesture.startScale;
+        const previewRect = imagePreview.getBoundingClientRect();
+        const previewCenterX = previewRect.left + previewRect.width / 2;
+        const previewCenterY = previewRect.top + previewRect.height / 2;
+        const anchoredX = imagePreviewGesture.startCenterX - previewCenterX - imagePreviewGesture.startTranslateX;
+        const anchoredY = imagePreviewGesture.startCenterY - previewCenterY - imagePreviewGesture.startTranslateY;
+        applyImagePreviewTransform({
+          scale: nextScale,
+          translateX: imagePreviewGesture.startTranslateX
+            + (center.x - imagePreviewGesture.startCenterX)
+            - anchoredX * (scaleRatio - 1),
+          translateY: imagePreviewGesture.startTranslateY
+            + (center.y - imagePreviewGesture.startCenterY)
+            - anchoredY * (scaleRatio - 1),
+        });
+        imagePreviewGesture.moved = true;
+        return;
+      }
+      if (imagePreviewGesture.scale <= IMAGE_PREVIEW_MIN_SCALE || imagePreviewGesture.dragPointerId !== event.pointerId) return;
+      const deltaX = event.clientX - imagePreviewGesture.dragStartX;
+      const deltaY = event.clientY - imagePreviewGesture.dragStartY;
+      if (Math.hypot(deltaX, deltaY) > 4) imagePreviewGesture.moved = true;
+      imagePreviewImage.classList.add("dragging");
+      applyImagePreviewTransform({
+        scale: imagePreviewGesture.scale,
+        translateX: imagePreviewGesture.startTranslateX + deltaX,
+        translateY: imagePreviewGesture.startTranslateY + deltaY,
+      });
+    });
+
+    imagePreviewImage?.addEventListener("pointerup", finishImagePreviewPointer);
+    imagePreviewImage?.addEventListener("pointercancel", finishImagePreviewPointer);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && imagePreview?.classList.contains("open")) {
+        closeImagePreview();
+      }
+    });
+
+    window.addEventListener("popstate", () => {
+      if (!imagePreview?.classList.contains("open")) return;
+      closeImagePreview({ fromPopState: true });
+    });
+
+    window.addEventListener("resize", () => {
+      if (!imagePreview?.classList.contains("open")) return;
+      applyImagePreviewTransform(imagePreviewGesture);
+    });
+
     sendButton.addEventListener("click", sendCurrentInput);
 
     orderSearchInput?.addEventListener("input", () => renderOrderCards());
@@ -6138,7 +7463,7 @@
       updateTopMenuByChatScroll(currentTop, previousTop);
       lastChatScrollTop = currentTop;
       if (!chatState.historyActivated) return;
-      if (chatState.historyLoadedCount >= mockHistoryMessages.length) return;
+      if (!hasMoreUnifiedHistory()) return;
       if (currentTop <= 24 && isMovingTowardTop) loadOlderHistoryMessages();
     }
 
@@ -6202,10 +7527,12 @@
       updateTopUserInfo();
       renderOrders();
       initializeVisitorSession()
-        .catch((error) => console.warn("initialize visitor session failed", error))
-        .then(() => {
-          if (currentUser.kefuReady) loadRecentConversations();
-        });
+        .catch((error) => {
+          console.warn("initialize visitor session failed", error);
+          return [];
+        })
+        .then((kefuConversations) => loadUnifiedRecentHistory(kefuConversations || []))
+        .catch((error) => console.warn("load unified recent history failed", error));
       renderRatingStars();
       updateSessionControls();
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
