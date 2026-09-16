@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>智能客服</title>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
   <style>
     :root {
       --ink: #17233d;
@@ -354,6 +353,7 @@
     .session-end-tool {
       display: none;
       min-width: 102px;
+      margin-left: auto;
       border: 0;
       color: #9f3f54;
       background:
@@ -379,7 +379,6 @@
     .session-order-tool {
       display: none;
       min-width: 108px;
-      margin-left: auto;
       border: 0;
       color: #2154b6;
       background:
@@ -1111,9 +1110,7 @@
       35% { filter: drop-shadow(0 0 10px rgba(64, 120, 238, .42)); }
     }
 
-    .chat-list {
-      display: grid;
-      gap: 12px;
+    .chat-scroll-viewport {
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
@@ -1127,13 +1124,21 @@
       scrollbar-width: none;
       scroll-behavior: smooth;
       touch-action: pan-y;
+      transform: rotateX(180deg);
     }
 
-    .chat-list.history-mode {
+    .chat-scroll-viewport.history-mode {
       scroll-behavior: auto;
     }
 
-    .chat-list::-webkit-scrollbar { display: none; }
+    .chat-scroll-viewport::-webkit-scrollbar { display: none; }
+
+    .chat-list {
+      display: grid;
+      gap: 12px;
+      min-height: 100%;
+      transform: rotateX(-180deg);
+    }
 
     .message {
       display: grid;
@@ -2399,6 +2404,8 @@
     }
 
     .image-preview__image {
+      position: relative;
+      z-index: 1;
       display: block;
       width: auto;
       height: auto;
@@ -2427,6 +2434,7 @@
 
     .image-preview__close {
       position: absolute;
+      z-index: 2;
       top: max(14px, env(safe-area-inset-top));
       right: max(14px, env(safe-area-inset-right));
       width: 42px;
@@ -2903,7 +2911,7 @@
             <div class="hello">
               <div class="eyebrow-row">
                 <div class="eyebrow">您好，我是黄小西</div>
-                <div class="service-time-chip"><i data-lucide="clock-3"></i>人工 9:00-18:00</div>
+                <div class="service-time-chip"><i data-lucide="clock-3"></i>人工 09:00-18:00</div>
               </div>
               <h2>有什么可以帮您？</h2>
             </div>
@@ -2943,12 +2951,14 @@
             </button>
           </div>
 
-          <div class="chat-list" id="chatList">
-            <div class="message ai">
-              <div class="msg-avatar"><img src="assets/huangxiaoxi-3d-upperbody.png" alt="黄小西"></div>
-              <div class="msg-body">
-                <div class="msg-meta"><span>黄小西</span><span>13:29</span></div>
-                <div class="bubble">您好，我可以帮您查文旅订单、咨询景区门票/线路套餐/酒店民宿/文创特产，也可以了解会员积分或接入人工客服。</div>
+          <div class="chat-scroll-viewport" id="chatScrollViewport">
+            <div class="chat-list" id="chatList">
+              <div class="message ai">
+                <div class="msg-avatar"><img src="assets/huangxiaoxi-3d-upperbody.png" alt="黄小西"></div>
+                <div class="msg-body">
+                  <div class="msg-meta"><span>黄小西</span><span>13:29</span></div>
+                  <div class="bubble">您好，我可以帮您查文旅订单、咨询景区门票/线路套餐/酒店民宿/文创特产，也可以了解会员积分或接入人工客服。</div>
+                </div>
               </div>
             </div>
           </div>
@@ -3059,7 +3069,7 @@
             <div class="sheet-head">
               <span>
                 <strong>上传附件</strong>
-                <small>人工客服仅支持图片，单张不超过 10MB</small>
+                <small>支持图片上传，单张不超过 10MB</small>
               </span>
               <button class="sheet-close" type="button" data-close-upload aria-label="关闭"><i data-lucide="x"></i></button>
             </div>
@@ -3071,7 +3081,7 @@
               </label>
               <label class="help-option upload-option" for="fileInput">
                 <i data-lucide="image-up"></i>
-                <span><strong>相册图片</strong><small>选择图片，人工客服仅接收图片 URL</small></span>
+                <span><strong>相册图片</strong><small>选择图片后发送给智能客服或人工客服</small></span>
                 <i data-lucide="chevron-right"></i>
               </label>
             </div>
@@ -3125,8 +3135,6 @@
   </div>
 
   <script>
-    if (window.VConsole) window.vConsole = new window.VConsole();
-
     const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     let kefuDebugLogs = [];
     try {
@@ -3147,9 +3155,19 @@
       kefuDebugLogs = [];
       try { sessionStorage.removeItem(KEFU_IMAGE_DEBUG_STORAGE_KEY); } catch (error) { /* noop */ }
     };
+    imageDebug("H5脚本启动", {
+      url: location.href,
+      navigationType: performance.getEntriesByType("navigation")[0]?.type || "unknown"
+    });
     window.addEventListener("beforeunload", () => imageDebug("页面beforeunload", { url: location.href }));
-    window.addEventListener("pagehide", (event) => imageDebug("页面pagehide", { persisted: Boolean(event.persisted) }));
-    window.addEventListener("pageshow", (event) => imageDebug("页面pageshow", { persisted: Boolean(event.persisted) }));
+    window.addEventListener("pagehide", (event) => imageDebug("页面pagehide", {
+      url: location.href,
+      persisted: Boolean(event.persisted)
+    }));
+    window.addEventListener("pageshow", (event) => imageDebug("页面pageshow", {
+      url: location.href,
+      persisted: Boolean(event.persisted)
+    }));
 
     const screens = document.querySelectorAll(".screen");
     const flowItems = document.querySelectorAll(".flow-item");
@@ -3181,6 +3199,7 @@
       lastTapY: 0,
     };
     const entryScreen = document.querySelector('[data-panel="entry"]');
+    const chatScrollViewport = document.querySelector("#chatScrollViewport");
     const orderList = document.querySelector("#orderList");
     const orderSearchInput = document.querySelector("#orderSearchInput");
     const orderFilterButtons = document.querySelectorAll("[data-order-filter]");
@@ -3952,6 +3971,10 @@
         return queryShopUserProfile(uuid);
       },
       agentChat(payload, handlers = {}) {
+        const queryType = Number(payload?.queryType);
+        if (queryType !== 1 && queryType !== 2) {
+          return Promise.reject(new Error("智能问答请求缺少有效的 queryType"));
+        }
         const localResult = builtinAgent(payload.text);
         if (localResult.action === "human") return Promise.resolve(localResult);
         if (!difyConfig.enabled) {
@@ -4134,6 +4157,10 @@
         if (active && !wasActive) screen.scrollTop = 0;
       });
       flowItems.forEach((item) => item.classList.toggle("active", item.dataset.screen === name));
+      if (name === "entry" && serviceState.humanActive) {
+        activateChatReadingMode();
+        scrollChatBottom();
+      }
     }
 
     function iconRefresh() {
@@ -4434,11 +4461,15 @@
     }
 
     function userMessageHtml(text, time = formatClock()) {
+      const imageUrl = isImageUrl(text) ? String(text).trim() : "";
+      const content = imageUrl
+        ? `<img class="chat-image" src="${escapeHtml(imageUrl)}" alt="已发送图片">`
+        : escapeHtml(text);
       return `
         <div class="message user">
           <div class="msg-body">
             <div class="msg-meta"><span>${time}</span><span>${escapeHtml(currentUser.name)}</span></div>
-            <div class="bubble">${escapeHtml(text)}</div>
+            <div class="bubble">${content}</div>
           </div>
           <div class="msg-avatar">${escapeHtml(currentUser.shortName)}</div>
         </div>
@@ -4638,10 +4669,10 @@
       const detailText = state === "failed"
         ? (record.errorMessage || "点击重试继续发送")
         : state === "success"
-          ? (record.sentToAgent ? "已发送到客服" : "图片已上传，转人工后可继续发送")
-          : state === "restored"
-            ? (record.errorMessage || "正在恢复人工会话")
-          : "正在发送到客服";
+          ? (record.sentToAgent ? "已发送到客服" : "图片已上传，正在提交智能问答")
+        : state === "restored"
+          ? (record.errorMessage || "正在恢复人工会话")
+          : "正在上传图片";
       const iconName = state === "failed" ? "triangle-alert" : (state === "success" ? "check-circle-2" : (state === "restored" ? "image" : "loader-circle"));
       const previewUrl = record.previewUrl || record.remoteUrl || "";
       return `
@@ -4702,10 +4733,10 @@
         stateDetail.textContent = record.state === "failed"
           ? (record.errorMessage || "点击重试继续发送")
           : record.state === "success"
-            ? (record.sentToAgent ? "已发送到客服" : "图片已上传，转人工后可继续发送")
+            ? (record.sentToAgent ? "已发送到客服" : "图片已上传，正在提交智能问答")
             : record.state === "restored"
               ? (record.errorMessage || "正在恢复人工会话")
-            : "正在发送到客服";
+            : "正在上传图片";
       }
       if (retryButton) retryButton.hidden = Boolean(record.nonRetryable) || (record.state !== "failed" && record.state !== "restored");
       if (record.state === "success" && record.remoteUrl) {
@@ -4727,13 +4758,12 @@
       return record;
     }
 
-    function createHumanImageUploadRecord(file, uploadId = humanImageUploadId(), persistedId = "") {
+    function createHumanImageUploadRecord(file, uploadId = humanImageUploadId()) {
       const id = uploadId;
       const record = {
         id,
         file,
         fileName: file?.name || "图片",
-        persistedId,
         previewUrl: URL.createObjectURL(file),
         remoteUrl: "",
         unifiedKey: `human:local:${id}`,
@@ -4956,83 +4986,6 @@
       return chatList.lastElementChild;
     }
 
-    const LOCAL_ATTACHMENT_HISTORY_KEY = "kefu-local-attachment-history";
-    const LOCAL_ATTACHMENT_NOTICE = "当前图片仅支持人工客服会话和留言上传。如需带图处理问题，可先发起转人工，或在留言中补充图片。";
-
-    function readLocalAttachmentHistory() {
-      try {
-        const records = JSON.parse(sessionStorage.getItem(LOCAL_ATTACHMENT_HISTORY_KEY) || "[]");
-        return Array.isArray(records) ? records.slice(-30) : [];
-      } catch (error) {
-        return [];
-      }
-    }
-
-    function saveLocalAttachmentHistory(records = []) {
-      try { sessionStorage.setItem(LOCAL_ATTACHMENT_HISTORY_KEY, JSON.stringify(records.slice(-30))); } catch (error) { /* noop */ }
-    }
-
-    function appendLocalAttachmentNotice(label, fileName) {
-      const timestamp = Date.now();
-      const id = `local-attachment-${timestamp}-${Math.random().toString(36).slice(2, 8)}`;
-      const userText = `${label}：${fileName}`;
-      const record = { id, userText, timestamp, conversationId: chatState.conversationId || "" };
-      const records = readLocalAttachmentHistory();
-      records.push(record);
-      saveLocalAttachmentHistory(records);
-
-      appendUser(userText);
-      appendAi(`<div class="bubble">${LOCAL_ATTACHMENT_NOTICE}</div>`);
-      registerUnifiedRealtimeMessage({
-        source: "local-attachment",
-        role: "user",
-        type: "text",
-        content: userText,
-        conversationId: record.conversationId,
-        timestamp,
-        key: `${id}:user`
-      });
-      registerUnifiedRealtimeMessage({
-        source: "local-attachment",
-        role: "ai",
-        type: "html",
-        content: `<div class="bubble">${LOCAL_ATTACHMENT_NOTICE}</div>`,
-        conversationId: record.conversationId,
-        timestamp: timestamp + 1,
-        key: `${id}:notice`
-      });
-      scrollChatBottom();
-    }
-
-    function restoreLocalAttachmentHistory() {
-      const records = readLocalAttachmentHistory();
-      if (!records.length) return;
-      records.forEach((record) => {
-        registerUnifiedRealtimeMessage({
-          source: "local-attachment",
-          role: "user",
-          type: "text",
-          content: record.userText,
-          conversationId: record.conversationId || "",
-          timestamp: record.timestamp,
-          key: `${record.id}:user`
-        });
-        registerUnifiedRealtimeMessage({
-          source: "local-attachment",
-          role: "ai",
-          type: "html",
-          content: `<div class="bubble">${LOCAL_ATTACHMENT_NOTICE}</div>`,
-          conversationId: record.conversationId || "",
-          timestamp: (record.timestamp || Date.now()) + 1,
-          key: `${record.id}:notice`
-        });
-      });
-      renderUnifiedHistoryTimeline({ preserveScroll: true });
-      scrollChatBottom();
-      // 已成功写入当前会话模型，清空恢复队列，避免下次重载重复插入。
-      saveLocalAttachmentHistory([]);
-    }
-
     function appendStreamingAi() {
       const id = `stream-${Date.now()}`;
       chatList.insertAdjacentHTML("beforeend", aiMessageHtml(`<div class="bubble streaming" id="${id}"></div>`));
@@ -5061,12 +5014,19 @@
     }
 
     async function streamDifyChat(payload, handlers = {}) {
+      const queryType = Number(payload.queryType);
+      if (queryType !== 1 && queryType !== 2) {
+        throw new Error("智能问答请求缺少有效的 queryType");
+      }
       const response = await fetch(`${difyConfig.baseUrl}/chat-messages`, {
         method: "POST",
         headers: buildAiHeaders({ "Content-Type": "application/json" }),
         signal: handlers.signal,
         body: JSON.stringify({
-          inputs: buildAiInputs(),
+          inputs: {
+            ...buildAiInputs(),
+            queryType
+          },
           query: payload.text,
           response_mode: "streaming",
           conversation_id: chatState.conversationId,
@@ -5167,17 +5127,25 @@
     function setChatScrollTop(top) {
       if (!chatList) return;
       const nextTop = Math.max(0, Number(top) || 0);
-      const previousBehavior = chatList.style.scrollBehavior;
-      chatList.style.scrollBehavior = "auto";
-      chatList.scrollTop = nextTop;
+      const previousBehavior = chatScrollViewport.style.scrollBehavior;
+      chatScrollViewport.style.scrollBehavior = "auto";
+      chatScrollViewport.scrollTop = nextTop;
       window.requestAnimationFrame(() => {
-        chatList.scrollTop = nextTop;
-        chatList.style.scrollBehavior = previousBehavior;
+        chatScrollViewport.scrollTop = nextTop;
+        chatScrollViewport.style.scrollBehavior = previousBehavior;
       });
     }
 
-    function scrollChatBottom(options = {}) {
-      setChatScrollTop(chatList.scrollHeight);
+    function scrollChatBottom() {
+      if (!chatList) return;
+      // The visual bottom is deliberately mapped to the native scroll origin.
+      // New messages and late-loading images therefore remain visible at 0.
+      chatScrollViewport.scrollTop = 0;
+    }
+
+    function isChatAtVisualTop(threshold = 24) {
+      const maxScrollTop = Math.max(0, chatScrollViewport.scrollHeight - chatScrollViewport.clientHeight);
+      return maxScrollTop - chatScrollViewport.scrollTop <= threshold;
     }
 
     function activateChatReadingMode() {
@@ -5188,7 +5156,7 @@
       entryScreen?.classList.remove("chat-expanded");
     }
 
-    function updateTopMenuByChatScroll(currentTop = chatList.scrollTop, previousTop = currentTop) {
+    function updateTopMenuByChatScroll(currentTop = chatScrollViewport.scrollTop, previousTop = currentTop) {
       if (!entryScreen || !entryScreen.classList.contains("active")) return;
       if (currentTop > 16) {
         activateChatReadingMode();
@@ -5199,19 +5167,19 @@
     function focusChatMessage(messageNode) {
       if (!messageNode) return;
       window.requestAnimationFrame(() => {
-        const chatRect = chatList.getBoundingClientRect();
+        const chatRect = chatScrollViewport.getBoundingClientRect();
         const messageRect = messageNode.getBoundingClientRect();
-        const currentTop = chatList.scrollTop;
+        const currentTop = chatScrollViewport.scrollTop;
         const offsetTop = messageRect.top - chatRect.top;
         const offsetBottom = messageRect.bottom - chatRect.bottom;
 
         if (offsetTop < 12) {
-          setChatScrollTop(currentTop + offsetTop - 12);
+          setChatScrollTop(currentTop - offsetTop + 12);
           return;
         }
 
         if (offsetBottom > -12) {
-          setChatScrollTop(currentTop + offsetBottom + 12);
+          setChatScrollTop(currentTop - offsetBottom - 12);
         }
       });
     }
@@ -5281,144 +5249,13 @@
       return /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|webp)$/i.test(String(file.name || ""));
     }
 
-    // 微信小程序 Android web-view 在相机/相册返回时可能重建 H5 页面。
-    // Blob 不能放入 sessionStorage，因此使用 IndexedDB 在重载前保存图片草稿。
-    const imageDraftStore = {
-      dbName: "kefu-image-drafts",
-      storeName: "drafts",
-      version: 1,
-      dbPromise: null,
-      open() {
-        if (!window.indexedDB) return Promise.reject(new Error("当前环境不支持图片草稿恢复"));
-        if (this.dbPromise) return this.dbPromise;
-        this.dbPromise = new Promise((resolve, reject) => {
-          const request = indexedDB.open(this.dbName, this.version);
-          request.onupgradeneeded = () => {
-            const db = request.result;
-            if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName, { keyPath: "id" });
-          };
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error || new Error("图片草稿库打开失败"));
-        });
-        return this.dbPromise;
-      },
-      async save(file, id) {
-        const db = await this.open();
-        const scope = `${location.origin}${location.pathname}`;
-        // 仅保留最新一张待恢复图片，避免连续选图占用 IndexedDB 空间。
-        const existingDrafts = await this.list();
-        await Promise.all(existingDrafts.map((draft) => this.remove(draft.id)));
-        const record = {
-          id,
-          scope,
-          file,
-          fileName: file?.name || "chat-image.jpg",
-          fileType: file?.type || "image/jpeg",
-          createdAt: Date.now()
-        };
-        await new Promise((resolve, reject) => {
-          const request = db.transaction(this.storeName, "readwrite").objectStore(this.storeName).put(record);
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error || new Error("保存图片草稿失败"));
-        });
-        return id;
-      },
-      async list() {
-        const db = await this.open();
-        const records = await new Promise((resolve, reject) => {
-          const request = db.transaction(this.storeName, "readonly").objectStore(this.storeName).getAll();
-          request.onsuccess = () => resolve(request.result || []);
-          request.onerror = () => reject(request.error || new Error("读取图片草稿失败"));
-        });
-        const scope = `${location.origin}${location.pathname}`;
-        return records.filter((record) => record.scope === scope);
-      },
-      async remove(id) {
-        if (!id) return;
-        const db = await this.open();
-        await new Promise((resolve, reject) => {
-          const request = db.transaction(this.storeName, "readwrite").objectStore(this.storeName).delete(id);
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error || new Error("删除图片草稿失败"));
-        });
-      }
-    };
-
-    async function restorePersistedImageDrafts() {
-      let drafts = [];
+    function isImageUrl(value) {
       try {
-        drafts = await imageDraftStore.list();
+        const url = new URL(String(value || "").trim());
+        return /^https?:$/.test(url.protocol)
+          && /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|webp)$/i.test(url.pathname);
       } catch (error) {
-        imageDebug("读取图片草稿失败", { error: error?.message || String(error) });
-        return;
-      }
-      for (const draft of drafts) {
-        if (!draft?.id || !draft.file || getHumanImageUploadRecord(draft.id)) continue;
-        const restoredFile = await materializePersistedImageFile(draft);
-        let file = restoredFile;
-        try {
-          file = await optimizeUploadImage(restoredFile);
-          await imageDraftStore.save(file, draft.id);
-          imageDebug("已恢复图片重新压缩", { uploadId: draft.id, originalSize: restoredFile.size || 0, uploadSize: file.size || 0 });
-        } catch (error) {
-          imageDebug("已恢复图片压缩失败，使用原始草稿", { uploadId: draft.id, error: error?.message || String(error) });
-        }
-        const record = createHumanImageUploadRecord(file, draft.id, draft.id);
-        updateHumanImageUploadRecord(draft.id, {
-          state: "restored",
-          errorMessage: "页面重载后已恢复，正在恢复人工会话"
-        });
-        imageDebug("页面重载后恢复图片草稿", { uploadId: record.id, fileName: record.fileName });
-        if (serviceState.humanActive && serviceState.currentAgent?.id) {
-          sendHumanImageFile(file, { uploadId: draft.id }).catch((error) => {
-            if (isImageTooLargeError(error)) {
-              updateHumanImageUploadRecord(draft.id, {
-                state: "failed",
-                nonRetryable: true,
-                errorMessage: "图片体积过大，单张不能超过 10MB"
-              });
-            } else {
-              updateHumanImageUploadRecord(draft.id, {
-                state: "restored",
-                errorMessage: "图片已恢复，自动发送未完成，请点击重试"
-              });
-            }
-            imageDebug("恢复图片自动发送未完成", { uploadId: draft.id, error: error?.message || String(error) });
-          });
-        } else {
-          serviceState.pendingHumanUploads.push({ file, uploadId: draft.id });
-          updateHumanImageUploadRecord(draft.id, {
-            state: "restored",
-            errorMessage: "图片已恢复，等待人工会话恢复后自动发送"
-          });
-        }
-      }
-      if (drafts.length) scrollChatBottom();
-    }
-
-    async function materializePersistedImageFile(draft) {
-      const savedFile = draft.file;
-      const fileType = draft.fileType || savedFile?.type || "image/jpeg";
-      const fileName = draft.fileName || "chat-image.jpg";
-      try {
-        // 不直接复用 IndexedDB 取出的 File：部分 Android X5 WebView 无法将其
-        // 作为 multipart 的 FormData 内容发送。重新构造一个内存 File 可规避此问题。
-        const buffer = typeof savedFile?.arrayBuffer === "function"
-          ? await savedFile.arrayBuffer()
-          : await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = () => reject(reader.error || new Error("读取已恢复图片失败"));
-            reader.readAsArrayBuffer(savedFile);
-          });
-        const blob = new Blob([buffer], { type: fileType });
-        if (typeof File === "function") {
-          return new File([blob], fileName, { type: fileType, lastModified: draft.createdAt || Date.now() });
-        }
-        return blob;
-      } catch (error) {
-        imageDebug("重新构造已恢复图片失败，使用原始草稿", { uploadId: draft.id, error: error?.message || String(error) });
-        return savedFile;
+        return false;
       }
     }
 
@@ -5556,8 +5393,6 @@
         }]);
         imageDebug("上传成功，已更新消息", { uploadId, imageUrl });
         serviceState.pendingImageUploads.delete(uploadId);
-        imageDraftStore.remove(record.persistedId || uploadId)
-          .catch((draftError) => imageDebug("删除图片草稿失败", { uploadId, error: draftError?.message || String(draftError) }));
         startAgentReplyWatcher();
         scrollChatBottom();
         return imageUrl;
@@ -5586,6 +5421,45 @@
           console.warn("flush pending human image failed", error);
           appendSystem(`图片“${file.name}”同步失败，请重新发送。`);
         }
+      }
+    }
+
+    async function sendAiAttachmentFile(file, source) {
+      const uploadId = humanImageUploadId();
+      const record = createHumanImageUploadRecord(file, uploadId);
+      try {
+        const uploadResult = await api.uploadChatImage(file);
+        const imageUrl = uploadResult?.url || uploadResult?.data?.url || "";
+        if (!imageUrl) throw new Error("图片上传成功但未返回可用地址");
+        updateHumanImageUploadRecord(uploadId, {
+          state: "success",
+          remoteUrl: imageUrl,
+          errorMessage: ""
+        });
+        mergeUnifiedHistoryMessages([{
+          source: "ai",
+          role: "user",
+          type: "image",
+          content: imageUrl,
+          localPreviewUrl: record.previewUrl,
+          conversationId: chatState.conversationId,
+          timestamp: Date.now(),
+          key: record.unifiedKey
+        }]);
+        serviceState.pendingImageUploads.delete(uploadId);
+        await submitQuestion(imageUrl, source === "photo" ? "camera" : "album", {
+          queryType: 2,
+          attachmentUrl: imageUrl,
+          skipUserMessage: true
+        });
+      } catch (error) {
+        console.warn("send AI attachment failed", error);
+        updateHumanImageUploadRecord(uploadId, {
+          state: "failed",
+          errorMessage: error.message || "图片上传失败，请重新选择图片",
+          nonRetryable: true
+        });
+        showToast(error.message || "图片上传失败，请稍后重试");
       }
     }
 
@@ -5623,15 +5497,8 @@
       const uploadId = serviceState.humanActive && !messageBoardModal.classList.contains("show")
         ? humanImageUploadId()
         : "";
-      let persistedId = "";
       if (uploadId) {
-        try {
-          persistedId = await imageDraftStore.save(file, uploadId);
-          imageDebug("图片草稿已保存", { uploadId, fileName: file.name || "图片" });
-        } catch (error) {
-          imageDebug("图片草稿保存失败", { uploadId, error: error?.message || String(error) });
-        }
-        createHumanImageUploadRecord(file, uploadId, persistedId);
+        createHumanImageUploadRecord(file, uploadId);
       }
 
       let uploadFile = file;
@@ -5643,14 +5510,8 @@
         imageDebug("图片压缩失败，改用原文件", { uploadId, error: error?.message || String(error) });
       }
       if (uploadId) {
-        try {
-          await imageDraftStore.save(uploadFile, uploadId);
-          const record = getHumanImageUploadRecord(uploadId);
-          if (record) record.file = uploadFile;
-          imageDebug("压缩后图片草稿已更新", { uploadId, size: uploadFile.size || 0 });
-        } catch (error) {
-          imageDebug("压缩后图片草稿更新失败", { uploadId, error: error?.message || String(error) });
-        }
+        const record = getHumanImageUploadRecord(uploadId);
+        if (record) record.file = uploadFile;
       }
       if (messageBoardModal.classList.contains("show")) {
         boardImageFile = uploadFile;
@@ -5670,8 +5531,7 @@
         queuePendingHumanUpload(uploadFile);
         return;
       }
-      const label = type === "photo" ? "拍照上传" : "图片上传";
-      appendLocalAttachmentNotice(label, file.name);
+      await sendAiAttachmentFile(uploadFile, type);
     }
 
     function productCard() {
@@ -5921,9 +5781,13 @@
       scrollChatBottom();
     }
 
-    async function submitQuestion(text, source = "input") {
+    async function submitQuestion(text, source = "input", options = {}) {
       const question = String(text || "").trim();
+      const queryType = Number(options.queryType ?? 1);
       if (!question) return;
+      if (queryType !== 1 && queryType !== 2) {
+        throw new Error("智能问答请求缺少有效的 queryType");
+      }
       if (serviceState.humanActive) {
         sendHumanTextMessage(question);
         return;
@@ -5936,8 +5800,24 @@
       setScreen("entry");
       activateChatReadingMode();
 
-      appendUser(question);
-      registerUnifiedRealtimeMessage({ source: "ai", role: "user", type: "text", content: question, conversationId: chatState.conversationId });
+      const imageUrl = queryType === 2 && options.attachmentUrl
+        ? options.attachmentUrl
+        : (isImageUrl(question) ? question : "");
+      if (!options.skipUserMessage) {
+        if (imageUrl) {
+          chatList.insertAdjacentHTML("beforeend", userImageMessageHtml(imageUrl));
+          registerUnifiedRealtimeMessage({
+            source: "ai",
+            role: "user",
+            type: "image",
+            content: imageUrl,
+            conversationId: chatState.conversationId
+          });
+        } else {
+          appendUser(question);
+          registerUnifiedRealtimeMessage({ source: "ai", role: "user", type: "text", content: question, conversationId: chatState.conversationId });
+        }
+      }
       scrollChatBottom();
 
       const localResult = builtinAgent(question);
@@ -5955,7 +5835,7 @@
         updateSendButtonState();
       }
       api.agentChat(
-        { text: question, source },
+        { text: question, source, queryType },
         {
           signal: abortController?.signal,
           onDelta(delta, fullText) {
@@ -6279,9 +6159,9 @@
     }
 
     function renderUnifiedHistoryTimeline({ preserveScroll = true } = {}) {
-      const beforeHeight = chatList.scrollHeight;
-      const beforeTop = chatList.scrollTop;
-      const wasAtBottom = beforeHeight - beforeTop - chatList.clientHeight < 32;
+      const beforeHeight = chatScrollViewport.scrollHeight;
+      const beforeTop = chatScrollViewport.scrollTop;
+      const wasAtBottom = beforeTop < 32;
       chatList.innerHTML = chatState.unifiedHistoryMessages.length
         ? unifiedHistoryTimelineHtml()
         : initialAiMessageHtml();
@@ -6293,14 +6173,14 @@
       }
       iconRefresh();
       if (preserveScroll) {
-        chatList.scrollTop = wasAtBottom
-          ? chatList.scrollHeight
-          : beforeTop + (chatList.scrollHeight - beforeHeight);
+        chatScrollViewport.scrollTop = wasAtBottom
+          ? 0
+          : beforeTop;
       }
       imageDebug("聊天列表历史重绘完成", {
         messages: chatState.unifiedHistoryMessages.length,
         pendingImages: serviceState.pendingImageUploads.size,
-        scrollTop: chatList.scrollTop,
+        scrollTop: chatScrollViewport.scrollTop,
         preservedScroll: preserveScroll
       });
     }
@@ -6309,7 +6189,7 @@
       const target = [...chatList.querySelectorAll("[data-conversation-id]")]
         .find((node) => node.dataset.conversationId === String(conversationId));
       if (!target) return false;
-      (target.querySelector(".message, .system-note") || target).scrollIntoView({ block: "center", behavior: "smooth" });
+      focusChatMessage(target.querySelector(".message, .system-note") || target);
       target.classList.add("history-focus");
       window.setTimeout(() => target.classList.remove("history-focus"), 1200);
       return true;
@@ -6490,8 +6370,8 @@
       chatState.historyActivated = true;
       chatState.historyLoading = true;
       historyWrap.classList.add("loading");
-      const beforeHeight = chatList.scrollHeight;
-      const beforeTop = chatList.scrollTop;
+      const beforeHeight = chatScrollViewport.scrollHeight;
+      const beforeTop = chatScrollViewport.scrollTop;
       const tasks = [];
       if (hasMoreHumanHistory()) tasks.push(loadOlderHumanHistoryMessages({ ...options, force: true }));
       if (chatState.historyLoadedCount < mockHistoryMessages.length) tasks.push(Promise.resolve(loadOlderAiHistoryMessages()));
@@ -6501,7 +6381,7 @@
           if (result.status === "fulfilled") mergeUnifiedHistoryMessages(result.value || []);
         });
         renderUnifiedHistoryTimeline();
-        chatList.scrollTop = beforeTop + (chatList.scrollHeight - beforeHeight);
+        chatScrollViewport.scrollTop = beforeTop;
       } finally {
         chatState.historyLoading = false;
         historyWrap.classList.remove("loading");
@@ -6522,10 +6402,10 @@
       closeEmojiPanel();
       closeUploadModal();
       activateChatReadingMode();
-      chatList.classList.add("history-mode");
+      chatScrollViewport.classList.add("history-mode");
       chatState.historyActivated = true;
       chatState.historyArmedAt = 0;
-      lastChatScrollTop = chatList.scrollTop;
+      lastChatScrollTop = chatScrollViewport.scrollTop;
       updateHistoryToggleText();
       loadOlderHistoryMessages({ force: true });
     }
@@ -6536,7 +6416,7 @@
       chatState.historyLoading = false;
       chatState.historyLoadedCount = 0;
       chatState.historyArmedAt = 0;
-      chatList.classList.remove("history-mode");
+      chatScrollViewport.classList.remove("history-mode");
       entryScreen?.classList.remove("chat-expanded");
       historyWrap.classList.remove("loading");
       renderUnifiedHistoryTimeline();
@@ -7509,6 +7389,9 @@
           return;
         }
         appendUser(text);
+        // Render the customer's optimistic message before waiting for the
+        // socket acknowledgement, then immediately keep it in view.
+        scrollChatBottom();
         const optimisticKey = `${currentUser.visitorId}|1|${text}`;
         serviceState.optimisticMessageKeys.add(optimisticKey);
         registerUnifiedRealtimeMessage({
@@ -7583,6 +7466,28 @@
         return;
       }
       submitQuestion(value);
+    }
+
+    async function restoreActiveChatToLatest() {
+      if (!serviceState.humanActive || !serviceState.conversationId || !serviceState.currentAgent?.id) return;
+      setScreen("entry");
+      try {
+        const messages = await api.queryKefuMessages({
+          userId: currentUser.visitorId,
+          contactUserId: serviceState.currentAgent.id,
+          conversationId: serviceState.conversationId,
+          lessMessageId: 0
+        });
+        mergeUnifiedHistoryMessages(normalizeHumanHistoryMessages(messages, {
+          id: serviceState.conversationId,
+          toUser: serviceState.currentAgent
+        }));
+        renderUnifiedHistoryTimeline({ preserveScroll: false });
+      } catch (error) {
+        console.warn("restore active chat messages failed", error);
+      } finally {
+        scrollChatBottom();
+      }
     }
 
     document.addEventListener("click", (event) => {
@@ -7900,54 +7805,54 @@
     let lastChatScrollTop = 0;
 
     function shouldLoadHistoryFromChat() {
-      const currentTop = chatList.scrollTop;
+      const currentTop = chatScrollViewport.scrollTop;
       const previousTop = lastChatScrollTop;
-      const isMovingTowardTop = currentTop < lastChatScrollTop;
+      const isMovingTowardTop = currentTop > lastChatScrollTop;
       updateTopMenuByChatScroll(currentTop, previousTop);
       lastChatScrollTop = currentTop;
       if (!chatState.historyActivated) return;
       if (!hasMoreUnifiedHistory()) return;
-      if (currentTop <= 24 && isMovingTowardTop) loadOlderHistoryMessages();
+      if (isChatAtVisualTop() && isMovingTowardTop) loadOlderHistoryMessages();
     }
 
     let chatTouchStartY = 0;
 
-    chatList.addEventListener("scroll", shouldLoadHistoryFromChat);
+    chatScrollViewport.addEventListener("scroll", shouldLoadHistoryFromChat);
 
-    chatList.addEventListener("wheel", (event) => {
+    chatScrollViewport.addEventListener("wheel", (event) => {
       if (!chatState.historyActivated) {
-        if (entryScreen?.classList.contains("chat-expanded") && chatList.scrollTop <= 2 && event.deltaY < 0 && !chatState.historyLoading) {
+        if (entryScreen?.classList.contains("chat-expanded") && chatScrollViewport.scrollTop <= 2 && event.deltaY < 0 && !chatState.historyLoading) {
           expandTopMenu();
         }
         return;
       }
-      if (chatList.scrollTop <= 24 && event.deltaY < 0) loadOlderHistoryMessages();
+      if (isChatAtVisualTop()) loadOlderHistoryMessages();
     }, { passive: true });
 
-    chatList.addEventListener("touchstart", (event) => {
+    chatScrollViewport.addEventListener("touchstart", (event) => {
       chatTouchStartY = event.touches?.[0]?.clientY || 0;
     }, { passive: true });
 
-    chatList.addEventListener("touchmove", (event) => {
+    chatScrollViewport.addEventListener("touchmove", (event) => {
       const currentY = event.touches?.[0]?.clientY || 0;
       if (!chatState.historyActivated) {
-        if (entryScreen?.classList.contains("chat-expanded") && chatList.scrollTop <= 2 && currentY > chatTouchStartY + 24 && !chatState.historyLoading) {
+        if (entryScreen?.classList.contains("chat-expanded") && chatScrollViewport.scrollTop <= 2 && currentY > chatTouchStartY + 24 && !chatState.historyLoading) {
           expandTopMenu();
         }
         return;
       }
-      if (chatList.scrollTop <= 24 && currentY < chatTouchStartY - 26) {
+      if (isChatAtVisualTop()) {
         loadOlderHistoryMessages();
       }
     }, { passive: true });
 
-    chatList.addEventListener("pointerdown", (event) => {
+    chatScrollViewport.addEventListener("pointerdown", (event) => {
       chatTouchStartY = event.clientY || 0;
     });
 
-    chatList.addEventListener("pointerup", (event) => {
+    chatScrollViewport.addEventListener("pointerup", (event) => {
       if (!chatState.historyActivated) return;
-      if (chatList.scrollTop <= 24 && (event.clientY || 0) < chatTouchStartY - 26) {
+      if (isChatAtVisualTop()) {
         loadOlderHistoryMessages();
       }
     });
@@ -7975,14 +7880,19 @@
           return [];
         })
         .then((kefuConversations) => loadUnifiedRecentHistory(kefuConversations || []))
-        .then(() => restorePersistedImageDrafts())
-        .then(() => restoreLocalAttachmentHistory())
         .catch((error) => console.warn("load unified recent history failed", error));
       renderRatingStars();
       updateSessionControls();
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
       window.handleKefuMessagePacket = handleKefuMessagePacket;
       iconRefresh();
+    });
+
+    // Returning from the host app can restore this page from its back/forward
+    // cache. Refresh the active conversation and always resume at its newest
+    // message instead of retaining the earlier scroll position.
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) restoreActiveChatToLatest();
     });
   </script>
 </body>
