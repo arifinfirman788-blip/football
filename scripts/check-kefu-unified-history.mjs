@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-const html = await readFile(new URL('../public/kefu/index.html', import.meta.url), 'utf8');
+const html = await readFile(new URL('../src/kefu/Kefu.vue', import.meta.url), 'utf8');
 
 const checks = [
   ['unified history state exists', /unifiedHistoryMessages:\s*\[\]/s],

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const html = await readFile(new URL('../public/kefu/index.html', import.meta.url), 'utf8');
+const html = await readFile(new URL('../src/kefu/Kefu.vue', import.meta.url), 'utf8');
 
 assert.match(
   html,

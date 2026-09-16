@@ -1,6 +1,6 @@
 ﻿import { readFile } from "node:fs/promises";
 
-const html = await readFile(new URL("../public/kefu/index.html", import.meta.url), "utf8");
+const html = await readFile(new URL("../src/kefu/Kefu.vue", import.meta.url), "utf8");
 const mappingDoc = await readFile(new URL("../docs/emoji/客服系统表情映射确认方案.md", import.meta.url), "utf8");
 const mappingRows = [...mappingDoc.matchAll(/^\|\s*(\d+)\s*\|\s*`(\[[^`]+\])`\s*\|.*?\|\s*(\S+)\s*\|\s*(高|中|低|文本)\s*\|/gm)];
 const uniqueReverseRows = [...new Map(mappingRows.map(([, , token, emoji]) => [emoji, [token, emoji]])).values()];

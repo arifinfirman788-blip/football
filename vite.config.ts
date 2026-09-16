@@ -1,5 +1,4 @@
-import tailwindcss from '@tailwindcss/vite';
-import react from '@vitejs/plugin-react';
+import vue from '@vitejs/plugin-vue';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
@@ -24,7 +23,7 @@ export default defineConfig(({mode}) => {
       cssTarget: 'safari13',
       modulePreload: false,
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [vue()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

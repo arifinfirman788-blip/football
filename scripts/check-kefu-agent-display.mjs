@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-const html = await readFile(new URL("../public/kefu/index.html", import.meta.url), "utf8");
+const html = await readFile(new URL("../src/kefu/Kefu.vue", import.meta.url), "utf8");
 
 const checks = [
   ["agent display uses work number or id", /function formatAgentDisplay\(agent = \{\}\)[\s\S]*?agent\.workNo \|\| agent\.agentNo \|\| agent\.userWorkNo \|\| agent\.userNo \|\| agent\.id[\s\S]*?return workNumber \? `客服 \$\{workNumber\}`/s.test(html)],
