@@ -248,6 +248,13 @@
     </button>
     <img class="image-preview__image" id="imagePreviewImage" src="" alt="会话图片预览">
   </div>
+  <div class="page-init-loading" id="pageInitLoading" role="status" aria-live="polite" aria-label="正在加载客服会话">
+    <div class="page-init-loading__panel">
+      <span class="page-init-loading__orbit"></span>
+      <strong>正在加载会话</strong>
+      <span>黄小西正在准备历史消息</span>
+    </div>
+  </div>
 </template>
 
 <style>
@@ -301,6 +308,13 @@
         radial-gradient(circle at 84% 12%, rgba(255, 203, 115, .28), transparent 24%),
         linear-gradient(135deg, #f6fbff 0%, #edf6ff 48%, #f8f5ff 100%);
     }
+
+    .page-init-loading { position: fixed; z-index: 10020; inset: 0; display: grid; place-items: center; padding: 24px; color: #334d78; background: rgba(244,250,255,.84); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); opacity: 1; visibility: visible; transition: opacity .22s ease, visibility .22s ease; }
+    .page-init-loading.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .page-init-loading__panel { display: grid; justify-items: center; gap: 8px; min-width: 166px; padding: 22px 26px; border: 1px solid rgba(255,255,255,.9); border-radius: 20px; background: rgba(255,255,255,.72); box-shadow: 0 14px 34px rgba(67,100,155,.14); }
+    .page-init-loading__orbit { width: 30px; height: 30px; border: 3px solid rgba(75,124,255,.16); border-top-color: #4b7cff; border-radius: 50%; animation: page-init-spin .8s linear infinite; }
+    .page-init-loading__panel strong { font-size: 14px; line-height: 1.4; }.page-init-loading__panel span:last-child { color: #8292ab; font-size: 11px; }
+    @keyframes page-init-spin { to { transform: rotate(360deg); } }
 
     button {
       font: inherit;
@@ -1369,7 +1383,8 @@
       scrollbar-width: none;
       scroll-behavior: smooth;
       touch-action: pan-y;
-      transform: rotateX(180deg);
+      /* Use a 2D flip so backdrop-filter keeps a stable compositing layer on mobile. */
+      transform: rotate(180deg);
     }
 
     .chat-scroll-viewport.history-mode {
@@ -1382,7 +1397,7 @@
       display: grid;
       gap: 12px;
       min-height: 100%;
-      transform: rotateX(-180deg);
+      transform: rotate(-180deg);
     }
 
     .message {
@@ -1520,6 +1535,9 @@
       background: rgba(255,255,255,.62);
       backdrop-filter: blur(18px) saturate(1.28);
       -webkit-backdrop-filter: blur(18px) saturate(1.28);
+      isolation: isolate;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
     }
 
     .ai .bubble.streaming::after {
@@ -1533,6 +1551,72 @@
       background: rgba(47, 112, 240, .72);
       animation: blink .9s steps(2, start) infinite;
     }
+
+    /* mainQA 的结构化回答：保持在 AI 气泡内，避免卡片脱离聊天时间线。 */
+    .mainqa-answer { width: min(100%, 330px); }
+    /* 订购/推荐卡本身就是答案容器，不额外套一层通用白色聊天气泡。 */
+    .mainqa-card-answer { width: min(100%, 330px); }
+    .mainqa-card-answer .qa-cards { margin-top: 0; }
+    .mainqa-answer .mainqa-text { min-width: 0; }
+    .mainqa-think { margin: 0 0 10px; border: 1px solid rgba(65, 91, 150, .14); border-radius: 12px; background: rgba(238, 243, 255, .68); overflow: hidden; }
+    .mainqa-think summary { padding: 8px 10px; color: #526586; font-size: 12px; cursor: pointer; }
+    .mainqa-think-content { padding: 0 10px 10px; color: #63738f; font-size: 12px; white-space: pre-wrap; }
+    /* 问答尚未出字时用轻量状态行，不再占用一整张大 loading 卡。 */
+    .mainqa-answer.streaming::after { display: none; }
+    .mainqa-loading { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 2px 1px; color: #607396; }
+    .mainqa-loading-orbit { position: relative; width: 22px; height: 22px; flex: 0 0 22px; border: 2px solid rgba(75,124,255,.16); border-top-color: #4b7cff; border-radius: 50%; animation: mainqa-spin .78s linear infinite; }
+    .mainqa-loading-orbit::after { content: ""; position: absolute; right: -2px; top: 1px; width: 4px; height: 4px; border-radius: 50%; background: #8b6cff; box-shadow: 0 0 7px rgba(128,104,255,.75); }
+    .mainqa-loading-copy { min-width: 0; line-height: 1.35; }
+    .mainqa-loading-copy b { display: block; overflow: hidden; color: #40577f; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .mainqa-loading-copy span { display: block; margin-top: 2px; color: #93a0b5; font-size: 10px; }
+    .mainqa-loading-dots { display: inline-flex; gap: 3px; margin-left: auto; align-items: center; }
+    .mainqa-loading-dots i { width: 4px; height: 4px; border-radius: 50%; background: #7c99e5; animation: mainqa-dot 1.05s ease-in-out infinite; }
+    .mainqa-loading-dots i:nth-child(2) { animation-delay: .14s; }.mainqa-loading-dots i:nth-child(3) { animation-delay: .28s; }
+    .mainqa-status { display: flex; align-items: center; gap: 6px; margin: 0 0 9px; color: #5e759f; font-size: 11px; }
+    .mainqa-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #4b7cff; box-shadow: 0 0 0 4px rgba(75,124,255,.12); animation: mainqa-pulse 1.2s ease-out infinite; }
+    .mainqa-status::after { content: ""; width: 4px; height: 13px; border-radius: 999px; background: #5981ef; animation: blink .9s steps(2, start) infinite; }
+    .mainqa-section { margin-top: 10px; }
+    .mainqa-route-lazy-placeholder { display: grid; min-height: 200px; place-items: center; border-radius: 12px; color: #71809b; background: linear-gradient(135deg, #edf5ff, #f4efff); font-size: 12px; }
+    .mainqa-route-lazy-placeholder::before { content: "地图将在显示时加载"; }
+    .mainqa-section-title { margin: 0 0 7px; color: #42567d; font-size: 12px; font-weight: 700; }
+    .mainqa-card-row { display: grid; gap: 8px; }
+    .mainqa-card { display: grid; grid-template-columns: 62px minmax(0,1fr); gap: 8px; align-items: center; padding: 8px; border: 1px solid rgba(90,110,160,.12); border-radius: 12px; background: rgba(255,255,255,.76); color: inherit; text-align: left; }
+    .mainqa-card-image { width: 62px; height: 52px; border-radius: 9px; object-fit: cover; background: #e8edf8; }
+    .mainqa-card-name { display: block; color: #273c67; font-size: 13px; font-weight: 700; }
+    .mainqa-card-meta { display: block; margin-top: 3px; color: #71809b; font-size: 11px; line-height: 1.35; }
+    .mainqa-card-price { display: block; margin-top: 4px; color: #e66b38; font-size: 12px; font-weight: 700; }
+    .mainqa-scenic-card { position: relative; display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 10px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 14px; color: inherit; background: #fff; text-decoration: none; }
+    .mainqa-scenic-image { width: 92px; height: 92px; border-radius: 10px; object-fit: cover; background: #edf1f7; }.mainqa-scenic-title { display: block; padding-right: 24px; color: #1d2129; font-size: 14px; font-weight: 700; line-height: 1.4; }
+    .mainqa-scenic-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }.mainqa-scenic-tags span { padding: 2px 5px; border-radius: 4px; color: #4c7de7; background: #edf4ff; font-size: 10px; }.mainqa-scenic-meta { display: block; color: #788397; font-size: 11px; line-height: 1.65; }
+    .mainqa-scenic-check { position: absolute; right: 10px; top: 11px; width: 19px; height: 19px; accent-color: #448ef7; }
+    .mainqa-folk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }.mainqa-folk-card { overflow: hidden; border-radius: 12px; color: inherit; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.06); text-decoration: none; }.mainqa-folk-image { width: 100%; height: 94px; display: block; object-fit: cover; background: #edf1f7; }.mainqa-folk-copy { display: block; padding: 9px; }.mainqa-folk-title { display: block; overflow: hidden; color: #1d2129; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }.mainqa-folk-desc { display: -webkit-box; overflow: hidden; margin-top: 4px; color: #696c6f; font-size: 11px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .mainqa-hotel-card { display: grid; grid-template-columns: 100px minmax(0,1fr); gap: 10px; padding: 10px; border-radius: 12px; color: inherit; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.06); text-decoration: none; }.mainqa-hotel-image { width: 100px; height: 82px; border-radius: 9px; object-fit: cover; background: #edf1f7; }.mainqa-hotel-title { display: block; color: #1d2129; font-size: 14px; font-weight: 700; }.mainqa-hotel-detail { display: block; margin-top: 5px; color: #6f7a8e; font-size: 11px; line-height: 1.45; }.mainqa-hotel-price { display: block; margin-top: 5px; color: #ef6d42; font-size: 13px; font-weight: 700; }
+    .mainqa-route { padding: 9px; border-radius: 12px; background: linear-gradient(135deg, rgba(224,242,255,.85), rgba(246,239,255,.82)); border: 1px solid rgba(92,132,200,.14); }
+    .mainqa-route-day + .mainqa-route-day { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(96,119,160,.22); }
+    .mainqa-route-day b { display: block; color: #36568d; font-size: 12px; }
+    .mainqa-route-day span { display: block; margin-top: 3px; color: #63738d; font-size: 12px; }
+    .mainqa-actions, .mainqa-suggestions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .mainqa-actions button, .mainqa-suggestions button, .mainqa-link { border: 1px solid rgba(61,104,208,.19); border-radius: 999px; padding: 6px 10px; color: #3562c9; background: rgba(255,255,255,.72); font: inherit; font-size: 12px; line-height: 1.2; cursor: pointer; text-decoration: none; }
+    .mainqa-suggestions button { white-space: normal; text-align: left; }
+    .mainqa-guide { margin-top: 10px; padding: 8px 10px; border-radius: 10px; color: #84622a; background: rgba(255,246,220,.78); font-size: 12px; }
+    .mainqa-trip-suggest { margin-top: 16px; }.mainqa-trip-suggest > div { margin-bottom: 10px; color: #71809b; font-size: 13px; }.mainqa-trip-suggest button { display: block; width: 100%; margin-top: 8px; padding: 9px 11px; border: 0; border-radius: 12px; color: #448ef7; background: #fff; box-shadow: 0 4px 10px rgba(30,141,161,.04); font: inherit; font-size: 13px; text-align: left; }
+    .mainqa-city-card { overflow: hidden; border-radius: 12px; border: 1px solid rgba(77,111,189,.17); background: rgba(255,255,255,.78); }
+    .mainqa-city-card summary { display: flex; align-items: center; justify-content: space-between; padding: 10px; color: #fff; background: linear-gradient(105deg, #557ad1, #8e6dd5); font-weight: 700; cursor: pointer; }
+    .mainqa-city-card p { margin: 0; padding: 0 10px 7px; font-size: 12px; color: #63738d; }
+    .mainqa-city-card p:first-of-type { padding-top: 9px; }
+    .mainqa-city-card label, .mainqa-spot-check { display: inline-flex; align-items: center; gap: 5px; color: #fff; font-size: 12px; font-weight: 500; }
+    .mainqa-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .mainqa-grid .mainqa-card { display: block; padding: 0; overflow: hidden; }
+    .mainqa-grid .mainqa-card-image { width: 100%; height: 78px; border-radius: 0; }
+    .mainqa-grid .mainqa-card > span:last-child { display: block; padding: 7px; }
+    .mainqa-select-card { position: relative; }
+    .mainqa-select-card input { position: absolute; top: 8px; right: 8px; width: 17px; height: 17px; accent-color: #426df0; }
+    .mainqa-order { position: relative; display: block; min-height: 58px; padding: 11px 70px 11px 12px; border-radius: 12px; color: #25365f; background: linear-gradient(105deg, rgba(222,232,255,.94), rgba(248,244,255,.95)); border: 1px solid rgba(100,124,190,.17); text-decoration: none; }
+    .mainqa-order::after { content: "✈"; position: absolute; right: 17px; top: 16px; color: #6384db; font-size: 23px; } .mainqa-order.train::after { content: "🚄"; } .mainqa-order.activity::after { content: "🎫"; }
+    .mainqa-order-title { display: block; font-weight: 700; } .mainqa-order-meta { display: block; margin-top: 5px; color: #71809b; font-size: 12px; }
+    @keyframes mainqa-spin { to { transform: rotate(360deg); } } @keyframes mainqa-dot { 0%,100% { transform: translateY(0); opacity:.35; } 50% { transform: translateY(-3px); opacity:1; } } @keyframes mainqa-pulse { 0% { box-shadow: 0 0 0 0 rgba(75,124,255,.27); } 75%,100% { box-shadow: 0 0 0 6px rgba(75,124,255,0); } }
+    .mainqa-answer .mainqa-entity-link { color: #356be0; font-weight: 700; text-decoration: underline; text-decoration-color: rgba(53,107,224,.34); text-underline-offset: 2px; cursor: pointer; }
+    .mainqa-answer .mainqa-markdown-link { color: #356be0; text-decoration: underline; text-underline-offset: 2px; }
 
     .user .bubble {
       width: fit-content;
@@ -3129,11 +3213,34 @@
 </style>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue";
+import { createApp, onBeforeUnmount, onMounted } from "vue";
 import { createIcons, icons } from "lucide";
+import md5 from "crypto-js/md5";
+import MainQaRouteMap from "./MainQaRouteMap.vue";
+import MainQaAnswerCards from "./MainQaAnswerCards.vue";
 
 const assetBase = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}kefu/assets/`;
 const mascotUpperbody = `${assetBase}huangxiaoxi-3d-upperbody.png`;
+
+// 同 travel-client/src/config/constant.js 中 h5RoleOverrides.gkh 的问答配置。
+// 客服 H5 是独立工程，不能直接引用 travel-client 的别名模块，故在此保留同一份常量。
+const MAIN_QA_GKH_CONFIG = Object.freeze({
+  baseUrl: "https://swarm-brain.aihuangxiaoxi.com/api/hotelAi/dify/hotel/v2",
+  roleCode: "gkh",
+  platformId: "600",
+  channelType: "huangxx",
+  appKey: "glswxcx_xcx_40afd4",
+  appSecret: "d28c3572d629a5ce87806da8567aff98",
+  // travel-client 本地 H5 使用 /hxx 代理；部署后保持其正式 H5 登录地址。
+  authBaseUrl: import.meta.env.DEV
+    ? "/hxx/authAdminService"
+    : "https://glsw-wdgz.aihuangxiaoxi.com/hxx/authAdminService",
+  tenantId: "gkh",
+  source: "wechat_app",
+  clientId: "e5cd7e4891bf95d1d19206ce24a7b32e",
+  grantType: "social",
+  language: "zh"
+});
 
 onMounted(() => {
   window.lucide = {
@@ -3180,6 +3287,11 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     const imagePreview = document.querySelector("#imagePreview");
     const imagePreviewImage = document.querySelector("#imagePreviewImage");
     const imagePreviewClose = document.querySelector("[data-close-image-preview]");
+    const pageInitLoading = document.querySelector("#pageInitLoading");
+    function finishPageInitialization() {
+      pageInitLoading?.classList.add("is-hidden");
+      pageInitLoading?.setAttribute("aria-hidden", "true");
+    }
     const IMAGE_PREVIEW_MIN_SCALE = 1;
     const IMAGE_PREVIEW_MAX_SCALE = 4;
     const IMAGE_PREVIEW_DOUBLE_TAP_SCALE = 2.5;
@@ -3539,11 +3651,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
     const difyConfig = {
       enabled: true,
-      baseUrl: "https://swarm-brain.aihuangxiaoxi.com/api/hotelAi/dify/hotel/v2",
-      roleCode: "0",
-      agentId: "6737",
-      platformId: "800",
-      channelType: "kefu",
+      ...MAIN_QA_GKH_CONFIG,
       channel: "gkh",
       recentLimit: 20
     };
@@ -3562,6 +3670,15 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       pending: null
     };
 
+    // 与 travel-client 的第三方 H5 登录保持一致：gkh 通过 URL userId 做 SSO 登录。
+    // 该登录态仅供非人工问答使用，不能覆盖人工客服的访客登录态。
+    const mainQaLoginState = {
+      accessToken: "",
+      userId: "",
+      userName: "",
+      pending: null
+    };
+
     function normalizeKnowledgeChannel(value) {
       const channel = String(value || "").trim();
       if (!channel) return "";
@@ -3575,13 +3692,6 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     const pageParams = new URLSearchParams(window.location.search);
     const urlUserId = pageParams.get("userId") || pageParams.get("userid") || pageParams.get("uuid") || "";
     const urlChannel = pageParams.get("channel");
-    const urlAgentId = pageParams.get("agentId");
-    const urlPlatformId = pageParams.get("platformId");
-    const urlChannelType = pageParams.get("channelType");
-    difyConfig.channel = normalizeKnowledgeChannel(window.KNOWLEDGE_CHANNEL || urlChannel || difyConfig.channel || "");
-    difyConfig.agentId = (window.AGENT_ID || urlAgentId || difyConfig.agentId || "").trim();
-    difyConfig.platformId = (window.PLATFORM_ID || urlPlatformId || difyConfig.platformId || "").trim();
-    difyConfig.channelType = (window.CHANNEL_TYPE || urlChannelType || difyConfig.channelType || "").trim();
 
     const mockOrders = [
       {
@@ -3933,36 +4043,123 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       });
     }
 
+    async function ensureMainQaLogin() {
+      if (mainQaLoginState.accessToken && mainQaLoginState.userId) return mainQaLoginState;
+      if (mainQaLoginState.pending) return mainQaLoginState.pending;
+
+      const socialCode = normalizeChannelUserId(urlUserId);
+      if (!socialCode) throw new Error("缺少 URL userId，无法登录文旅问答服务");
+
+      mainQaLoginState.pending = fetch(`${difyConfig.authBaseUrl}/oauth/sso/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: difyConfig.clientId,
+          grantType: difyConfig.grantType,
+          tenantId: difyConfig.tenantId,
+          source: difyConfig.source,
+          socialCode
+        })
+      }).then(async (response) => {
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || (result.code && Number(result.code) !== 200)) {
+          throw new Error(result.msg || result.message || `文旅问答登录失败：${response.status}`);
+        }
+        const loginData = result.data || result;
+        const accessToken = loginData.access_token || loginData.accessToken;
+        if (!accessToken) throw new Error("文旅问答登录未返回 access_token");
+        return accessToken;
+      }).then(async (accessToken) => {
+        const response = await fetch(`${difyConfig.authBaseUrl}/system/user/getData`, {
+          method: "GET",
+          headers: {
+            Clientid: difyConfig.clientId,
+            Authorization: `Bearer ${accessToken}`
+          }
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || (result.code && Number(result.code) !== 200)) {
+          throw new Error(result.msg || result.message || `文旅问答用户信息获取失败：${response.status}`);
+        }
+        const userData = result.data || result;
+        mainQaLoginState.accessToken = accessToken;
+        mainQaLoginState.userId = String(userData.loginUserId || userData.userId || socialCode);
+        mainQaLoginState.userName = String(userData.loginUserName || userData.userName || currentUser.name || "贵客荟用户");
+        return mainQaLoginState;
+      }).finally(() => {
+        mainQaLoginState.pending = null;
+      });
+
+      return mainQaLoginState.pending;
+    }
+
     function resolveAiUser(user = chatState.userId) {
       if (user) return user;
-      const baseId = currentUser.memberNo || currentUser.memberId || currentUser.channelUserId || "test";
+      // mainQA 的 requestUserQuery 由渠道登录用户构成 `${userId}_${platformId}`。
+      // 非人工问答不依赖人工客服访客登录完成，直接使用页面 URL 中的 userId。
+      const baseId = mainQaLoginState.userId
+        || normalizeChannelUserId(urlUserId)
+        || currentUser.channelUserId
+        || currentUser.memberNo
+        || currentUser.memberId
+        || "test";
       return `${baseId}_${difyConfig.platformId}`;
     }
 
-    function buildAiAccessToken() {
-      return new URLSearchParams({
+    function buildMainQaAccessToken() {
+      const loginUserId = mainQaLoginState.userId || normalizeChannelUserId(urlUserId) || currentUser.channelUserId || "test";
+      // 这里与 mainQA 中 getAgentHttpRequestHeaders 的签名字段、排序及 URL 编码保持一致。
+      const tokenParams = {
+        openId: loginUserId,
+        uid: loginUserId,
+        token: mainQaLoginState.accessToken,
+        timestamp: Date.now(),
         roleCode: difyConfig.roleCode,
-        agentId: difyConfig.agentId,
         platformId: difyConfig.platformId,
-        channelType: difyConfig.channelType
-      }).toString();
+        channelType: difyConfig.channelType,
+        appkey: difyConfig.appKey
+      };
+      const signature = `${difyConfig.appSecret}${Object.keys(tokenParams)
+        .sort()
+        .map((key) => `${key}${tokenParams[key]}`)
+        .join("")}${difyConfig.appSecret}`.toUpperCase();
+      const signedParams = { ...tokenParams, signcode: md5(signature).toString() };
+      return Object.entries(signedParams)
+        .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+        .join("&");
+    }
+
+    function buildAiAccessToken() {
+      return buildMainQaAccessToken();
     }
 
     function buildAiHeaders(extra = {}) {
       return {
-        language: "zh",
+        language: difyConfig.language,
         accesstoken: buildAiAccessToken(),
         ...extra
       };
     }
 
-    function buildAiInputs() {
+    function buildAiInputs(tool = {}) {
+      const loginUserId = mainQaLoginState.userId || normalizeChannelUserId(urlUserId) || currentUser.channelUserId || "test";
       return {
         platformId: difyConfig.platformId,
-        roleCode: difyConfig.roleCode,
-        agentId: difyConfig.agentId,
-        channelType: difyConfig.channelType,
-        channel: difyConfig.channel
+        uid: loginUserId,
+        // 与 mainQA setParams 一致：问答服务会将该对象透传给黄小西业务接口。
+        huangxiaoxi_header: {
+          Authorization: `Bearer ${mainQaLoginState.accessToken}`,
+          Clientid: difyConfig.clientId
+        },
+        huangxiaoxi_body: {
+          user_id: loginUserId,
+          user_name: mainQaLoginState.userName || currentUser.name || "贵客荟用户",
+          session_id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          sender: "human",
+          preview: "production",
+          client: "wechatApplet",
+          inputs: { channel: difyConfig.channel, ...tool }
+        }
       };
     }
 
@@ -3987,7 +4184,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
             window.setTimeout(() => resolve(localResult), 420);
           });
         }
-        return streamDifyChat(payload, handlers).catch((error) => {
+        return ensureMainQaLogin().then(() => streamDifyChat(payload, handlers)).catch((error) => {
           if (error?.name === "AbortError") throw error;
           console.warn("AI route chat failed", error);
           return {
@@ -3996,25 +4193,23 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         });
       },
       queryConversations(payload = {}) {
-        const user = encodeURIComponent(resolveAiUser(payload.user));
         const limit = encodeURIComponent(payload.limit || difyConfig.recentLimit);
         const lastId = payload.lastId ? `&last_id=${encodeURIComponent(payload.lastId)}` : "&last_id=";
-        return fetch(`${difyConfig.baseUrl}/conversations?user=${user}&limit=${limit}${lastId}`, {
+        return ensureMainQaLogin().then(() => fetch(`${difyConfig.baseUrl}/conversations?user=${encodeURIComponent(resolveAiUser(payload.user))}&limit=${limit}${lastId}`, {
           method: "GET",
           headers: buildAiHeaders()
-        }).then((response) => {
+        })).then((response) => {
           if (!response.ok) throw new Error(`conversations ${response.status}`);
           return response.json();
         });
       },
       queryMessages(payload) {
-        const user = encodeURIComponent(resolveAiUser(payload.user));
         const conversationId = encodeURIComponent(payload.conversationId || "");
         const limit = encodeURIComponent(payload.limit || 100);
-        return fetch(`${difyConfig.baseUrl}/messages?user=${user}&conversation_id=${conversationId}&limit=${limit}`, {
+        return ensureMainQaLogin().then(() => fetch(`${difyConfig.baseUrl}/messages?user=${encodeURIComponent(resolveAiUser(payload.user))}&conversation_id=${conversationId}&limit=${limit}`, {
           method: "GET",
           headers: buildAiHeaders()
-        }).then((response) => {
+        })).then((response) => {
           if (!response.ok) throw new Error(`messages ${response.status}`);
           return response.json();
         });
@@ -4222,7 +4417,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       serviceState.robotHintTimer = window.setTimeout(() => {
         if (!serviceState.humanActive && !serviceState.queued) {
           appendSystem("仍需帮助？点击“帮助”转人工客服");
-          scrollChatBottom();
+          // 机器人问答的闲置提示不能打断用户浏览历史消息。这里仅追加提示，
+          // 不再把翻转滚动容器重置到视觉底部；实时答案流的跟随逻辑单独处理。
         }
       }, 90 * 1000);
     }
@@ -4323,6 +4519,10 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
     function renderInlineMarkdown(value) {
       return escapeHtml(value || "")
+        // 部分问答答案使用 HTML 的 b/strong 而不是 Markdown 的 **。先完整转义，
+        // 再仅还原这两种无属性的安全格式标签，其他 HTML 一律仍按纯文本展示。
+        .replace(/&lt;(?:b|strong)&gt;([\s\S]*?)&lt;\/(?:b|strong)&gt;/gi, "<strong>$1</strong>")
+        .replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a class="mainqa-markdown-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
         .replace(/\*\*\s*([^*]+?)\s*\*\*/g, "<strong>$1</strong>")
         .replace(/__\s*([^_]+?)\s*__/g, "<strong>$1</strong>")
         .replace(/(^|[^*])\*\s*([^*\n]+?)\s*\*(?!\*)/g, "$1<em>$2</em>");
@@ -4379,6 +4579,347 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
       closeList();
       return html.join("");
+    }
+
+    function parseMainQaData(value) {
+      // action_answer 在实时流、历史接口中可能被二次 JSON 序列化。
+      // 逐层展开，避免 { answer: '"{...}"' } 时建议问题被当作普通文本丢掉。
+      let parsed = value;
+      for (let index = 0; index < 3 && typeof parsed === "string"; index += 1) {
+        try { parsed = JSON.parse(parsed); } catch { break; }
+      }
+      return parsed;
+    }
+
+    function normalizeMainQaActionEvents(...groups) {
+      const events = [];
+      const collect = (value) => {
+        const parsed = parseMainQaData(value);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(collect);
+          return;
+        }
+        if (!parsed || typeof parsed !== "object") return;
+        if (parsed.event || parsed.action) events.push(parsed);
+        // 同一份 action 流在不同网关版本会再包进 data / outputs；全部展开。
+        collect(parsed.action_answer);
+        collect(parsed.actionAnswer);
+        collect(parsed.data?.action_answer);
+        collect(parsed.data?.actionAnswer);
+        collect(parsed.data?.outputs?.action_answer);
+        collect(parsed.data?.outputs?.actionAnswer);
+      };
+      groups.forEach(collect);
+      return events;
+    }
+
+    function mainQaTextParts(text) {
+      const source = String(text || "");
+      const match = source.match(/<think>([\s\S]*?)<\/think>/i);
+      return {
+        answer: (match ? source.replace(match[0], "") : source).trim(),
+        think: match?.[1]?.trim() || ""
+      };
+    }
+
+    function mainQaSafeUrl(value) {
+      try {
+        const url = new URL(String(value || ""), window.location.href);
+        return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+      } catch { return ""; }
+    }
+
+    function mainQaItemHtml(item = {}) {
+      const name = item.name || item.title || item.entity_name || item.poi_name || item.product_name || item.station_name || item.scenicSpotAlias || item.scenicSpotName || item.specialSpotName || item.specialFood || item.eventName || item.hotelName || item.productName || "文旅推荐";
+      const rawImage = item.image || item.imageCompress || item.image_url || item.cover || item.pic || item.picture || item.logo || "";
+      const image = mainQaSafeUrl(Array.isArray(rawImage) ? rawImage[0] : rawImage);
+      const meta = [item.entity_type || item.nodeType || item.category, item.address || item.district || item.city || item.desc || item.description].filter(Boolean).join(" · ");
+      const price = item.slowSeasonPrice || item.cost || item.ticketPrice || item.price;
+      const url = mainQaSafeUrl(item.url || item.link || item.detail_url || "");
+      const content = `${image ? `<img class="mainqa-card-image" src="${escapeHtml(image)}" alt="">` : '<span class="mainqa-card-image"></span>'}<span><span class="mainqa-card-name">${escapeHtml(name)}</span>${meta ? `<span class="mainqa-card-meta">${escapeHtml(meta)}</span>` : ""}${price ? `<span class="mainqa-card-price">¥${escapeHtml(price)}起</span>` : ""}</span>`;
+      return url ? `<a class="mainqa-card" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${content}</a>` : `<div class="mainqa-card">${content}</div>`;
+    }
+
+    function mainQaImage(item = {}) {
+      const raw = item.image || item.imageCompress || item.image_url || item.cover || item.pic || item.picture || "";
+      return mainQaSafeUrl(Array.isArray(raw) ? raw[0] : raw);
+    }
+    function mainQaRecordLink(item, className, content) {
+      return `<a class="${className}" href="#" data-mainqa-record="${escapeHtml(encodeURIComponent(JSON.stringify(item || {})))}">${content}</a>`;
+    }
+    function mainQaScenicCardHtml(item = {}, selectable = false) {
+      const image = mainQaImage(item);
+      const name = item.scenicSpotAlias || item.specialSpotName || item.scenicSpotName || item.name || "景区推荐";
+      const tags = (item.scenicSpotTags || item.subjectPreference || []).slice(0, 2);
+      const score = item.scenicSpotScore ? Number(item.scenicSpotScore).toFixed(1) : "";
+      const body = `${image ? `<img class="mainqa-scenic-image" src="${escapeHtml(image)}" alt="">` : '<span class="mainqa-scenic-image"></span>'}<span><span class="mainqa-scenic-title">${escapeHtml(name)}</span><span class="mainqa-scenic-tags">${score ? `<span>${escapeHtml(score)}分</span>` : ""}${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</span><span class="mainqa-scenic-meta">${item.openingStart || item.openingEnd ? `开放：${escapeHtml(item.openingStart || "")} - ${escapeHtml(item.openingEnd || "")}` : ""}</span><span class="mainqa-scenic-meta">门票：${escapeHtml(item.cost || item.ticketPrice || item.charging || "免费")}　游览：${escapeHtml(item.tourDurationText || item.tourDuration || "")}</span><span class="mainqa-scenic-meta">${escapeHtml(item.addressDetail || item.address || item.city || "")}</span></span>${selectable ? `<input class="mainqa-scenic-check" type="checkbox" value="${escapeHtml(name)}">` : ""}`;
+      return selectable ? `<div class="mainqa-scenic-card">${body}</div>` : mainQaRecordLink(item, "mainqa-scenic-card", body);
+    }
+    function mainQaFolkCardHtml(item = {}) {
+      const image = mainQaImage(item) || (item.entity_type === "美食" ? "https://weblibs.rxhui.com/uniapp/intelligent/wdgz/qa/quick_2-min.jpg" : "https://weblibs.rxhui.com/uniapp/intelligent/wdgz/qa/img_no-min.jpg");
+      const name = item.specialFood || item.eventName || item.productName || item.name || "文旅推荐";
+      return mainQaRecordLink(item, "mainqa-folk-card", `<img class="mainqa-folk-image" src="${escapeHtml(image)}" alt=""><span class="mainqa-folk-copy"><span class="mainqa-folk-title">${escapeHtml(name)}</span><span class="mainqa-folk-desc">${escapeHtml(item.introduction || item.eventDescription || "")}</span></span>`);
+    }
+    function mainQaHotelCardHtml(item = {}) {
+      const image = mainQaImage(item);
+      const name = item.hotelName || item.restaurantName || item.name || item.title || "推荐服务";
+      const desc = item.introduction || item.description || item.addressDetail || item.address || item.city || "";
+      const price = item.price || item.cost || item.lowestPrice || item.minPrice || "";
+      return mainQaRecordLink(item, "mainqa-hotel-card", `${image ? `<img class="mainqa-hotel-image" src="${escapeHtml(image)}" alt="">` : '<span class="mainqa-hotel-image"></span>'}<span><span class="mainqa-hotel-title">${escapeHtml(name)}</span><span class="mainqa-hotel-detail">${escapeHtml(desc)}</span>${price ? `<span class="mainqa-hotel-price">¥${escapeHtml(price)}起</span>` : ""}</span>`);
+    }
+
+    function mainQaEntityField(type) {
+      if (type === "美食") return "specialFood";
+      if (type === "酒店") return "hotelName";
+      if (type === "餐饮") return "restaurantName";
+      if (type === "数字分身") return "nickname";
+      if (["plane", "train", "航班", "火车"].includes(type)) return "transportNum";
+      return "scenicSpotAlias";
+    }
+
+    function mainQaRecordTarget(record = {}) {
+      let tzId = record.tzId;
+      if (typeof tzId === "string") { try { tzId = JSON.parse(tzId); } catch { tzId = []; } }
+      const gkh = Array.isArray(tzId) ? tzId.find((item) => item?.channelType === "GKH") : null;
+      const type = record.entity_type || "";
+      let miniPath = "";
+      if (gkh) {
+        if (["景区", "打卡"].includes(type)) miniPath = `/common/scenic/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
+        else if (type === "酒店") miniPath = `/common/hotel/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
+        else if (type === "线路") miniPath = `/common/tourist-line/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
+      }
+      // 与 utils.js 的 RESOLVED_ROLE_CODE === 'gkh' 分支一致：
+      // 1. 优先使用 tzId 中 GKH 渠道的商品标识；2. 没有渠道标识时再使用业务下发链接；
+      // 两种情况都由 wx.miniProgram.navigateTo 执行，而不是在 H5 新开外链。
+      return { miniPath: miniPath || String(record.commodityLink || record.url || record.link || ""), external: "" };
+    }
+
+    function formatMainQaRouteAnswer(answerContent, candidates = []) {
+      const source = String(answerContent || "");
+      const replacements = [];
+      (Array.isArray(candidates) ? candidates : []).forEach((item) => {
+        const field = mainQaEntityField(item?.entity_type);
+        const canonical = item?.[field];
+        if (!canonical) return;
+        [canonical, ...(Array.isArray(item.ori_words) ? item.ori_words : [])].forEach((name) => {
+          if (!name) return;
+          replacements.push({ name: String(name), record: { ...item, [field]: name } });
+        });
+      });
+      const tokens = [];
+      let parsed = source;
+      replacements.sort((a, b) => b.name.length - a.name.length).forEach((replacement, index) => {
+        const token = `MAINQA_ENTITY_LINK_${index}_X`;
+        if (!parsed.includes(replacement.name)) return;
+        parsed = parsed.split(replacement.name).join(token);
+        const target = mainQaRecordTarget(replacement.record);
+        const payload = encodeURIComponent(JSON.stringify(replacement.record));
+        tokens.push({ token, html: `<a class="mainqa-entity-link" href="#" data-mainqa-record="${escapeHtml(payload)}">${escapeHtml(replacement.name)}</a>` });
+      });
+      let html = formatPlainText(parsed);
+      tokens.forEach(({ token, html: link }) => { html = html.split(token).join(link); });
+      return html;
+    }
+
+    const mountedRouteMapApps = new Map();
+    const pendingRouteMapNodes = new Set();
+    let routeMapObserver = null;
+    function getRouteMapObserver() {
+      if (routeMapObserver || !window.IntersectionObserver) return routeMapObserver;
+      routeMapObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const node = entry.target;
+          routeMapObserver?.unobserve(node);
+          pendingRouteMapNodes.delete(node);
+          mountRouteMap(node);
+        });
+      }, { root: chatScrollViewport, rootMargin: "120px 0px", threshold: 0.01 });
+      return routeMapObserver;
+    }
+    function mountRouteMap(node) {
+      if (!node || mountedRouteMapApps.has(node)) return;
+      try {
+        const props = JSON.parse(decodeURIComponent(node.dataset.mainqaRouteMap || ""));
+        node.classList.remove("mainqa-route-lazy-placeholder");
+        node.removeAttribute("aria-label");
+        const app = createApp(MainQaRouteMap, props);
+        app.mount(node); mountedRouteMapApps.set(node, app);
+      } catch (error) { console.warn("mainQA route map payload invalid", error); }
+    }
+    const mountedAnswerCardApps = new Map();
+    function unmountMainQaRouteMaps(scope) {
+      if (!scope) return;
+      [...pendingRouteMapNodes].forEach((node) => {
+        if (scope === node || scope.contains?.(node)) {
+          routeMapObserver?.unobserve(node);
+          pendingRouteMapNodes.delete(node);
+        }
+      });
+      [...mountedRouteMapApps.entries()].forEach(([node, app]) => {
+        if (scope === node || scope.contains?.(node)) { app.unmount(); mountedRouteMapApps.delete(node); }
+      });
+    }
+    function mountMainQaRouteMaps(scope) {
+      if (!scope) return;
+      scope.querySelectorAll?.("[data-mainqa-route-map]").forEach((node) => {
+        if (mountedRouteMapApps.has(node) || pendingRouteMapNodes.has(node)) return;
+        const observer = getRouteMapObserver();
+        // 不支持 IntersectionObserver 的旧 WebView 保持立即挂载，避免地图永久空白。
+        if (!observer) { mountRouteMap(node); return; }
+        node.classList.add("mainqa-route-lazy-placeholder");
+        node.setAttribute("aria-label", "行程地图待加载");
+        pendingRouteMapNodes.add(node);
+        observer.observe(node);
+      });
+    }
+    function unmountMainQaAnswerCards(scope) {
+      if (!scope) return;
+      [...mountedAnswerCardApps.entries()].forEach(([node, app]) => {
+        if (scope === node || scope.contains?.(node)) { app.unmount(); mountedAnswerCardApps.delete(node); }
+      });
+    }
+    function openMainQaRecord(record) {
+      const target = mainQaRecordTarget(record);
+      if (target.miniPath && window.wx?.miniProgram?.navigateTo) {
+        try { window.wx.miniProgram.navigateTo({ url: target.miniPath }); } catch { showToast("页面跳转失败，请稍后重试"); }
+      } else if (target.miniPath) showToast("请在贵客荟小程序内打开详情");
+      else showToast("该内容暂未提供可跳转详情");
+    }
+    function mountMainQaAnswerCards(scope) {
+      if (!scope) return;
+      scope.querySelectorAll?.("[data-mainqa-answer-cards]").forEach((node) => {
+        if (mountedAnswerCardApps.has(node)) return;
+        try {
+          const props = JSON.parse(decodeURIComponent(node.dataset.mainqaAnswerCards || ""));
+          const app = createApp(MainQaAnswerCards, {
+            ...props,
+            onOpen: openMainQaRecord,
+            onAsk: (question) => sendPrompt(question),
+            onGenerate: ({ city, items }) => {
+              if (!items?.length) { showToast("请先选择至少一个目的地或景点"); return; }
+              const names = items.map((item) => city ? (item.shortName || item.name) : (item.scenicSpotAlias || item.specialSpotName || item.name)).filter(Boolean);
+              const tool = city ? { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { trip_info: { destination_choosed: items } } } } } : { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { scenic_spots: { optional_stops_choosed: items } } } } };
+              submitQuestion(`${names.join("、")}路线规划`, "mainqa_card", { tool });
+            }
+          });
+          app.mount(node); mountedAnswerCardApps.set(node, app);
+        } catch (error) { console.warn("mainQA card payload invalid", error); }
+      });
+    }
+
+    function buildMainQaAnswerState(events = []) {
+      // 逐项复刻 chat-qa-item.vue 的 setData 状态转移；这里不将不同 action 粗暴合并成同一种卡片。
+      const state = {
+        hint: "", candidates: [], planningCandidates: null, argsTemplate: null, mapData: null,
+        routeDetail: null, r1DayPlans: [], isR1: false, isRoutePlan: false, showShopping: false,
+        suggestions: [], cue: "", guide: "", cardType: "", cardData: [], filteredCardData: [],
+        orderSupported: false, showMainAnswer: true, hideCards: false, selectedArea: "贵州省", checkedIds: [], answerGenerationActive: false,
+        finalAnswer: "", r1ExtractAnswer: ""
+      };
+      (Array.isArray(events) ? events : []).forEach((raw) => {
+        const action = raw?.event || raw?.action || "";
+        // chat-qa-item.vue 的 setData 读取 detail.data。旧 mainQA 实时流同时带
+        // answer 时，不能优先取 answer，否则 itinerary_question_suggest 的
+        // { cue_text, questions } 会被覆盖成普通答案文本。
+        const data = parseMainQaData(raw?.data ?? raw?.answer ?? raw?.payload);
+        if (["roger", "question_analysis", "intermediate", "query_data", "answer_generation", "answer_complete", "error", "stop"].includes(action)) {
+          state.hint = typeof data === "string" ? data : (raw?.message?.message || state.hint);
+        }
+        if (action === "answer_generation") state.answerGenerationActive = true;
+        if (action === "r1_answer_extract_llm_result" && typeof data === "string") state.r1ExtractAnswer = data;
+        if (action === "answer" && typeof data === "string") state.finalAnswer = data;
+        if (action === "stop") state.hideCards = true;
+        if (action === "gz_travel_homepage_card") {
+          state.showMainAnswer = false;
+          const list = Array.isArray(data) ? data : (data?.list || []);
+          const type = data?.entity_type || list[0]?.entity_type || "";
+          state.cardData = list.map((item) => ({ ...item, checked: false, checkAble: true }));
+          state.cardType = type === "启发" ? "city" : (["景区", "打卡"].includes(type) ? "area" : ({ "美食": "food", "文娱": "holiday", "酒店": "hotel", "餐饮": "restaurant" }[type] || ""));
+          const options = raw?.cardOptions || data?.cardOptions;
+          if (options) { state.selectedArea = options.selectedArea || state.selectedArea; state.checkedIds = options.checkedIds || []; }
+        }
+        if (action === "gz_dialogue_entity_info" && data && typeof data === "object") state.candidates.push({ ...data, checked: false, checkAble: true });
+        if (action === "gz_travel_homepage_text_card" && Array.isArray(data)) {
+          state.candidates.push(...data.map((item) => ({ ...item, checked: false, checkAble: true })));
+        }
+        if (action === "travel_itinerary_planning_args_templete" && Array.isArray(data)) state.argsTemplate = data[0] || null;
+        if (action === "travel_itinerary_llm_response" && Array.isArray(data) && data[0]) {
+          state.candidates = data[0].candidates || []; state.isRoutePlan = false;
+        }
+        if (action === "travel_itinerary_planning_results" && Array.isArray(data) && data[0]) {
+          const item = data[0]; state.mapData = item.detail || {}; state.routeDetail = item.detail || {};
+          state.candidates = item.candidates || []; state.isRoutePlan = Boolean(item.detail?.result?.length);
+        }
+        if (action === "r1_results" && Array.isArray(data) && data[0]) {
+          const item = data[0]; const incoming = item.candidates || [];
+          const missing = state.candidates.filter((old) => !incoming.some((next) => next?.id === old?.id));
+          state.candidates = incoming.concat(missing); state.mapData = item.day_plans || []; state.routeDetail = item;
+          state.r1DayPlans = item.day_plans || []; state.isR1 = true; state.isRoutePlan = Boolean(state.r1DayPlans.length);
+        }
+        if (action === "shopping_info" && Array.isArray(data) && data.length) state.showShopping = true;
+        if (action === "travel_itinerary_planning_candidates") state.planningCandidates = data;
+        if (action === "itinerary_question_suggest") {
+          const directQuestions = Array.isArray(data) && data.every((item) => typeof item === "string") ? data : null;
+          const suggestionData = Array.isArray(data) ? (data[0] || {}) : (data?.data || data || {});
+          state.cue = suggestionData.cue_text || suggestionData.cueText || state.cue || "";
+          const questions = directQuestions || suggestionData.questions || suggestionData.question_list || suggestionData.suggestions || [];
+          state.suggestions.push(...(Array.isArray(questions) ? questions : [questions]).filter(Boolean));
+        }
+        if (action === "TravelOrderTool-NotSupported") state.guide = typeof data === "string" ? data : "暂不支持该订购服务";
+        if (action === "TravelOrderTool-FinalResult" && Array.isArray(data) && data.length) {
+          state.showMainAnswer = false; state.orderSupported = true;
+          const type = data[0]?.entity_type || "";
+          state.cardType = ["景区", "打卡"].includes(type) ? "area" : ({ "美食": "food", "文娱": "holiday", "酒店": "hotel", "餐饮": "restaurant", "火车票订购": "train", "飞机票订购": "airplane", "本地活动订购": "activity" }[type] || "");
+          if (["area", "food", "holiday"].includes(state.cardType)) state.filteredCardData = data;
+          else state.cardData = data;
+        }
+        if (action === "TravelOrderTool-FinalResultLink") {
+          // 不渲染“景区门票订购”等底部功能入口；订购结果直接点击对应实体卡片跳转。
+          state.showMainAnswer = false;
+        }
+      });
+      return state;
+    }
+
+    function renderMainQaAnswer(text, events = [], streaming = false) {
+      const state = buildMainQaAnswerState(events);
+      // /messages 的最终正文通常在 message.answer；缺失时回退 action_answer 中 event=answer。
+      const { answer, think } = mainQaTextParts(text || state.finalAnswer);
+      const unique = (list) => list.filter((item, index, all) => {
+        if (!item) return false;
+        const key = item.id || item.name || item.title || item.entity_name || item.product_name || JSON.stringify(item);
+        return all.findIndex((other) => {
+          if (!other) return false;
+          return (other.id || other.name || other.title || other.entity_name || other.product_name || JSON.stringify(other)) === key;
+        }) === index;
+      }).slice(0, 12);
+      const routeDays = state.isR1 ? state.r1DayPlans : (state.routeDetail?.result || []);
+      const mapPayload = escapeHtml(encodeURIComponent(JSON.stringify({ mapData: state.mapData || (state.isR1 ? state.r1DayPlans : state.routeDetail), isR1: state.isR1 })));
+      // 流式阶段会因每个 SSE 事件重绘回答 DOM。路线数据尚未稳定时不创建地图，
+      // 避免同一张地图被卸载/初始化多次；回答完成后仅挂载一次。
+      const routeHtml = !streaming && state.isRoutePlan ? `<section class="mainqa-section"><div data-mainqa-route-map="${mapPayload}"></div><div class="mainqa-actions"><button type="button" data-mainqa-route="view">查看行程规划</button><button type="button" data-mainqa-route="collect">采纳行程</button></div></section>` : "";
+      const cards = unique(state.candidates);
+      const cardSource = state.filteredCardData.length ? state.filteredCardData : state.cardData;
+      const cardPayload = escapeHtml(encodeURIComponent(JSON.stringify({ cardType: state.cardType, cardData: cardSource, candidates: !state.isRoutePlan ? cards : [], orderSupported: state.orderSupported })));
+      const normalCards = state.cardType === "city" ? cardSource.map((item, index) => `<details class="mainqa-city-card"><summary>${escapeHtml(item.shortName || item.name || `目的地${index + 1}`)}<label><input type="checkbox" value="${escapeHtml(item.shortName || item.name || "")}">选择</label></summary><p><b>推荐景点：</b>${escapeHtml(item.recommendedAttractions || "暂无")}</p><p><b>小众推荐：</b>${escapeHtml(item.nicheAttractions || "暂无")}</p><p><b>当地美食：</b>${escapeHtml(item.specialFood || "暂无")}</p></details>`).join("")
+        : ["food", "holiday"].includes(state.cardType) ? `<div class="mainqa-folk-grid">${cardSource.map(mainQaFolkCardHtml).join("")}</div>`
+        : ["train", "airplane", "activity"].includes(state.cardType) ? cardSource.map((item) => { const url = mainQaSafeUrl(item.url); const cls = state.cardType; const title = item.starting_name ? `${item.starting_name}${item.arriving_name ? ` - ${item.arriving_name}` : ""}` : (item.category_name ? `${item.category_name}订购` : item.entity_type); const body = `<span class="mainqa-order-title">${escapeHtml(title || "订购服务")}</span><span class="mainqa-order-meta">${escapeHtml(item.starting_date || "点击查看详情")}</span>`; return url ? `<a class="mainqa-order ${cls}" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${body}</a>` : `<div class="mainqa-order ${cls}">${body}</div>`; }).join("")
+        : state.cardType === "area" ? `<div class="mainqa-card-row">${cardSource.map((item) => mainQaScenicCardHtml(item, !state.orderSupported)).join("")}</div>`
+        : ["hotel", "restaurant"].includes(state.cardType) ? `<div class="mainqa-card-row">${cardSource.map(mainQaHotelCardHtml).join("")}</div>`
+        : state.cardType ? `<div class="mainqa-card-row">${cardSource.map(mainQaItemHtml).join("")}</div>` : "";
+      const planButton = state.cardType === "city" || (state.cardType === "area" && !state.orderSupported) ? '<div class="mainqa-actions"><button type="button" data-mainqa-generate-plan>生成路线规划</button></div>' : "";
+      const loadingText = state.hint || (state.answerGenerationActive ? "正在生成回答" : "正在理解您的问题");
+      const stage = streaming && !answer ? `<div class="mainqa-loading" role="status"><span class="mainqa-loading-orbit"></span><div class="mainqa-loading-copy"><b>${escapeHtml(loadingText)}</b><span>黄小西正在为您整理信息</span></div><span class="mainqa-loading-dots"><i></i><i></i><i></i></span></div>` : "";
+      const answerHtml = state.showMainAnswer ? formatMainQaRouteAnswer(answer || (streaming ? "" : "已收到，请继续说明您的问题。"), state.candidates) : "";
+      const shouldMountAnswerCards = !streaming && (state.cardType || (!state.isRoutePlan && cards.length));
+      // 与 chat-qa-item 的 outer-down 一致：只要 afterAnswerSuggest 有数据就渲染，
+      // 不依赖回答结束状态，也不受 stop 时 hideCandidateCards 的影响。
+      const suggestionsHtml = state.suggestions.length ? `<section class="mainqa-trip-suggest"><div>${escapeHtml(state.cue || "您可以这样问")}</div>${state.suggestions.map((question) => { const value = typeof question === "string" ? question : (question?.question || question?.title || question?.text || "继续咨询"); return `<button type="button" data-mainqa-question="${escapeHtml(value)}">${escapeHtml(value)}</button>`; }).join("")}</section>` : "";
+      const answerBlocks = state.hideCards ? "" : `${routeHtml}${shouldMountAnswerCards ? `<div data-mainqa-answer-cards="${cardPayload}"></div>` : ""}${state.guide ? `<div class="mainqa-guide">${escapeHtml(state.guide)}</div>` : ""}`;
+      const cardOnly = shouldMountAnswerCards && !stage && !think && !answerHtml && !routeHtml && !state.guide && !suggestionsHtml;
+      const className = cardOnly ? "mainqa-answer mainqa-card-answer" : `bubble${streaming ? " streaming" : ""} mainqa-answer`;
+      return `<div class="${className}">${stage}<div class="mainqa-text">${think ? `<details class="mainqa-think"><summary>深度思考</summary><div class="mainqa-think-content">${escapeHtml(think)}</div></details>` : ""}${streaming && answer ? `<div class="mainqa-status">${escapeHtml(state.hint || "正在生成回答")}</div>` : ""}${answerHtml}</div>${answerBlocks}${suggestionsHtml}</div>`;
     }
 
     function formatClock(date = new Date()) {
@@ -4993,27 +5534,50 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
     function appendStreamingAi() {
       const id = `stream-${Date.now()}`;
-      chatList.insertAdjacentHTML("beforeend", aiMessageHtml(`<div class="bubble streaming" id="${id}"></div>`));
-      const bubble = document.getElementById(id);
+      chatList.insertAdjacentHTML("beforeend", aiMessageHtml(`<div class="mainqa-stream-host" id="${id}"></div>`));
+      const host = document.getElementById(id);
       let currentText = "";
-      scrollChatBottom();
+      let currentEvents = [];
+      let completedRenderSignature = "";
+      const render = (streaming) => {
+        if (!host) return;
+        unmountMainQaRouteMaps(host);
+        unmountMainQaAnswerCards(host);
+        host.innerHTML = renderMainQaAnswer(currentText, currentEvents, streaming);
+        mountMainQaRouteMaps(host);
+        mountMainQaAnswerCards(host);
+        iconRefresh();
+        scrollChatBottom();
+      };
+      // 请求刚发出、SSE 还没有首包时也必须先把 AI 气泡画出来；
+      // 后续 setEvents / setText 只是在同一个气泡内更新阶段和答案。
+      render(true);
       return {
         setText(text) {
           currentText = text || "";
-          bubble.innerHTML = formatPlainText(text);
-          scrollChatBottom();
+          completedRenderSignature = "";
+          render(true);
         },
-        finish(text) {
+        setEvents(events) {
+          currentEvents = Array.isArray(events) ? events : [];
+          completedRenderSignature = "";
+          render(true);
+        },
+        finish(text, events) {
           currentText = text || currentText || "";
-          bubble.classList.remove("streaming");
-          bubble.innerHTML = formatPlainText(currentText || "已收到，请继续说明您的问题。");
-          scrollChatBottom();
+          if (events) currentEvents = events;
+          // onDone 与 streamDifyChat 的 Promise resolve 都会调用 finish；相同最终
+          // 数据不再重复重绘，避免已经挂载的地图被第二次卸载并重新初始化。
+          const signature = `${currentText}\u0000${JSON.stringify(currentEvents)}`;
+          if (signature === completedRenderSignature) return;
+          completedRenderSignature = signature;
+          render(false);
         },
         text() {
           return currentText;
         },
         remove() {
-          bubble.closest(".message")?.remove();
+          host?.closest(".message")?.remove();
         }
       };
     }
@@ -5029,7 +5593,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         signal: handlers.signal,
         body: JSON.stringify({
           inputs: {
-            ...buildAiInputs(),
+            ...buildAiInputs(payload.tool || {}),
             queryType
           },
           query: payload.text,
@@ -5054,6 +5618,33 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       let answer = "";
       let finalAnswer = "";
       let retrieverResources = [];
+      const answerEvents = [];
+
+      const consumeEvent = (event) => {
+        if (event.conversation_id) chatState.conversationId = event.conversation_id;
+        if ((event.event === "message" || event.event === "agent_message") && typeof event.answer === "string") {
+          answer += event.answer;
+          handlers.onDelta?.(event.answer, answer, event);
+        }
+        if (event.event === "workflow_finished" && event.data?.outputs?.answer) finalAnswer = event.data.outputs.answer;
+        if (event.event === "message_end" && event.metadata?.retriever_resources) retrieverResources = event.metadata.retriever_resources;
+        // 实时协议可能直接下发 action，也可能把完整 action_answer 数组包在事件里。
+        const nestedActionEvents = normalizeMainQaActionEvents(
+          event.action_answer, event.actionAnswer,
+          event.data?.action_answer, event.data?.actionAnswer,
+          event.data?.outputs?.action_answer, event.data?.outputs?.actionAnswer
+        );
+        // mainQA 原实时协议使用 action，Dify 使用 event；两个字段都必须作为直接 action 处理。
+        const actionName = event.action || event.event;
+        const directActionEvent = actionName && !["message", "agent_message", "workflow_finished", "message_end", "ping_pong"].includes(actionName)
+          && (Object.prototype.hasOwnProperty.call(event, "answer") || Object.prototype.hasOwnProperty.call(event, "data"))
+          ? [event] : [];
+        const nextEvents = nestedActionEvents.concat(directActionEvent);
+        if (nextEvents.length) {
+          answerEvents.push(...nextEvents);
+          handlers.onEvent?.(nextEvents[nextEvents.length - 1], answerEvents);
+        }
+      };
 
       while (true) {
         const { value, done } = await reader.read();
@@ -5076,17 +5667,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
             continue;
           }
 
-          if (event.conversation_id) chatState.conversationId = event.conversation_id;
-          if ((event.event === "message" || event.event === "agent_message") && typeof event.answer === "string") {
-            answer += event.answer;
-            handlers.onDelta?.(event.answer, answer, event);
-          }
-          if (event.event === "workflow_finished" && event.data?.outputs?.answer) {
-            finalAnswer = event.data.outputs.answer;
-          }
-          if (event.event === "message_end" && event.metadata?.retriever_resources) {
-            retrieverResources = event.metadata.retriever_resources;
-          }
+          consumeEvent(event);
         }
       }
 
@@ -5094,19 +5675,15 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         const raw = buffer.replace(/^data:\s?/, "").trim();
         try {
           const event = JSON.parse(raw);
-          if (event.conversation_id) chatState.conversationId = event.conversation_id;
-          if ((event.event === "message" || event.event === "agent_message") && typeof event.answer === "string") {
-            answer += event.answer;
-            handlers.onDelta?.(event.answer, answer, event);
-          }
+          consumeEvent(event);
         } catch (error) {
           console.warn("Skip trailing SSE chunk", raw, error);
         }
       }
 
       const normalizedAnswer = answer || finalAnswer;
-      handlers.onDone?.(normalizedAnswer, { retrieverResources });
-      return { streamed: true, answer: normalizedAnswer, retrieverResources };
+      handlers.onDone?.(normalizedAnswer, { retrieverResources, events: answerEvents });
+      return { streamed: true, answer: normalizedAnswer, retrieverResources, events: answerEvents };
     }
 
     function appendTyping() {
@@ -5840,21 +6417,24 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         updateSendButtonState();
       }
       api.agentChat(
-        { text: question, source, queryType },
+        { text: question, source, queryType, tool: options.tool || {} },
         {
           signal: abortController?.signal,
           onDelta(delta, fullText) {
             streamBubble?.setText(fullText);
           },
-          onDone(fullText) {
-            streamBubble?.finish(fullText);
+          onEvent(event, events) {
+            streamBubble?.setEvents(events);
+          },
+          onDone(fullText, metadata) {
+            streamBubble?.finish(fullText, metadata?.events);
           }
         }
       ).then((result) => {
         if (typingId) removeTyping(typingId);
         if (result.streamed) {
-          streamBubble?.finish(result.answer);
-          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: result.answer, conversationId: chatState.conversationId });
+          streamBubble?.finish(result.answer, result.events);
+          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "mainqa", content: result.answer, events: result.events || [], conversationId: chatState.conversationId });
           if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
           return;
         }
@@ -5976,7 +6556,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         message.role || "system",
         message.type || "text",
         message.timestamp || 0,
-        unifiedContentFingerprint(message.content)
+        unifiedContentFingerprint({ content: message.content, events: message.events || [] })
       ].join(":");
     }
 
@@ -6028,11 +6608,23 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
           timestamp,
           sequence: ++chatState.unifiedSequence
         });
-        if (message.answer) rows.push({
+        // mainQA 的历史接口在不同版本中将事件放在 event/events、answer.event，
+        // 或 data.outputs.event。统一解包后交给与实时流完全相同的渲染器。
+        const events = normalizeMainQaActionEvents(
+          // 实际 /messages 接口使用 action_answer；这是历史结构化答案的主字段。
+          message.action_answer, message.actionAnswer,
+          message.event, message.events, message.answer_event, message.answer?.event,
+          message.answer?.events, message.data?.event, message.data?.events, message.data?.outputs?.event
+        );
+        const answerContent = typeof message.answer === "object"
+          ? (message.answer.text || message.answer.answer || message.answer.content || "")
+          : message.answer;
+        if (answerContent || events.length) rows.push({
           source: "ai",
           role: "ai",
-          type: "text",
-          content: message.answer,
+          type: events.length ? "mainqa" : "text",
+          content: answerContent || message.data?.outputs?.answer || "",
+          events,
           conversationId,
           messageId: message.id ? `${message.id}:answer` : "",
           date,
@@ -6132,6 +6724,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       } else {
         html = message.type === "html"
           ? aiMessageHtml(String(message.content || ""), time)
+          : message.type === "mainqa"
+            ? aiMessageHtml(renderMainQaAnswer(String(message.content || ""), message.events || []), time)
           : aiMessageHtml(`<div class="bubble">${formatPlainText(String(message.content || ""))}</div>`, time);
       }
       return html
@@ -6167,6 +6761,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       const beforeHeight = chatScrollViewport.scrollHeight;
       const beforeTop = chatScrollViewport.scrollTop;
       const wasAtBottom = beforeTop < 32;
+      unmountMainQaRouteMaps(chatList);
+      unmountMainQaAnswerCards(chatList);
       chatList.innerHTML = chatState.unifiedHistoryMessages.length
         ? unifiedHistoryTimelineHtml()
         : initialAiMessageHtml();
@@ -6177,6 +6773,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         if (messageNode) record.node = messageNode;
       }
       iconRefresh();
+      mountMainQaRouteMaps(chatList);
+      mountMainQaAnswerCards(chatList);
       if (preserveScroll) {
         chatScrollViewport.scrollTop = wasAtBottom
           ? 0
@@ -6560,7 +7158,9 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         "false"
       ]);
       if (blockedValues.has(normalized.toLowerCase())) return "";
-      if (normalized.length < 6 || normalized.length > 128) return "";
+      // travel-client 的 gkh SSO userId 可能是短数字 ID（例如联调用的 123），
+      // 不能沿用人工客服 UUID 至少 6 位的限制。
+      if (normalized.length > 128) return "";
       return /^[A-Za-z0-9_-]+$/.test(normalized) ? normalized : "";
     }
 
@@ -7642,6 +8242,58 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     });
 
     chatList.addEventListener("click", (event) => {
+      const entityLink = event.target.closest("[data-mainqa-record]");
+      if (entityLink) {
+        let record = null;
+        try { record = JSON.parse(decodeURIComponent(entityLink.dataset.mainqaRecord || "")); } catch { /* invalid card payload */ }
+        if (!record) return;
+        const target = mainQaRecordTarget(record);
+        event.preventDefault();
+        // 客服页固定为 GKH 环境：与 utils.js 的 goGzwlDetailPage 一样，统一调用小程序跳转。
+        if (target.miniPath && window.wx?.miniProgram?.navigateTo) {
+          try { window.wx.miniProgram.navigateTo({ url: target.miniPath }); } catch { showToast("页面跳转失败，请稍后重试"); }
+        } else if (target.miniPath) {
+          showToast("请在贵客荟小程序内打开详情");
+        } else {
+          showToast("该内容暂未提供可跳转详情");
+        }
+        return;
+      }
+      const mainQaQuestion = event.target.closest("[data-mainqa-question]");
+      if (mainQaQuestion) {
+        const question = mainQaQuestion.dataset.mainqaQuestion || "";
+        if (question) sendPrompt(question);
+        return;
+      }
+      const planButton = event.target.closest("[data-mainqa-generate-plan]");
+      if (planButton) {
+        const message = planButton.closest(".message");
+        const names = [...(message?.querySelectorAll('input[type="checkbox"]:checked') || [])]
+          .map((input) => input.value).filter(Boolean);
+        if (!names.length) { showToast("请先选择至少一个目的地或景点"); return; }
+        const isCity = Boolean(message?.querySelector(".mainqa-city-card"));
+        const tool = isCity
+          ? { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { trip_info: { destination_choosed: names.map((name) => ({ shortName: name })) } } } } }
+          : { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { scenic_spots: { optional_stops_choosed: names.map((name) => ({ scenicSpotAlias: name })) } } } } };
+        submitQuestion(`${names.join("、")}路线规划`, "mainqa_card", { tool });
+        return;
+      }
+      const routeAction = event.target.closest("[data-mainqa-route]");
+      if (routeAction) {
+        const action = routeAction.dataset.mainqaRoute;
+        if (action === "collect") { routeAction.textContent = routeAction.textContent === "已采纳" ? "采纳行程" : "已采纳"; showToast(routeAction.textContent === "已采纳" ? "已采纳行程" : "已取消采纳"); }
+        else if (action === "buy") showToast("已为您准备行程商品，请在详情页继续购买");
+        else showToast("行程总览已展示在当前回答中");
+        return;
+      }
+      const copyButton = event.target.closest("[data-mainqa-copy]");
+      if (copyButton) {
+        const text = copyButton.closest(".mainqa-answer")?.querySelector(".mainqa-text")?.innerText || "";
+        navigator.clipboard?.writeText(text).then(() => showToast("答案已复制"), () => showToast("复制失败，请长按文本复制"));
+        return;
+      }
+      const feedbackButton = event.target.closest("[data-mainqa-feedback]");
+      if (feedbackButton) { showToast(feedbackButton.dataset.mainqaFeedback === "up" ? "感谢您的反馈" : "已记录您的反馈"); return; }
       const retryButton = event.target.closest("[data-image-upload-retry]");
       if (retryButton) {
         const uploadId = retryButton.dataset.uploadId || retryButton.closest("[data-upload-id]")?.dataset.uploadId;
@@ -7885,7 +8537,9 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
           return [];
         })
         .then((kefuConversations) => loadUnifiedRecentHistory(kefuConversations || []))
-        .catch((error) => console.warn("load unified recent history failed", error));
+        .catch((error) => console.warn("load unified recent history failed", error))
+        // 无论登录或历史接口是否失败，页面都必须从加载态恢复，保留既有兜底首条消息。
+        .finally(() => window.requestAnimationFrame(finishPageInitialization));
       renderRatingStars();
       updateSessionControls();
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
@@ -7899,6 +8553,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     window.addEventListener("pageshow", (event) => {
       if (event.persisted) restoreActiveChatToLatest();
     });
+
 });
 
 onBeforeUnmount(() => {

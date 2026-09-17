@@ -1,0 +1,138 @@
+<template>
+  <section v-if="hasContent" class="qa-cards">
+    <template v-if="cardType === 'city'">
+      <details v-for="(item, index) in cardData" :key="item.id || index" class="where-card">
+        <summary><span>{{ item.shortName || item.name }}</span><label @click.stop><input v-model="selectedCity" type="checkbox" :value="item.id || item.shortName || item.name">选择</label></summary>
+        <p><b>推荐景点：</b>{{ item.recommendedAttractions || '暂无' }}</p><p><b>小众推荐：</b>{{ item.nicheAttractions || '暂无' }}</p><p><b>当地美食：</b>{{ item.specialFood || '暂无' }}</p>
+      </details>
+      <button class="plan-button" type="button" @click="generateCity">生成路线规划</button>
+    </template>
+
+    <template v-else-if="cardType === 'area'">
+      <article v-for="(item, index) in cardData" :key="item.id || index" class="scenic-card" @click="open(item)">
+        <img :src="image(item)" alt="" @error="fallbackImageLoad"><span v-if="!image(item)" class="image-placeholder"></span>
+        <div><b>{{ item.scenicSpotAlias || item.specialSpotName || item.scenicSpotName || item.name }}</b><p class="tags"><i v-if="item.scenicSpotScore">{{ Number(item.scenicSpotScore).toFixed(1) }}分</i><i v-for="tag in tags(item)" :key="tag">{{ tag }}</i></p><small v-if="item.openingStart || item.openingEnd">开放：{{ item.openingStart }}-{{ item.openingEnd }}</small><small>门票：{{ item.cost || item.ticketPrice || item.charging || '免费' }}　游览：{{ item.tourDurationText || item.tourDuration || '' }}</small><small>{{ item.addressDetail || item.address || item.city || '' }}</small></div>
+        <label v-if="!orderSupported" class="choice" @click.stop><input v-model="selectedArea" type="checkbox" :value="item.id || item.scenicSpotAlias || item.name"></label>
+      </article>
+      <button v-if="!orderSupported" class="plan-button" type="button" @click="generateArea">生成路线规划</button>
+    </template>
+
+    <template v-else-if="cardType === 'food' || cardType === 'holiday'">
+      <div class="folk-grid"><article v-for="(item, index) in cardData" :key="item.id || index" class="folk-card" @click="open(item)"><img :src="image(item)" alt="" @error="fallbackImageLoad"><div><b>{{ item.specialFood || item.eventName || item.productName || item.name }}</b><small>{{ item.introduction || item.eventDescription || '' }}</small></div></article></div>
+    </template>
+
+    <template v-else-if="cardType === 'hotel' || cardType === 'restaurant'">
+      <!-- 对齐 CardItem > CardNodeType：灰色头部 + 图文内容区，而非普通横向商品行。 -->
+      <article v-for="(item, index) in cardData" :key="item.id || index" class="entity-node-card" @click="open(item)">
+        <header><div><b>{{ item.hotelName || item.restaurantName || item.name || item.title }}</b><small>{{ entitySubtitle(item) }}</small></div><span v-if="item.sourceFrom === 'outside'">手动添加</span></header>
+        <div class="entity-node-body"><img :src="image(item)" alt="" @error="fallbackImageLoad"><div><strong>⌖ {{ entityAddress(item) }}</strong><p><i v-for="tag in entityTags(item)" :key="tag">{{ tag }}</i></p></div></div>
+      </article>
+    </template>
+
+    <template v-else-if="['train', 'airplane', 'activity'].includes(cardType)">
+      <!-- 与 travel-client/components/card/Order.vue 一致：按票种使用原卡片背景和日期/星期结构。 -->
+      <article v-for="(item, index) in cardData" :key="item.id || index" class="order-card" :class="orderBackground(item)" @click="open(item)">
+        <b>{{ orderName(item) }}</b>
+        <small v-if="item.starting_date"><span>{{ item.starting_date }}</span><span>{{ orderWeekday(item.starting_date) }}</span></small>
+      </article>
+    </template>
+
+    <template v-else-if="candidates.length">
+      <div class="candidate-strip">
+        <article v-for="(item, index) in candidates" :key="item.id || index" class="candidate-card" @click="open(item)">
+          <img :src="image(item)" alt="" @error="fallbackImageLoad">
+          <span class="candidate-type" :class="typeClass(item)">{{ typeLabel(item) }}</span>
+          <span class="candidate-bottom"><b>{{ item.scenicSpotAlias || item.scenicSpotName || item.specialFood || item.hotelName || item.restaurantName || item.name }}</b><i>{{ candidateTag(item) }}</i><em v-if="candidatePrice(item)">¥{{ candidatePrice(item) }}起</em></span>
+        </article>
+      </div>
+    </template>
+    <section v-if="suggestions.length" class="trip-suggest">
+      <p>{{ cueText || '您可以这样问' }}</p>
+      <button v-for="(question, index) in suggestions" :key="index" type="button" @click="ask(question)">{{ questionText(question) }}</button>
+    </section>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+const props = defineProps<{ cardType?: string, cardData?: any[], candidates?: any[], orderSupported?: boolean, cueText?: string, suggestions?: any[] }>()
+const emit = defineEmits<{ open: [item: any], generate: [payload: { city: boolean, items: any[] }], ask: [question: string] }>()
+const selectedCity = ref<any[]>([]); const selectedArea = ref<any[]>([])
+const cardData = computed(() => props.cardData || []); const candidates = computed(() => props.candidates || [])
+const suggestions = computed(() => props.suggestions || [])
+const hasContent = computed(() => cardData.value.length || candidates.value.length || suggestions.value.length)
+// 同 travel-client 的 utils.formatImage：压缩图优先、支持 | 分隔、多类型默认图，
+// 并为 DFS 相对路径补 CDN。这样接口返回的 imageCompress 不会被当成本地相对路径。
+const IMAGE_CDN = 'https://gzwlcs-obs.aihuangxiaoxi.com/'
+const QA_IMAGE_DOMAIN = 'https://glsw-wdgz.aihuangxiaoxi.com/rxqdata/'
+const GENERIC_FALLBACK = 'https://weblibs.rxhui.com/uniapp/intelligent/wdgz/qa/img_no-min.jpg'
+function fallbackImage(item: any) {
+  const type = item?.entity_type || item?.nodeType
+  if (type === '美食') return `${QA_IMAGE_DOMAIN}gzwl/imgs/bg_food-min.jpg`
+  if (type === '景区' || type === '打卡') return `${QA_IMAGE_DOMAIN}gzwl/imgs/bg_area-min.jpg`
+  if (type === '文娱') return `${QA_IMAGE_DOMAIN}gzwl/imgs/bg_holiday-min.jpg`
+  if (type === '酒店' || type === '启发') return `${QA_IMAGE_DOMAIN}gzwl/imgs/bg_address-min.jpg`
+  return GENERIC_FALLBACK
+}
+function image(item: any) {
+  let source = item?.isAgent === '是' ? item?.agentImage : undefined
+  if (!source || (Array.isArray(source) && !source.length)) source = item?.imageCompress || item?.image || item?.imgUrl || item?.image_url || item?.cover || item?.pic || item?.picture
+  const raw = String(Array.isArray(source) ? source[0] : String(source || '').split('|')[0] || '').trim()
+  if (!raw) return fallbackImage(item)
+  if (/^http:\/\//i.test(raw)) return raw.replace(/^http:\/\//i, 'https://')
+  if (/^(https?:|data:|blob:|\/\/|\/static\/)/i.test(raw)) return raw
+  return `${IMAGE_CDN}${raw.replace(/^\/+/, '')}`
+}
+function fallbackImageLoad(event: Event) {
+  const target = event.target as HTMLImageElement
+  if (target.dataset.fallbackApplied === 'true') return
+  target.dataset.fallbackApplied = 'true'
+  target.src = GENERIC_FALLBACK
+}
+const tags = (item: any) => (item?.scenicSpotTags || item?.subjectPreference || []).slice(0, 2)
+const typeLabel = (item: any) => item?.nodeType || item?.entity_type || '推荐'
+const typeClass = (item: any) => ({ '景区': 'scenic', '打卡': 'scenic', '酒店': 'hotel', '美食': 'food', '餐饮': 'food', '文娱': 'activity' }[item?.nodeType || item?.entity_type] || 'default')
+const candidateTag = (item: any) => (item?.scenicSpotTags || item?.subjectPreference || [item?.district || item?.city || ''])[0] || ''
+const candidatePrice = (item: any) => item?.slowSeasonPrice || item?.cost || item?.ticketPrice || item?.price || ''
+function entitySubtitle(item: any) {
+  if (item?.entity_type === '酒店') {
+    const stars = starCount(item) ? `${'★'.repeat(starCount(item))} ` : ''
+    const score = item?.hotelScore || item?.searchScore
+    const price = item?.slowSeasonPrice || item?.cost
+    return `${stars}${score ? Number(score).toFixed(1) : ''}${score || price ? '｜' : ''}${price ? `¥${price}` : '暂无房型'}`
+  }
+  return [item?.businessHours, item?.otaScore ? Number(item.otaScore).toFixed(1) : '', item?.perCapitaConsumption ? `¥${item.perCapitaConsumption}` : ''].filter(Boolean).join('｜')
+}
+function starCount(item: any) {
+  if (Number.isFinite(Number(item?.starLevelCode))) return Math.min(5, Math.max(0, Math.round(Number(item.starLevelCode))))
+  const value = String(item?.starLevel || '')
+  const found = value.match(/[一二两三四五1-5]/)?.[0] || ''
+  return ({ 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5 } as Record<string, number>)[found] || Number(found) || 0
+}
+function entityAddress(item: any) { return item?.hotelAddress || item?.restaurantAddress || item?.addressDetail || item?.remark || item?.address || item?.city || '' }
+function entityTags(item: any) { const values = item?.entity_type === '酒店' ? item?.tags : item?.cateringNote; return (Array.isArray(values) ? values : []).slice(0, item?.entity_type === '酒店' ? 2 : 4) }
+function orderBackground(item: any) {
+  if (item?.entity_type === '飞机票订购') return 'order-airplane'
+  if (item?.entity_type === '火车票订购') return 'order-train'
+  return 'order-activity'
+}
+function orderName(item: any) {
+  if (item?.starting_name) return `${item.starting_name}${item.arriving_name ? `-${item.arriving_name}` : ''}`
+  return item?.category_name ? `${item.category_name}订购` : (item?.entity_type || '订购服务')
+}
+function orderWeekday(value: any) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()]
+}
+const open = (item: any) => emit('open', item)
+function generateCity() { emit('generate', { city: true, items: cardData.value.filter((item) => selectedCity.value.includes(item.id || item.shortName || item.name)) }) }
+function generateArea() { emit('generate', { city: false, items: cardData.value.filter((item) => selectedArea.value.includes(item.id || item.scenicSpotAlias || item.name)) }) }
+function questionText(question: any) { return typeof question === 'string' ? question : (question?.question || question?.title || question?.text || '继续咨询') }
+function ask(question: any) { emit('ask', questionText(question)) }
+</script>
+
+<style scoped>
+.qa-cards{margin-top:10px}.qa-card-heading{margin:0 0 7px;color:#42567d;font-size:12px;font-weight:700}.where-card{margin:8px 0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff}.where-card summary{display:flex;justify-content:space-between;padding:10px;color:#fff;background:linear-gradient(105deg,#557ad1,#8e6dd5);font-weight:700}.where-card p{margin:0;padding:7px 10px 0;color:#63738d;font-size:12px}.where-card p:last-of-type{padding-bottom:8px}.plan-button{width:100%;margin-top:10px;border:0;border-radius:10px;padding:9px;color:#fff;background:#448ef7;font:inherit;font-size:13px}.scenic-card{position:relative;display:grid;grid-template-columns:92px minmax(0,1fr);align-items:stretch;gap:10px;margin:8px 0;padding:10px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.scenic-card img,.scenic-card .image-placeholder{width:92px;height:auto;min-height:92px;border-radius:10px;object-fit:cover;background:#edf1f7}.scenic-card b{display:block;padding-right:24px;color:#1d2129;font-size:14px}.tags{display:flex;gap:4px;margin:6px 0}.tags i{padding:2px 5px;border-radius:4px;color:#4c7de7;background:#edf4ff;font-size:10px;font-style:normal}.scenic-card small{display:block;color:#788397;font-size:11px;line-height:1.65}.choice{position:absolute;right:10px;top:10px}.choice input{width:19px;height:19px;accent-color:#448ef7}.folk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.folk-card{overflow:hidden;border-radius:12px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.06)}.folk-card img{width:100%;height:94px;object-fit:cover}.folk-card div{padding:9px}.folk-card b{display:block;overflow:hidden;color:#1d2129;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.folk-card small{display:-webkit-box;overflow:hidden;margin-top:4px;color:#696c6f;font-size:11px;line-height:1.45;-webkit-box-orient:vertical;-webkit-line-clamp:2}.entity-node-card{overflow:hidden;margin:8px 0;border:1px solid #e2e8f0;border-radius:14px;background:#fff;cursor:pointer}.entity-node-card header{display:flex;justify-content:space-between;gap:9px;padding:12px 10px 9px;background:#f9f9f9}.entity-node-card header b{display:block;color:#0f172a;font-size:14px;font-weight:800;line-height:1.4}.entity-node-card header small{display:block;margin-top:3px;color:#23aa26;font-size:11px;line-height:1.4}.entity-node-card header>span{flex:none;align-self:flex-start;border:1px solid #7786fc;border-radius:99px;padding:3px 7px;color:#7786fc;background:#fff;font-size:10px}.entity-node-body{display:flex;align-items:stretch;gap:9px;padding:12px 10px}.entity-node-body img{width:60px;min-height:60px;height:auto;align-self:stretch;flex:none;border:1px solid #e2e8f0;border-radius:10px;object-fit:cover}.entity-node-body>div{min-width:0}.entity-node-body strong{display:-webkit-box;overflow:hidden;color:#0f172a;font-size:12px;line-height:1.45;-webkit-box-orient:vertical;-webkit-line-clamp:2}.entity-node-body p{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 0}.entity-node-body i{max-width:130px;overflow:hidden;padding:3px 5px;border-radius:4px;color:#475569;background:#f1f5f9;font-size:10px;font-style:normal;text-overflow:ellipsis;white-space:nowrap}.order-card{display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;min-height:74px;margin:8px 10px 8px 0;padding:10px 90px 10px 12px;border-radius:12px;background-color:rgba(119,134,252,.08);background-repeat:no-repeat;background-position:100% 0;background-size:auto 100%;cursor:pointer}.order-card.order-train{background-image:url('https://weblibs.rxhui.com/uniapp/intelligent/wdgz/qa/question_card_huoche-min.png')}.order-card.order-airplane{background-image:url('https://weblibs.rxhui.com/uniapp/intelligent/wdgz/qa/question_card_feiji-min.png')}.order-card.order-activity{background-image:url('https://weblibs.rxhui.com/uniapp/intelligent/wdgz/qa/question_card_huodong-min.png')}.order-card b{color:#1d2129;font-size:15px;font-weight:500;line-height:1.55}.order-card small{display:flex;gap:13px;margin-top:5px;color:#898d98;font-size:12px;line-height:1.4}.candidate-strip{display:flex;gap:10px;overflow-x:auto;padding:2px 0 7px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}.candidate-card{position:relative;flex:0 0 142px;height:176px;overflow:hidden;border-radius:13px;background:#dbe4f6;scroll-snap-align:start}.candidate-card img,.candidate-image-placeholder{width:100%;height:100%;display:block;object-fit:cover;background:linear-gradient(135deg,#d9e7ff,#dcd5ff)}.candidate-card:after{content:'';position:absolute;inset:40% 0 0;background:linear-gradient(transparent,rgba(14,25,52,.78))}.candidate-type{position:absolute;z-index:1;left:8px;top:8px;padding:3px 6px;border-radius:99px;color:#fff;background:#4e78e5;font-size:10px}.candidate-type.hotel{background:#e48650}.candidate-type.food{background:#d95d83}.candidate-type.activity{background:#8c66d5}.candidate-bottom{position:absolute;z-index:1;right:8px;bottom:8px;left:8px;color:#fff}.candidate-bottom b{display:block;overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.candidate-bottom i{display:block;margin-top:3px;overflow:hidden;color:rgba(255,255,255,.86);font-size:10px;font-style:normal;text-overflow:ellipsis;white-space:nowrap}.candidate-bottom em{display:block;margin-top:4px;color:#ffdf92;font-size:11px;font-style:normal;font-weight:700}.trip-suggest{margin-top:16px}.trip-suggest p{margin:0 0 10px;color:#71809b;font-size:13px}.trip-suggest button{display:block;width:100%;margin-top:8px;padding:9px 11px;border:0;border-radius:12px;color:#448ef7;background:#fff;box-shadow:0 4px 10px rgba(30,141,161,.04);font:inherit;font-size:13px;text-align:left}
+</style>
