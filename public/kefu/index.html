@@ -1349,6 +1349,65 @@
       height: 17px;
     }
 
+    .attachment-file-bubble {
+      width: min(100%, 288px);
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .attachment-file-card {
+      min-height: 78px;
+      padding: 12px;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .attachment-file-icon {
+      width: 40px;
+      height: 44px;
+      border-radius: 10px;
+      flex: 0 0 auto;
+      color: #2f70f0;
+      display: grid;
+      place-items: center;
+      background: rgba(47, 112, 240, .12);
+    }
+
+    .attachment-file-icon i { width: 23px; height: 23px; }
+
+    .attachment-file-detail {
+      min-width: 0;
+      flex: 1;
+      display: grid;
+      gap: 5px;
+    }
+
+    .attachment-file-name {
+      overflow: hidden;
+      color: #263752;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attachment-file-meta {
+      color: #7787a4;
+      font-size: 12px;
+    }
+
+    .attachment-file-download {
+      width: 17px;
+      height: 17px;
+      flex: 0 0 auto;
+      color: #2f70f0;
+    }
+
     .message.user.image-upload .bubble {
       width: fit-content;
       max-width: min(100%, 266px);
@@ -4637,8 +4696,10 @@
       return humanAgentBubbleHtml(`<div class="bubble"><img class="chat-image" src="${escapeHtml(url)}" alt="客服发送的图片"></div>`, time, agentOverride);
     }
 
-    function extractPdfUrl(content = "") {
-      const source = String(content || "").trim();
+    function extractFileUrl(content = "") {
+      const source = typeof content === "object" && content
+        ? String(content.url || content.content || "").trim()
+        : String(content || "").trim();
       const markdownUrl = source.match(/\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/i)?.[1];
       const rawUrl = source.match(/https?:\/\/[^\s<>)\]]+/i)?.[0];
       const url = markdownUrl || rawUrl || "";
@@ -4653,25 +4714,73 @@
       return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
     }
 
-    function pdfFileName(content = "", fileName = "") {
-      if (String(fileName || "").trim()) return String(fileName).trim();
-      const url = extractPdfUrl(content);
-      if (!url) return "PDF 文件";
+    function attachmentFileName(content = "", fileName = "") {
+      const providedName = typeof content === "object" && content
+        ? (content.name || content.fileName || content.file_name || fileName)
+        : fileName;
+      if (String(providedName || "").trim()) return String(providedName).trim();
+      const url = extractFileUrl(content);
+      if (!url) return "文件";
       try {
-        return decodeURIComponent(new URL(url).pathname.split("/").pop() || "PDF 文件");
+        return decodeURIComponent(new URL(url).pathname.split("/").pop() || "文件");
       } catch (_) {
-        return "PDF 文件";
+        return "文件";
       }
     }
 
-    function humanAgentPdfMessageHtml(content, fileName, fileSize, time = formatClock(), agentOverride = serviceState.currentAgent) {
-      const url = extractPdfUrl(content);
-      const name = pdfFileName(content, fileName);
-      const card = url
+    function attachmentFileSize(content, fileSize) {
+      const value = typeof content === "object" && content
+        ? (content.size ?? content.fileSize ?? content.file_size ?? fileSize)
+        : fileSize;
+      return formatFileSize(value);
+    }
+
+    function fileExtension(fileName = "", url = "") {
+      const value = String(fileName || url || "").split(/[?#]/)[0];
+      return value.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "";
+    }
+
+    function fileAttachmentBubbleHtml(content, fileName, fileSize) {
+      const url = extractFileUrl(content);
+      const name = attachmentFileName(content, fileName);
+      const size = attachmentFileSize(content, fileSize);
+      const extension = fileExtension(name, url);
+      if (extension === "pdf") {
+        return `<div class="bubble pdf-file-bubble">${url
         ? `<iframe class="pdf-file-preview" src="${escapeHtml(url)}" title="${escapeHtml(name)}" loading="lazy"></iframe>
            <a class="pdf-file-open-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="external-link"></i>打开原文件</a>`
-        : `<div class="pdf-file-open-link"><i data-lucide="file-text"></i>PDF 文件地址无效</div>`;
-      return humanAgentBubbleHtml(`<div class="bubble pdf-file-bubble">${card}</div>`, time, agentOverride);
+        : `<div class="pdf-file-open-link"><i data-lucide="file-text"></i>PDF 文件地址无效</div>`}</div>`;
+      }
+      const typeLabel = extension ? extension.toUpperCase() : "文件";
+      return `<div class="bubble attachment-file-bubble">${url
+        ? `<a class="attachment-file-card" href="${escapeHtml(url)}" download="${escapeHtml(name)}" target="_blank" rel="noopener noreferrer" aria-label="下载文件：${escapeHtml(name)}">
+            <span class="attachment-file-icon"><i data-lucide="file-text"></i></span>
+            <span class="attachment-file-detail"><span class="attachment-file-name">${escapeHtml(name)}</span><span class="attachment-file-meta">${escapeHtml(typeLabel)} · ${escapeHtml(size)}</span></span>
+            <i class="attachment-file-download" data-lucide="download"></i>
+          </a>`
+        : `<div class="attachment-file-card"><span class="attachment-file-icon"><i data-lucide="file-text"></i></span><span class="attachment-file-detail"><span class="attachment-file-name">${escapeHtml(name)}</span><span class="attachment-file-meta">文件地址无效</span></span></div>`}</div>`;
+    }
+
+    function humanAgentFileMessageHtml(content, fileName, fileSize, time = formatClock(), agentOverride = serviceState.currentAgent) {
+      return humanAgentBubbleHtml(fileAttachmentBubbleHtml(content, fileName, fileSize), time, agentOverride);
+    }
+
+    function aiFileMessageHtml(content, fileName, fileSize, time = formatClock()) {
+      return aiMessageHtml(fileAttachmentBubbleHtml(content, fileName, fileSize), time);
+    }
+
+    function normalizeAnswerAttachment(value) {
+      let payload = value;
+      if (typeof payload === "string") {
+        try { payload = JSON.parse(payload); } catch (_) { return null; }
+      }
+      const data = payload?.data || payload;
+      if (!data || typeof data !== "object" || !extractFileUrl(data)) return null;
+      return {
+        url: extractFileUrl(data),
+        name: data.name || data.fileName || data.file_name || "",
+        size: data.size ?? data.fileSize ?? data.file_size
+      };
     }
 
     function appendHumanAgentMessage(text, time = formatClock(), agentOverride = serviceState.currentAgent) {
@@ -4701,7 +4810,7 @@
         return html.replace('class="message ', 'class="message history-loaded ');
       }
       if (Number(message.type) === 4) {
-        const html = humanAgentPdfMessageHtml(message.content, message.fileName, message.fileSize, time, {
+        const html = humanAgentFileMessageHtml(message.content, message.fileName, message.fileSize, time, {
           id: message.fromUserId,
           username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
           nickname: message.fromUserNickName || "人工客服",
@@ -5930,14 +6039,31 @@
             streamBubble?.setText(fullText);
           },
           onDone(fullText) {
-            streamBubble?.finish(fullText);
+            // 文件答案没有文本增量，等待最终结果分支替换为对应的文件气泡。
+            if (!normalizeAnswerAttachment(fullText)) streamBubble?.finish(fullText);
           }
         }
       ).then((result) => {
         if (typingId) removeTyping(typingId);
         if (result.streamed) {
-          streamBubble?.finish(result.answer);
-          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: result.answer, conversationId: chatState.conversationId });
+          const attachment = normalizeAnswerAttachment(result.answer);
+          if (attachment) {
+            streamBubble?.remove();
+            appendAi(aiFileMessageHtml(attachment.url, attachment.name, attachment.size));
+            registerUnifiedRealtimeMessage({
+              source: "ai",
+              role: "ai",
+              type: "file",
+              content: attachment.url,
+              fileName: attachment.name,
+              fileSize: attachment.size,
+              conversationId: chatState.conversationId
+            });
+            scrollChatBottom();
+          } else {
+            streamBubble?.finish(result.answer);
+            registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: result.answer, conversationId: chatState.conversationId });
+          }
           if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
           return;
         }
@@ -6111,25 +6237,30 @@
           timestamp,
           sequence: ++chatState.unifiedSequence
         });
-        if (message.answer) rows.push({
-          source: "ai",
-          role: "ai",
-          type: "text",
-          content: message.answer,
-          conversationId,
-          messageId: message.id ? `${message.id}:answer` : "",
-          date,
-          time,
-          timestamp: timestamp ? timestamp + 1 : 0,
-          sequence: ++chatState.unifiedSequence
-        });
+        if (message.answer) {
+          const attachment = normalizeAnswerAttachment(message.answer);
+          rows.push({
+            source: "ai",
+            role: "ai",
+            type: attachment ? "file" : "text",
+            content: attachment ? attachment.url : message.answer,
+            fileName: attachment?.name || "",
+            fileSize: attachment?.size,
+            conversationId,
+            messageId: message.id ? `${message.id}:answer` : "",
+            date,
+            time,
+            timestamp: timestamp ? timestamp + 1 : 0,
+            sequence: ++chatState.unifiedSequence
+          });
+        }
         return rows;
       });
     }
 
     function humanHistoryMessageType(message = {}) {
       if (Number(message.type) === 2) return "image";
-      if (Number(message.type) === 4) return "pdf";
+      if (Number(message.type) === 4) return "file";
       if (message.order || message.orderInfo || parseOrderTransferText(message.content)) return "order";
       if (Number(message.type) === 3) return "system";
       return "text";
@@ -6214,11 +6345,13 @@
       } else if (message.role === "agent") {
         html = message.type === "image"
           ? humanAgentImageMessageHtml(String(message.content || ""), time, message.agent)
-          : message.type === "pdf"
-            ? humanAgentPdfMessageHtml(message.content, message.fileName, message.fileSize, time, message.agent)
+          : message.type === "file"
+            ? humanAgentFileMessageHtml(message.content, message.fileName, message.fileSize, time, message.agent)
             : humanAgentMessageHtml(String(message.content || ""), time, message.agent);
       } else {
-        html = message.type === "html"
+        html = message.type === "file"
+          ? aiFileMessageHtml(message.content, message.fileName, message.fileSize, time)
+          : message.type === "html"
           ? aiMessageHtml(String(message.content || ""), time)
           : aiMessageHtml(`<div class="bubble">${formatPlainText(String(message.content || ""))}</div>`, time);
       }
@@ -7152,7 +7285,7 @@
       registerUnifiedRealtimeMessage({
         source: "human",
         role: packet.type === 3 ? "system" : "agent",
-        type: packet.type === 2 ? "image" : (packet.type === 4 ? "pdf" : (packet.type === 3 ? "system" : "text")),
+        type: packet.type === 2 ? "image" : (packet.type === 4 ? "file" : (packet.type === 3 ? "system" : "text")),
         content: packet.type === 2 ? packet.content : decodeKefuEmoji(packet.content),
         fileName: packet.fileName || packet.file_name || "",
         fileSize: packet.fileSize ?? packet.file_size,
@@ -7190,7 +7323,7 @@
       }
       if (packet.type === 4) {
         clearAgentReplyWatcher();
-        chatList.insertAdjacentHTML("beforeend", humanAgentPdfMessageHtml(
+        chatList.insertAdjacentHTML("beforeend", humanAgentFileMessageHtml(
           packet.content,
           packet.fileName || packet.file_name,
           packet.fileSize ?? packet.file_size,
