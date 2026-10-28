@@ -11,7 +11,9 @@ export default defineConfig(({mode}) => {
   const arkTarget = env.VITE_ARK_PROXY_TARGET || 'https://ark.cn-beijing.volces.com';
   const wechatTicketTarget = env.VITE_WECHAT_TICKET_PROXY_TARGET || `${productionOrigin}/football`;
   // 与 travel-client 的 H5 环境一致，为 gkh SSO 登录和用户信息接口提供同源代理。
-  const hxxAuthTarget = env.VITE_HXX_AUTH_PROXY_TARGET || 'https://glsw-wdgz.aihuangxiaoxi.com/rxqdata/authAdminService';
+  // 必须与 travel-client 的 h5pre/h5prod 保持同一套网关；
+  // 非 libs 域会落到另一套用户/行程数据，导致“采纳成功”后列表查不到。
+  const hxxAuthTarget = env.VITE_HXX_AUTH_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/rxqdata/authAdminService';
   const basePath = env.VITE_BASE_PATH || '/football/';
   const normalizedBasePath = basePath.replace(/\/+$/, '');
 
@@ -42,13 +44,6 @@ export default defineConfig(({mode}) => {
           target: hxxAuthTarget,
           changeOrigin: true,
           rewrite: (pathValue) => pathValue.replace(/^\/hxx\/authAdminService\/?/, '/'),
-          configure: (proxy) => {
-            // 复用 travel-client 的 H5 代理行为，避免 WAF 将 localhost 判为非法来源。
-            proxy.on('proxyReq', (proxyReq) => {
-              proxyReq.removeHeader('origin');
-              proxyReq.removeHeader('referer');
-            });
-          },
         },
         '/api': {
           target: backendTarget,

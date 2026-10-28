@@ -56,6 +56,10 @@
                 <span class="scenario-icon"><i data-lucide="headphones"></i></span>
                 <span><strong>转人工</strong><small>去排队</small></span>
               </button>
+              <button class="scenario-card" type="button" data-open-itinerary>
+                <span class="scenario-icon"><i data-lucide="map"></i></span>
+                <span><strong>行程服务</strong><small>我的行程</small></span>
+              </button>
             </div>
           </div>
 
@@ -237,6 +241,7 @@
         </div>
 
         <div class="toast" id="toast">已打开产品详情页</div>
+        <div id="itineraryPlannerMount"></div>
       </section>
     </main>
 
@@ -820,25 +825,32 @@
     }
 
     .screen.chat-expanded .scenario-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      /* 窄屏无法同时容纳五个「图标 + 完整文字」入口；改为横向滑动，
+         每个入口保留最小可读宽度，避免文字被图标挤掉。 */
+      display: flex;
       gap: 6px;
       margin: 0;
-      padding: 0;
-      overflow: visible;
-      scroll-padding-left: 0;
-      scroll-padding-right: 0;
-      touch-action: pan-y;
+      padding: 0 1px 2px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x proximity;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x;
     }
 
+    .screen.chat-expanded .scenario-grid::-webkit-scrollbar { display: none; }
+
     .screen.chat-expanded .scenario-card {
-      min-width: 0;
+      flex: 0 0 auto;
+      min-width: 86px;
       min-height: 38px;
       border-radius: 999px;
       padding: 0 6px 0 5px;
       flex-direction: row;
       justify-content: center;
       gap: 4px;
+      scroll-snap-align: start;
     }
 
     .screen.chat-expanded .scenario-card::before,
@@ -849,6 +861,8 @@
     .screen.chat-expanded .scenario-icon {
       width: 22px;
       height: 22px;
+      min-width: 22px;
+      flex: 0 0 22px;
       border-radius: 50%;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.38), 0 8px 14px rgba(72, 82, 228, .16);
     }
@@ -860,6 +874,8 @@
 
     .screen.chat-expanded .scenario-card > span:last-child {
       min-width: 0;
+      width: auto;
+      flex: 0 1 auto;
       display: block;
       overflow: hidden;
     }
@@ -869,7 +885,7 @@
       font-size: 11px;
       line-height: 1;
       white-space: nowrap;
-      overflow: hidden;
+      overflow: visible;
     }
 
     .screen.chat-expanded .history-wrap {
@@ -1118,6 +1134,8 @@
     .scenario-icon {
       width: 48px;
       height: 48px;
+      min-width: 48px;
+      flex: 0 0 48px;
       border-radius: 20px;
       display: grid;
       place-items: center;
@@ -1156,7 +1174,7 @@
         0 14px 24px rgba(33, 119, 255, .2);
     }
 
-    .scenario-icon svg { width: 22px; height: 22px; stroke-width: 2.35; }
+    .scenario-icon svg { width: 22px; height: 22px; flex: none; stroke-width: 2.35; }
 
     .scenario-card > span:last-child {
       position: relative;
@@ -1377,6 +1395,8 @@
       overflow-anchor: none;
       overscroll-behavior-y: contain;
       overscroll-behavior-x: none;
+      /* Keep a constant inline size when pages have different heights. */
+      scrollbar-gutter: stable;
       padding-top: 8px;
       padding-right: 2px;
       padding-bottom: 12px;
@@ -1451,6 +1471,7 @@
     }
 
     .message.ai .msg-body {
+      width: 100%;
       justify-items: start;
     }
 
@@ -1529,6 +1550,9 @@
     }
 
     .ai .bubble {
+      width: 100%;
+      max-width: none;
+      box-sizing: border-box;
       border: 1px solid rgba(255,255,255,.78);
       border-top-left-radius: 8px;
       color: #263752;
@@ -1553,9 +1577,9 @@
     }
 
     /* mainQA 的结构化回答：保持在 AI 气泡内，避免卡片脱离聊天时间线。 */
-    .mainqa-answer { width: min(100%, 330px); }
+    .mainqa-answer { width: 100%; max-width: none; }
     /* 订购/推荐卡本身就是答案容器，不额外套一层通用白色聊天气泡。 */
-    .mainqa-card-answer { width: min(100%, 330px); }
+    .mainqa-card-answer { width: 100%; max-width: none; }
     .mainqa-card-answer .qa-cards { margin-top: 0; }
     .mainqa-answer .mainqa-text { min-width: 0; }
     .mainqa-think { margin: 0 0 10px; border: 1px solid rgba(65, 91, 150, .14); border-radius: 12px; background: rgba(238, 243, 255, .68); overflow: hidden; }
@@ -1597,6 +1621,10 @@
     .mainqa-route-day span { display: block; margin-top: 3px; color: #63738d; font-size: 12px; }
     .mainqa-actions, .mainqa-suggestions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
     .mainqa-actions button, .mainqa-suggestions button, .mainqa-link { border: 1px solid rgba(61,104,208,.19); border-radius: 999px; padding: 6px 10px; color: #3562c9; background: rgba(255,255,255,.72); font: inherit; font-size: 12px; line-height: 1.2; cursor: pointer; text-decoration: none; }
+    .mainqa-actions [data-mainqa-route="collect"] { position: relative; overflow: hidden; border-color: transparent; color: #fff; background: linear-gradient(135deg, #6d5cff, #a35dff); box-shadow: 0 6px 14px rgba(112, 86, 240, .28); }
+    .mainqa-actions [data-mainqa-route="collect"]::before { content: "✦"; margin-right: 4px; color: #ffe9a8; }
+    .mainqa-actions [data-mainqa-route="collect"].is-collected { border-color: #13b070; color: #13b070; background: #f6fff7; box-shadow: none; }
+    .mainqa-actions [data-mainqa-route="collect"].is-collected::before { display: none; }
     .mainqa-suggestions button { white-space: normal; text-align: left; }
     .mainqa-guide { margin-top: 10px; padding: 8px 10px; border-radius: 10px; color: #84622a; background: rgba(255,246,220,.78); font-size: 12px; }
     .mainqa-trip-suggest { margin-top: 16px; }.mainqa-trip-suggest > div { margin-bottom: 10px; color: #71809b; font-size: 13px; }.mainqa-trip-suggest button { display: block; width: 100%; margin-top: 8px; padding: 9px 11px; border: 0; border-radius: 12px; color: #448ef7; background: #fff; box-shadow: 0 4px 10px rgba(30,141,161,.04); font: inherit; font-size: 13px; text-align: left; }
@@ -1617,6 +1645,11 @@
     @keyframes mainqa-spin { to { transform: rotate(360deg); } } @keyframes mainqa-dot { 0%,100% { transform: translateY(0); opacity:.35; } 50% { transform: translateY(-3px); opacity:1; } } @keyframes mainqa-pulse { 0% { box-shadow: 0 0 0 0 rgba(75,124,255,.27); } 75%,100% { box-shadow: 0 0 0 6px rgba(75,124,255,0); } }
     .mainqa-answer .mainqa-entity-link { color: #356be0; font-weight: 700; text-decoration: underline; text-decoration-color: rgba(53,107,224,.34); text-underline-offset: 2px; cursor: pointer; }
     .mainqa-answer .mainqa-markdown-link { color: #356be0; text-decoration: underline; text-underline-offset: 2px; }
+    .mainqa-answer .md-table-wrap { max-width: 100%; margin: 10px 0; overflow-x: auto; overflow-y: hidden; border: 1px solid rgba(82,112,177,.18); border-radius: 10px; background: rgba(255,255,255,.76); -webkit-overflow-scrolling: touch; }
+    .mainqa-answer .md-table { width: max-content; min-width: 100%; border-collapse: collapse; color: #405373; font-size: 12px; line-height: 1.5; }
+    .mainqa-answer .md-table th, .mainqa-answer .md-table td { min-width: 76px; padding: 8px 10px; border-right: 1px solid rgba(82,112,177,.13); border-bottom: 1px solid rgba(82,112,177,.13); text-align: left; vertical-align: top; word-break: break-word; }
+    .mainqa-answer .md-table th { color: #294d8c; background: linear-gradient(135deg, rgba(226,238,255,.95), rgba(244,239,255,.92)); font-weight: 700; }
+    .mainqa-answer .md-table tr:last-child td { border-bottom: 0; }.mainqa-answer .md-table th:last-child, .mainqa-answer .md-table td:last-child { border-right: 0; }
 
     .user .bubble {
       width: fit-content;
@@ -3218,6 +3251,8 @@ import { createIcons, icons } from "lucide";
 import md5 from "crypto-js/md5";
 import MainQaRouteMap from "./MainQaRouteMap.vue";
 import MainQaAnswerCards from "./MainQaAnswerCards.vue";
+import ItineraryPlanner from "./ItineraryPlanner.vue";
+import { buildItineraryCollectPayload } from "./itineraryPayload";
 
 const assetBase = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}kefu/assets/`;
 const mascotUpperbody = `${assetBase}huangxiaoxi-3d-upperbody.png`;
@@ -3586,6 +3621,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     const chatState = {
       conversationId: "",
       userId: "",
+      lastQuestion: "",
       conversations: [],
       orders: [],
       orderFilter: "全部",
@@ -3604,6 +3640,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       unifiedHistoryKeys: new Set(),
       unifiedSequence: 0,
       aiHistoryHasMore: false,
+      aiHistoryCursor: "",
+      aiHistorySeenConversationIds: new Set(),
       aiHistoryLoading: false,
       humanHistoryLoading: false,
       historyLoadErrors: { ai: "", human: "" },
@@ -4206,7 +4244,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       queryMessages(payload) {
         const conversationId = encodeURIComponent(payload.conversationId || "");
         const limit = encodeURIComponent(payload.limit || 100);
-        return ensureMainQaLogin().then(() => fetch(`${difyConfig.baseUrl}/messages?user=${encodeURIComponent(resolveAiUser(payload.user))}&conversation_id=${conversationId}&limit=${limit}`, {
+        const firstId = payload.firstId ? `&first_id=${encodeURIComponent(payload.firstId)}` : "";
+        return ensureMainQaLogin().then(() => fetch(`${difyConfig.baseUrl}/messages?user=${encodeURIComponent(resolveAiUser(payload.user))}&conversation_id=${conversationId}&limit=${limit}${firstId}`, {
           method: "GET",
           headers: buildAiHeaders()
         })).then((response) => {
@@ -4532,6 +4571,11 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       const lines = String(value || "").replace(/\r\n/g, "\n").split("\n");
       const html = [];
       let listType = "";
+      const parseTableRow = (line) => String(line || "").trim()
+        .replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+      const isTableDivider = (line) => /^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(String(line || "").trim());
+      const isTableHeader = (line, nextLine) => String(line || "").includes("|") && isTableDivider(nextLine);
+      const renderTable = (headers, rows) => `<div class="md-table-wrap"><table class="md-table"><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((_, index) => `<td>${renderInlineMarkdown(row[index] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
       const closeList = () => {
         if (!listType) return;
         html.push(`</${listType}>`);
@@ -4544,38 +4588,54 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         listType = type;
       };
 
-      lines.forEach((line) => {
+      for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
         const trimmed = line.trim();
+        // GFM 表格：表头下一行由 --- / :---: 组成。先整体消费表格，
+        // 防止普通段落逻辑将竖线原样输出。
+        if (isTableHeader(line, lines[index + 1])) {
+          closeList();
+          const headers = parseTableRow(line);
+          const rows = [];
+          index += 2;
+          while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+            rows.push(parseTableRow(lines[index]));
+            index += 1;
+          }
+          index -= 1;
+          html.push(renderTable(headers, rows));
+          continue;
+        }
         if (!trimmed) {
           closeList();
           html.push('<div class="md-gap"></div>');
-          return;
+          continue;
         }
 
         const headingMatch = trimmed.match(/^#{1,6}\s*(.+)$/);
         if (headingMatch) {
           closeList();
           html.push(`<p class="md-heading">${renderInlineMarkdown(headingMatch[1])}</p>`);
-          return;
+          continue;
         }
 
         const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
         if (bulletMatch) {
           openList("ul");
           html.push(`<li>${renderInlineMarkdown(bulletMatch[1])}</li>`);
-          return;
+          continue;
         }
 
         const orderedMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
         if (orderedMatch) {
           openList("ol");
           html.push(`<li>${renderInlineMarkdown(orderedMatch[2])}</li>`);
-          return;
+          continue;
         }
 
         closeList();
         html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`);
-      });
+      }
 
       closeList();
       return html.join("");
@@ -4694,6 +4754,22 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       return { miniPath: miniPath || String(record.commodityLink || record.url || record.link || ""), external: "" };
     }
 
+    // 行程详情节点与问答推荐卡使用同一套贵客荟跳转规则。
+    function openItineraryNodeDetail(node = {}) {
+      const nodeDetail = node?.extendJson?.nodeDetail || node?.detail || {};
+      const rawType = nodeDetail.entity_type || node.entity_type || nodeDetail.nodeType || node.nodeType || "";
+      const entityType = ({ ATTRACTION: "景区", DINING: "餐饮", ACCOMMODATION: "酒店", ENTERTAINMENT: "文娱" })[rawType] || rawType;
+      const record = { ...node, ...nodeDetail, entity_type: entityType };
+      const target = mainQaRecordTarget(record);
+      if (target.miniPath && window.wx?.miniProgram?.navigateTo) {
+        try { window.wx.miniProgram.navigateTo({ url: target.miniPath }); return "正在跳转贵客荟…"; } catch { return "页面跳转失败，请稍后重试"; }
+      } else if (target.miniPath) {
+        return "请在贵客荟小程序内打开详情";
+      } else {
+        return "该节点暂未提供可跳转详情";
+      }
+    }
+
     function formatMainQaRouteAnswer(answerContent, candidates = []) {
       const source = String(answerContent || "");
       const replacements = [];
@@ -4748,6 +4824,184 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       } catch (error) { console.warn("mainQA route map payload invalid", error); }
     }
     const mountedAnswerCardApps = new Map();
+    const pendingAnswerCardNodes = new Set();
+    const pendingItineraryStatusNodes = new Set();
+    let answerCardObserver = null;
+    function getAnswerCardObserver() {
+      if (answerCardObserver || !window.IntersectionObserver) return answerCardObserver;
+      answerCardObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const node = entry.target;
+          answerCardObserver?.unobserve(node);
+          pendingAnswerCardNodes.delete(node);
+          mountMainQaAnswerCard(node);
+        });
+      }, { root: chatScrollViewport, rootMargin: "360px 0px", threshold: 0.01 });
+      return answerCardObserver;
+    }
+    let itineraryStatusObserver = null;
+    function getItineraryStatusObserver() {
+      if (itineraryStatusObserver || !window.IntersectionObserver) return itineraryStatusObserver;
+      itineraryStatusObserver = new IntersectionObserver((entries) => {
+        const visibleNodes = [];
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          itineraryStatusObserver?.unobserve(entry.target);
+          pendingItineraryStatusNodes.delete(entry.target);
+          visibleNodes.push(entry.target);
+        });
+        if (visibleNodes.length) void syncMainQaItineraryCollectStatus({
+          querySelectorAll: () => visibleNodes.flatMap((node) => [...node.querySelectorAll('[data-mainqa-route="collect"][data-mainqa-itinerary]')])
+        });
+      }, { root: chatScrollViewport, rootMargin: "360px 0px", threshold: 0.01 });
+      return itineraryStatusObserver;
+    }
+    let itineraryPlannerApp = null;
+
+    function closeItineraryPlanner() {
+      const mountNode = document.querySelector("#itineraryPlannerMount");
+      // Vite 热更新会重建当前闭包，旧的 itineraryPlannerApp 引用会丢失；
+      // 以 Vue 挂载节点保存的实例为准，避免多个列表实例同时请求和渲染。
+      const mountedApp = mountNode?.__vue_app__;
+      if (mountedApp && mountedApp !== itineraryPlannerApp) mountedApp.unmount();
+      itineraryPlannerApp?.unmount();
+      itineraryPlannerApp = null;
+      mountNode?.replaceChildren();
+    }
+
+    async function openItineraryPlanner(options = {}) {
+      if (itineraryPlannerApp) closeItineraryPlanner();
+      const mountNode = document.querySelector("#itineraryPlannerMount");
+      if (!mountNode) return;
+      try {
+        // 除当前模块记录的实例外，亦清理热更新前遗留的 Vue 实例。
+        if (mountNode.__vue_app__) mountNode.__vue_app__.unmount();
+        mountNode.replaceChildren();
+        await ensureMainQaLogin();
+        itineraryPlannerApp = createApp(ItineraryPlanner, {
+          authorization: mainQaLoginState.accessToken,
+          clientId: MAIN_QA_GKH_CONFIG.clientId,
+          apiBase: import.meta.env.DEV
+            ? "/hxx/authAdminService"
+            : "https://glsw-wdgz-libs.aihuangxiaoxi.com/hxx/authAdminService",
+          onClose: closeItineraryPlanner,
+          onOpenDetail: (itineraryId) => console.info("open itinerary detail", { itineraryId }),
+          nodeOpen: openItineraryNodeDetail,
+          ...options,
+        });
+        itineraryPlannerApp.mount(mountNode);
+      } catch (error) {
+        console.warn("open itinerary planner failed", error);
+        closeItineraryPlanner();
+        showToast(error?.message || "行程服务暂不可用，请稍后重试");
+      }
+    }
+
+    function getMainQaItineraryContext(element) {
+      try {
+        return JSON.parse(decodeURIComponent(element?.dataset?.mainqaItinerary || ""));
+      } catch (error) {
+        console.warn("mainQA itinerary payload invalid", error);
+        return null;
+      }
+    }
+
+    function itineraryApiBaseUrl() {
+      return import.meta.env.DEV
+        ? "/hxx/authAdminService"
+        : "https://glsw-wdgz-libs.aihuangxiaoxi.com/hxx/authAdminService";
+    }
+
+    async function syncMainQaItineraryCollectStatus(scope = chatList) {
+      const buttons = [...(scope?.querySelectorAll?.('[data-mainqa-route="collect"][data-mainqa-itinerary]') || [])];
+      const sourceIds = [...new Set(buttons.map((button) => getMainQaItineraryContext(button)?.sourceId).filter(Boolean).map(String))];
+      if (!sourceIds.length) return;
+      try {
+        await ensureMainQaLogin();
+        const response = await fetch(`${itineraryApiBaseUrl()}/api/itinerary/collect/batch-check`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", clientId: MAIN_QA_GKH_CONFIG.clientId, Authorization: `Bearer ${mainQaLoginState.accessToken}` },
+          body: JSON.stringify({ sourceIds, sourceType: "CHAT" })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || (result.code != null && ![0, 200].includes(Number(result.code)))) throw new Error(result.msg || "查询行程采纳状态失败");
+        const data = result.data || result;
+        const collectedSourceIds = new Set((data.collectedSourceIds || []).map(String));
+        const idMap = data.sourceIdToItineraryIdMap || {};
+        buttons.forEach((button) => {
+          const sourceId = String(getMainQaItineraryContext(button)?.sourceId || "");
+          const itineraryId = idMap[sourceId];
+          // 只有存在可打开的行程记录时，才允许显示“已采纳”。
+          const isCollected = collectedSourceIds.has(sourceId) && itineraryId != null;
+          button.classList.toggle("is-collected", isCollected);
+          if (isCollected) {
+            button.dataset.itineraryId = String(itineraryId);
+            button.textContent = "✓ 已采纳";
+          } else {
+            delete button.dataset.itineraryId;
+            button.textContent = "采纳行程";
+          }
+        });
+      } catch (error) {
+        console.warn("sync mainQA itinerary collect status failed", error);
+      }
+    }
+
+    async function collectMainQaItinerary(button, context) {
+      if (!context || button.dataset.collecting === "true") return;
+      // 与 travel-client/packageMainQA 保持一致：CHAT 行程只能使用服务端
+      // action 事件下发的 plat_chat_id 作为幂等来源，不能拿 conversationId 代替。
+      if (!context.sourceId) {
+        showToast("该行程缺少会话标识，请重新生成后再采纳");
+        return;
+      }
+      button.dataset.collecting = "true";
+      const originalText = button.textContent;
+      button.textContent = "采纳中…";
+      try {
+        await ensureMainQaLogin();
+        if (button.dataset.itineraryId) {
+          const response = await fetch(`${itineraryApiBaseUrl()}/api/itinerary/collect/cancel`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", clientId: MAIN_QA_GKH_CONFIG.clientId, Authorization: `Bearer ${mainQaLoginState.accessToken}` },
+            body: JSON.stringify({ itineraryId: button.dataset.itineraryId }),
+          });
+          const result = await response.json();
+          if (!response.ok || (result.code != null && ![0, 200].includes(Number(result.code)))) throw new Error(result.msg || "取消采纳失败");
+          delete button.dataset.itineraryId;
+          button.classList.remove("is-collected");
+          button.textContent = "采纳行程";
+          showToast("已取消采纳行程");
+          return;
+        }
+        const payload = buildItineraryCollectPayload(context);
+        const response = await fetch(`${itineraryApiBaseUrl()}/api/itinerary/collect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", clientId: MAIN_QA_GKH_CONFIG.clientId, Authorization: `Bearer ${mainQaLoginState.accessToken}` },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok || (result.code != null && ![0, 200].includes(Number(result.code)))) throw new Error(result.msg || "采纳行程失败");
+        const collectData = result?.data;
+        const itineraryId = collectData?.itineraryId || collectData?.id || result?.itineraryId || result?.id
+          || (typeof collectData === "string" || typeof collectData === "number" ? collectData : null);
+        if (itineraryId == null || itineraryId === "") {
+          throw new Error("采纳结果未返回行程 ID，请稍后重试");
+        }
+        button.dataset.itineraryId = String(itineraryId);
+        button.classList.add("is-collected");
+        button.textContent = "✓ 已采纳";
+        showToast("采纳行程成功");
+        await openItineraryPlanner({ initialItineraryId: itineraryId });
+      } catch (error) {
+        console.warn("collect mainQA itinerary failed", error);
+        button.textContent = originalText || "采纳行程";
+        showToast(error?.message || "采纳行程失败，请稍后重试");
+      } finally {
+        delete button.dataset.collecting;
+      }
+    }
     function unmountMainQaRouteMaps(scope) {
       if (!scope) return;
       [...pendingRouteMapNodes].forEach((node) => {
@@ -4775,6 +5029,18 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     }
     function unmountMainQaAnswerCards(scope) {
       if (!scope) return;
+      [...pendingItineraryStatusNodes].forEach((node) => {
+        if (scope === node || scope.contains?.(node)) {
+          itineraryStatusObserver?.unobserve(node);
+          pendingItineraryStatusNodes.delete(node);
+        }
+      });
+      [...pendingAnswerCardNodes].forEach((node) => {
+        if (scope === node || scope.contains?.(node)) {
+          answerCardObserver?.unobserve(node);
+          pendingAnswerCardNodes.delete(node);
+        }
+      });
       [...mountedAnswerCardApps.entries()].forEach(([node, app]) => {
         if (scope === node || scope.contains?.(node)) { app.unmount(); mountedAnswerCardApps.delete(node); }
       });
@@ -4786,25 +5052,40 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       } else if (target.miniPath) showToast("请在贵客荟小程序内打开详情");
       else showToast("该内容暂未提供可跳转详情");
     }
+    function mountMainQaAnswerCard(node) {
+      if (!node || mountedAnswerCardApps.has(node)) return;
+      try {
+        const props = JSON.parse(decodeURIComponent(node.dataset.mainqaAnswerCards || ""));
+        const app = createApp(MainQaAnswerCards, {
+          ...props,
+          onOpen: openMainQaRecord,
+          onAsk: (question) => sendPrompt(question),
+          onGenerate: ({ city, items }) => {
+            if (!items?.length) { showToast("请先选择至少一个目的地或景点"); return; }
+            const names = items.map((item) => city ? (item.shortName || item.name) : (item.scenicSpotAlias || item.specialSpotName || item.name)).filter(Boolean);
+            const tool = city ? { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { trip_info: { destination_choosed: items } } } } } : { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { scenic_spots: { optional_stops_choosed: items } } } } };
+            submitQuestion(`${names.join("、")}路线规划`, "mainqa_card", { tool });
+          }
+        });
+        app.mount(node); mountedAnswerCardApps.set(node, app);
+      } catch (error) { console.warn("mainQA card payload invalid", error); }
+    }
     function mountMainQaAnswerCards(scope) {
       if (!scope) return;
+      scope.querySelectorAll?.("[data-unified-message-key]").forEach((node) => {
+        if (pendingItineraryStatusNodes.has(node)) return;
+        const observer = getItineraryStatusObserver();
+        if (!observer) { void syncMainQaItineraryCollectStatus(node); return; }
+        pendingItineraryStatusNodes.add(node);
+        observer.observe(node);
+      });
       scope.querySelectorAll?.("[data-mainqa-answer-cards]").forEach((node) => {
-        if (mountedAnswerCardApps.has(node)) return;
-        try {
-          const props = JSON.parse(decodeURIComponent(node.dataset.mainqaAnswerCards || ""));
-          const app = createApp(MainQaAnswerCards, {
-            ...props,
-            onOpen: openMainQaRecord,
-            onAsk: (question) => sendPrompt(question),
-            onGenerate: ({ city, items }) => {
-              if (!items?.length) { showToast("请先选择至少一个目的地或景点"); return; }
-              const names = items.map((item) => city ? (item.shortName || item.name) : (item.scenicSpotAlias || item.specialSpotName || item.name)).filter(Boolean);
-              const tool = city ? { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { trip_info: { destination_choosed: items } } } } } : { travel_itinerary_planning: { title: "", type: "", detail: { args_templete: { scenic_spots: { optional_stops_choosed: items } } } } };
-              submitQuestion(`${names.join("、")}路线规划`, "mainqa_card", { tool });
-            }
-          });
-          app.mount(node); mountedAnswerCardApps.set(node, app);
-        } catch (error) { console.warn("mainQA card payload invalid", error); }
+        if (mountedAnswerCardApps.has(node) || pendingAnswerCardNodes.has(node)) return;
+        const observer = getAnswerCardObserver();
+        // 旧 WebView 没有 IntersectionObserver 时保持可用性，直接挂载。
+        if (!observer) { mountMainQaAnswerCard(node); return; }
+        pendingAnswerCardNodes.add(node);
+        observer.observe(node);
       });
     }
 
@@ -4882,7 +5163,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       return state;
     }
 
-    function renderMainQaAnswer(text, events = [], streaming = false) {
+    function renderMainQaAnswer(text, events = [], streaming = false, question = "") {
       const state = buildMainQaAnswerState(events);
       // /messages 的最终正文通常在 message.answer；缺失时回退 action_answer 中 event=answer。
       const { answer, think } = mainQaTextParts(text || state.finalAnswer);
@@ -4896,9 +5177,22 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       }).slice(0, 12);
       const routeDays = state.isR1 ? state.r1DayPlans : (state.routeDetail?.result || []);
       const mapPayload = escapeHtml(encodeURIComponent(JSON.stringify({ mapData: state.mapData || (state.isR1 ? state.r1DayPlans : state.routeDetail), isR1: state.isR1 })));
+      // Keep the same preview/collect context used by packageMainQA's chat-qa-item.
+      const eventSourceId = events.find((event) => event?.plat_chat_id || event?.data?.plat_chat_id)?.plat_chat_id
+        || events.find((event) => event?.data?.plat_chat_id)?.data?.plat_chat_id;
+      const sourceTitle = question || chatState.lastQuestion || "黄小西智能行程规划";
+      const itineraryPayload = escapeHtml(encodeURIComponent(JSON.stringify({
+        // 历史回答重新渲染时，不能使用全局的最后一次提问：那会让采纳的
+        // 行程丢失原始标题，并以“黄小西智能行程规划”这个兜底标题入库。
+        query: sourceTitle,
+        sourceId: String(eventSourceId || ""),
+        isR1: state.isR1,
+        routeDetail: state.routeDetail,
+        r1DayPlans: state.r1DayPlans,
+      })));
       // 流式阶段会因每个 SSE 事件重绘回答 DOM。路线数据尚未稳定时不创建地图，
       // 避免同一张地图被卸载/初始化多次；回答完成后仅挂载一次。
-      const routeHtml = !streaming && state.isRoutePlan ? `<section class="mainqa-section"><div data-mainqa-route-map="${mapPayload}"></div><div class="mainqa-actions"><button type="button" data-mainqa-route="view">查看行程规划</button><button type="button" data-mainqa-route="collect">采纳行程</button></div></section>` : "";
+      const routeHtml = !streaming && state.isRoutePlan ? `<section class="mainqa-section"><div data-mainqa-route-map="${mapPayload}"></div><div class="mainqa-actions"><button type="button" data-mainqa-route="view" data-mainqa-itinerary="${itineraryPayload}">查看行程规划</button><button type="button" data-mainqa-route="collect" data-mainqa-itinerary="${itineraryPayload}">采纳行程</button></div></section>` : "";
       const cards = unique(state.candidates);
       const cardSource = state.filteredCardData.length ? state.filteredCardData : state.cardData;
       const cardPayload = escapeHtml(encodeURIComponent(JSON.stringify({ cardType: state.cardType, cardData: cardSource, candidates: !state.isRoutePlan ? cards : [], orderSupported: state.orderSupported })));
@@ -5546,6 +5840,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         host.innerHTML = renderMainQaAnswer(currentText, currentEvents, streaming);
         mountMainQaRouteMaps(host);
         mountMainQaAnswerCards(host);
+        if (!streaming) void syncMainQaItineraryCollectStatus(host);
         iconRefresh();
         scrollChatBottom();
       };
@@ -5736,6 +6031,18 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
     function expandTopMenu() {
       entryScreen?.classList.remove("chat-expanded");
+    }
+
+    let topMenuScrollFrame = 0;
+    let pendingTopMenuScrollTop = 0;
+
+    function scheduleTopMenuUpdate(currentTop) {
+      pendingTopMenuScrollTop = currentTop;
+      if (topMenuScrollFrame) return;
+      topMenuScrollFrame = window.requestAnimationFrame(() => {
+        topMenuScrollFrame = 0;
+        updateTopMenuByChatScroll(pendingTopMenuScrollTop);
+      });
     }
 
     function updateTopMenuByChatScroll(currentTop = chatScrollViewport.scrollTop, previousTop = currentTop) {
@@ -6376,6 +6683,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       }
       if (chatState.aiStreaming && !serviceState.humanActive) return;
 
+      chatState.lastQuestion = question;
+
       clearRobotHintTimer();
       closeEmojiPanel();
       closeUploadModal();
@@ -6624,6 +6933,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
           role: "ai",
           type: events.length ? "mainqa" : "text",
           content: answerContent || message.data?.outputs?.answer || "",
+          // 与该条 AI 回答一一对应的用户问题，供历史回答的行程采纳使用。
+          query: message.query || conversation.query || "",
           events,
           conversationId,
           messageId: message.id ? `${message.id}:answer` : "",
@@ -6673,14 +6984,16 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       }).filter((message) => message.type === "system" || message.content);
     }
 
-    function setAiHistoryMessages(messages = []) {
+    function setAiHistoryMessages(messages = [], pagination = {}) {
       chatState.historySource = "ai";
       mockHistoryMessages = [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       chatState.historyTotal = mockHistoryMessages.length;
       chatState.historyLoadedCount = mockHistoryMessages.length;
       chatState.historyLoading = false;
       chatState.historyActivated = false;
-      chatState.aiHistoryHasMore = false;
+      chatState.aiHistoryHasMore = Boolean(pagination.hasMore);
+      chatState.aiHistoryCursor = pagination.cursor || "";
+      chatState.aiHistorySeenConversationIds = new Set(pagination.seenConversationIds || []);
       mergeUnifiedHistoryMessages(messages);
       updateHistoryToggleText();
     }
@@ -6725,7 +7038,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         html = message.type === "html"
           ? aiMessageHtml(String(message.content || ""), time)
           : message.type === "mainqa"
-            ? aiMessageHtml(renderMainQaAnswer(String(message.content || ""), message.events || []), time)
+            ? aiMessageHtml(renderMainQaAnswer(String(message.content || ""), message.events || [], false, message.query), time)
           : aiMessageHtml(`<div class="bubble">${formatPlainText(String(message.content || ""))}</div>`, time);
       }
       return html
@@ -6959,12 +7272,47 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       }
     }
 
-    function loadOlderAiHistoryMessages() {
-      const end = mockHistoryMessages.length - chatState.historyLoadedCount;
-      const start = Math.max(0, end - chatState.historyBatchSize);
-      const batch = mockHistoryMessages.slice(start, end);
-      chatState.historyLoadedCount += batch.length;
-      return batch;
+    async function loadOlderAiHistoryMessages() {
+      if (chatState.aiHistoryLoading || !chatState.aiHistoryHasMore) return [];
+      chatState.aiHistoryLoading = true;
+      try {
+        const loadedMessages = [];
+        // 用户主动打开历史后，再连续补齐剩余会话页；不在首页初始化阶段阻塞。
+        for (let pageIndex = 0; chatState.aiHistoryHasMore && pageIndex < 100; pageIndex += 1) {
+          const page = await api.queryConversations({ lastId: chatState.aiHistoryCursor });
+          const rawConversations = Array.isArray(page?.data) ? page.data : [];
+          const nextCursor = conversationCursor(rawConversations[rawConversations.length - 1]);
+          const conversations = rawConversations.filter((conversation) => {
+            const id = conversationCursor(conversation);
+            if (!id || chatState.aiHistorySeenConversationIds.has(id)) return false;
+            chatState.aiHistorySeenConversationIds.add(id);
+            return true;
+          });
+
+          chatState.conversations = [...chatState.conversations, ...conversations];
+          chatState.aiHistoryCursor = nextCursor;
+          chatState.aiHistoryHasMore = Boolean(page?.has_more && rawConversations.length && nextCursor);
+
+          if (!rawConversations.length || !nextCursor) break;
+          if (!conversations.length) {
+            console.warn("conversations pagination cursor did not return new data", { cursor: nextCursor });
+            break;
+          }
+
+          const results = await Promise.allSettled(conversations.map(queryAllAiConversationMessages));
+          results.forEach((result, index) => {
+            if (result.status !== "fulfilled") return;
+            const conversation = result.value.conversation || conversations[index] || {};
+            const messages = result.value.data?.length
+              ? result.value.data
+              : (conversation.query || conversation.answer ? [conversation] : []);
+            loadedMessages.push(...normalizeAiHistoryMessages(messages, conversation));
+          });
+        }
+        return loadedMessages;
+      } finally {
+        chatState.aiHistoryLoading = false;
+      }
     }
 
     async function loadOlderUnifiedHistory(options = {}) {
@@ -6973,11 +7321,13 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       chatState.historyActivated = true;
       chatState.historyLoading = true;
       historyWrap.classList.add("loading");
+      chatList.querySelector("[data-history-status]")?.remove();
+      chatList.insertAdjacentHTML("afterbegin", historyInlineStatusHtml("正在加载全部历史消息", true));
       const beforeHeight = chatScrollViewport.scrollHeight;
       const beforeTop = chatScrollViewport.scrollTop;
       const tasks = [];
       if (hasMoreHumanHistory()) tasks.push(loadOlderHumanHistoryMessages({ ...options, force: true }));
-      if (chatState.historyLoadedCount < mockHistoryMessages.length) tasks.push(Promise.resolve(loadOlderAiHistoryMessages()));
+      if (chatState.aiHistoryHasMore) tasks.push(loadOlderAiHistoryMessages());
       try {
         const results = await Promise.allSettled(tasks);
         results.forEach((result) => {
@@ -6986,6 +7336,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         renderUnifiedHistoryTimeline();
         chatScrollViewport.scrollTop = beforeTop;
       } finally {
+        chatList.querySelector("[data-history-status]")?.remove();
         chatState.historyLoading = false;
         historyWrap.classList.remove("loading");
         updateHistoryToggleText();
@@ -7017,7 +7368,6 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       chatList.querySelectorAll(".history-loaded, [data-history-date], [data-history-status]").forEach((node) => node.remove());
       chatState.historyActivated = false;
       chatState.historyLoading = false;
-      chatState.historyLoadedCount = 0;
       chatState.historyArmedAt = 0;
       chatScrollViewport.classList.remove("history-mode");
       entryScreen?.classList.remove("chat-expanded");
@@ -7040,8 +7390,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       setScreen("entry");
       if (scrollToUnifiedConversation(conversationId)) return;
       try {
-        const data = await api.queryMessages({ conversationId });
         const conversation = chatState.conversations.find((item) => String(item.conversationId || item.id) === String(conversationId)) || {};
+        const data = await queryAllAiConversationMessages({ ...conversation, conversationId });
         mergeUnifiedHistoryMessages(normalizeAiHistoryMessages(data.data || [], conversation));
         renderUnifiedHistoryTimeline();
         scrollToUnifiedConversation(conversationId);
@@ -7051,27 +7401,61 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       }
     }
 
+    function conversationCursor(conversation = {}) {
+      return String(conversation.id || conversation.conversationId || "");
+    }
+
+    async function queryAllAiConversationMessages(conversation = {}) {
+      const conversationId = conversation.conversationId || conversation.id;
+      if (!conversationId) {
+        return { data: conversation.query || conversation.answer ? [conversation] : [], conversation };
+      }
+
+      const messages = [];
+      const seenMessageIds = new Set();
+      let firstId = "";
+
+      // /messages 的游标字段是 first_id（区别于 /conversations 的 last_id）。
+      // 服务端常会把 limit 限制到 50；因此必须依据 has_more 继续取完同一会话。
+      for (let page = 0; page < 100; page += 1) {
+        const result = await api.queryMessages({ conversationId, limit: 100, firstId });
+        const batch = Array.isArray(result?.data) ? result.data : [];
+        batch.forEach((message) => {
+          const id = String(message?.id || "");
+          if (id && seenMessageIds.has(id)) return;
+          if (id) seenMessageIds.add(id);
+          messages.push(message);
+        });
+
+        if (!result?.has_more || !batch.length) return { data: messages, conversation };
+        const nextFirstId = String(batch[0]?.id || "");
+        if (!nextFirstId || nextFirstId === firstId) {
+          console.warn("messages pagination cursor did not advance", { conversationId, firstId, nextFirstId });
+          return { data: messages, conversation };
+        }
+        firstId = nextFirstId;
+      }
+
+      console.warn("messages pagination stopped after 100 pages", { conversationId });
+      return { data: messages, conversation };
+    }
+
     function loadRecentConversations() {
       if (!difyConfig.enabled) return Promise.resolve([]);
       chatState.aiHistoryLoading = true;
       return api.queryConversations()
         .then((data) => {
-          chatState.conversations = data.data || [];
-          chatState.hasMoreConversations = Boolean(data.has_more);
+          const conversations = Array.isArray(data?.data) ? data.data : [];
+          const cursor = conversationCursor(conversations[conversations.length - 1]);
+          const hasMore = Boolean(data?.has_more && cursor);
+          chatState.conversations = conversations;
+          chatState.hasMoreConversations = hasMore;
           renderHistoryList(chatState.conversations);
           if (!chatState.conversations.length) {
-            setAiHistoryMessages([]);
+            setAiHistoryMessages([], { hasMore: false });
             return [];
           }
-          const conversations = chatState.conversations;
-          return Promise.allSettled(conversations.map((conversation) => {
-            const conversationId = conversation.conversationId || conversation.id;
-            if (!conversationId && (conversation.query || conversation.answer)) {
-              return Promise.resolve({ data: [conversation], conversation });
-            }
-            if (!conversationId) return Promise.resolve({ data: [], conversation });
-            return api.queryMessages({ conversationId, limit: 100 }).then((messages) => ({ ...messages, conversation }));
-          })).then((results) => {
+          return Promise.allSettled(conversations.map(queryAllAiConversationMessages)).then((results) => {
             const historyMessages = results.flatMap((result, index) => {
               if (result.status !== "fulfilled") return [];
               const conversation = result.value.conversation || conversations[index] || {};
@@ -7080,7 +7464,11 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
                 : (conversation.query || conversation.answer ? [conversation] : []);
               return normalizeAiHistoryMessages(messages, conversation);
             });
-            setAiHistoryMessages(historyMessages);
+            setAiHistoryMessages(historyMessages, {
+              hasMore,
+              cursor,
+              seenConversationIds: conversations.map(conversationCursor).filter(Boolean)
+            });
             chatState.aiHistoryLoading = false;
             chatState.historyLoadErrors.ai = "";
             return historyMessages;
@@ -8163,6 +8551,11 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         helpModal.setAttribute("aria-hidden", "false");
       }
 
+      if (event.target.closest("[data-open-itinerary]")) {
+        openItineraryPlanner();
+        return;
+      }
+
       if (event.target.closest("[data-open-orders]")) {
         openOrders();
       }
@@ -8281,8 +8674,13 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       const routeAction = event.target.closest("[data-mainqa-route]");
       if (routeAction) {
         const action = routeAction.dataset.mainqaRoute;
-        if (action === "collect") { routeAction.textContent = routeAction.textContent === "已采纳" ? "采纳行程" : "已采纳"; showToast(routeAction.textContent === "已采纳" ? "已采纳行程" : "已取消采纳"); }
+        const itineraryContext = getMainQaItineraryContext(routeAction);
+        if (action === "collect") collectMainQaItinerary(routeAction, itineraryContext);
         else if (action === "buy") showToast("已为您准备行程商品，请在详情页继续购买");
+        else if (action === "view") {
+          if (!itineraryContext) showToast("行程规划数据暂不可用，请重新生成");
+          else openItineraryPlanner({ previewDetail: buildItineraryCollectPayload(itineraryContext) });
+        }
         else showToast("行程总览已展示在当前回答中");
         return;
       }
@@ -8461,15 +8859,28 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
     let lastChatScrollTop = 0;
 
+    function activateHistoryLoadingFromScroll() {
+      if (chatState.historyActivated) return;
+      chatState.historyActivated = true;
+      chatState.historyArmedAt = 0;
+      chatScrollViewport.classList.add("history-mode");
+      updateHistoryToggleText();
+    }
+
     function shouldLoadHistoryFromChat() {
       const currentTop = chatScrollViewport.scrollTop;
       const previousTop = lastChatScrollTop;
       const isMovingTowardTop = currentTop > lastChatScrollTop;
-      updateTopMenuByChatScroll(currentTop, previousTop);
+      // scroll 事件高频触发，合并到下一帧只处理最后一次位置，
+      // 避免同一帧内多次读写 class 造成不必要的样式计算。
+      scheduleTopMenuUpdate(currentTop);
       lastChatScrollTop = currentTop;
-      if (!chatState.historyActivated) return;
-      if (!hasMoreUnifiedHistory()) return;
-      if (isChatAtVisualTop() && isMovingTowardTop) loadOlderHistoryMessages();
+      // 聊天容器做了视觉翻转：原生 scrollTop 增大即用户向“更早消息”滚动。
+      // 到达视觉顶部后直接自动分页，不能要求用户先点击历史按钮。
+      if (isChatAtVisualTop() && isMovingTowardTop) {
+        activateHistoryLoadingFromScroll();
+        if (hasMoreUnifiedHistory()) loadOlderHistoryMessages({ force: true });
+      }
     }
 
     let chatTouchStartY = 0;
@@ -8477,10 +8888,12 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     chatScrollViewport.addEventListener("scroll", shouldLoadHistoryFromChat);
 
     chatScrollViewport.addEventListener("wheel", (event) => {
+      // 无论历史是否已启用，回到聊天起点继续下拉都应恢复顶部区域动画。
+      if (entryScreen?.classList.contains("chat-expanded") && chatScrollViewport.scrollTop <= 2 && event.deltaY < 0 && !chatState.historyLoading) {
+        expandTopMenu();
+        return;
+      }
       if (!chatState.historyActivated) {
-        if (entryScreen?.classList.contains("chat-expanded") && chatScrollViewport.scrollTop <= 2 && event.deltaY < 0 && !chatState.historyLoading) {
-          expandTopMenu();
-        }
         return;
       }
       if (isChatAtVisualTop()) loadOlderHistoryMessages();
@@ -8492,10 +8905,12 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
     chatScrollViewport.addEventListener("touchmove", (event) => {
       const currentY = event.touches?.[0]?.clientY || 0;
+      // 与 wheel 逻辑一致：历史自动分页后，顶部 Hero 仍可通过下拉展开。
+      if (entryScreen?.classList.contains("chat-expanded") && chatScrollViewport.scrollTop <= 2 && currentY > chatTouchStartY + 24 && !chatState.historyLoading) {
+        expandTopMenu();
+        return;
+      }
       if (!chatState.historyActivated) {
-        if (entryScreen?.classList.contains("chat-expanded") && chatScrollViewport.scrollTop <= 2 && currentY > chatTouchStartY + 24 && !chatState.historyLoading) {
-          expandTopMenu();
-        }
         return;
       }
       if (isChatAtVisualTop()) {
