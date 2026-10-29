@@ -846,6 +846,10 @@
       scroll-snap-align: start;
     }
 
+    .scenario-card:active {
+      transform: none;
+    }
+
     .scenario-card::before {
       content: "";
       position: absolute;
@@ -2446,11 +2450,12 @@
     }
 
     .modal-layer {
-      position: fixed;
+      position: absolute;
       inset: 0;
       z-index: 100;
-      min-height: 100vh;
-      min-height: 100dvh;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
       display: flex;
       align-items: end;
       padding:
@@ -2605,20 +2610,26 @@
     .order-layer {
       padding: 0;
       align-items: end;
-      opacity: 0;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      contain: layout paint;
+      opacity: 1;
       visibility: hidden;
       pointer-events: none;
-      transition: opacity .22s ease, visibility 0s linear .22s;
+      transition: visibility 0s linear .34s;
     }
 
     .order-layer.show {
-      opacity: 1;
       visibility: visible;
       pointer-events: auto;
       transition-delay: 0s;
     }
 
     .order-layer .order-sheet {
+      background: #f8fbff;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
       transform: translateY(104%);
       transition: transform .34s cubic-bezier(.22, .86, .28, 1);
     }
@@ -3026,19 +3037,19 @@
               <div class="title-left"><span class="bar"></span><b>您可以这样问</b></div>
             </div>
             <div class="scenario-grid">
-              <button class="scenario-card" data-order-consult="entry">
+              <button class="scenario-card" type="button" data-order-consult="entry">
                 <span class="scenario-icon"><i data-lucide="ticket-check"></i></span>
                 <span><strong>订单咨询</strong><small>选择订单</small></span>
               </button>
-              <button class="scenario-card" data-clarify="points">
+              <button class="scenario-card" type="button" data-clarify="points">
                 <span class="scenario-icon"><i data-lucide="badge-percent"></i></span>
                 <span><strong>积分规则</strong><small>选择问题</small></span>
               </button>
-              <button class="scenario-card" data-clarify="product">
+              <button class="scenario-card" type="button" data-clarify="product">
                 <span class="scenario-icon"><i data-lucide="shopping-bag"></i></span>
                 <span><strong>产品咨询</strong><small>文旅服务</small></span>
               </button>
-              <button class="scenario-card" data-help="presale">
+              <button class="scenario-card" type="button" data-help="presale">
                 <span class="scenario-icon"><i data-lucide="headphones"></i></span>
                 <span><strong>转人工</strong><small>去排队</small></span>
               </button>
@@ -3572,6 +3583,8 @@
       userId: "",
       conversations: [],
       orders: [],
+      ordersLoadedAt: 0,
+      ordersLoadingPromise: null,
       orderFilter: "全部",
       orderGuidanceActive: false,
       historySource: "ai",
@@ -4264,8 +4277,16 @@
       }
     }
 
-    function iconRefresh() {
-      if (window.lucide) window.lucide.createIcons({ attrs: { "stroke-width": 2.2 } });
+    function iconRefresh(root = document) {
+      if (!window.lucide || !root) return;
+      window.lucide.createIcons({
+        attrs: { "stroke-width": 2.2 },
+        root
+      });
+      // Lucide keeps data-lucide on generated SVG elements. Remove it so later
+      // refreshes only initialize newly inserted <i> nodes instead of replacing
+      // every icon on the page again (which visibly flickers in iOS WKWebView).
+      root.querySelectorAll("svg[data-lucide]").forEach((icon) => icon.removeAttribute("data-lucide"));
     }
 
     function updateSendButtonState() {
@@ -5826,10 +5847,6 @@
 
     function startOrderConsultationFlow(options = {}) {
       chatState.orderGuidanceActive = true;
-      setScreen("entry");
-      activateChatReadingMode();
-      closeEmojiPanel();
-      closeUploadModal();
       openOrders();
     }
 
@@ -6922,38 +6939,56 @@
             </span>
           </button>
         `).join("");
-      iconRefresh();
+      iconRefresh(orderList);
     }
 
-    function renderOrders() {
+    function renderOrders({ force = false } = {}) {
       if (!currentUser.memberId) {
         chatState.orders = [];
+        chatState.ordersLoadedAt = 0;
         renderOrderCards([]);
         return Promise.resolve([]);
       }
-      return api.queryOrders({ memberId: currentUser.memberId }).then((orders) => {
+
+      if (!force && chatState.ordersLoadedAt > 0) {
+        renderOrderCards();
+        return Promise.resolve(chatState.orders);
+      }
+
+      if (chatState.ordersLoadingPromise) return chatState.ordersLoadingPromise;
+
+      chatState.ordersLoadingPromise = api.queryOrders({ memberId: currentUser.memberId }).then((orders) => {
         chatState.orders = orders || [];
+        chatState.ordersLoadedAt = Date.now();
         renderOrderCards();
         return chatState.orders;
       }).catch((error) => {
         console.warn("queryOrders failed", error);
-        chatState.orders = [];
-        renderOrderCards([]);
-        return [];
+        if (!chatState.orders.length) renderOrderCards([]);
+        return chatState.orders;
+      }).finally(() => {
+        chatState.ordersLoadingPromise = null;
       });
+      return chatState.ordersLoadingPromise;
     }
 
     function openOrders() {
       closeEmojiPanel();
       closeUploadModal();
+      const shouldResetOrderList = chatState.orderFilter !== "全部" || Boolean(orderSearchInput?.value);
       chatState.orderFilter = "全部";
       if (orderSearchInput) orderSearchInput.value = "";
       orderFilterButtons.forEach((button) => button.classList.toggle("active", button.dataset.orderFilter === "全部"));
-      renderOrders();
+      if (chatState.ordersLoadedAt > 0 && shouldResetOrderList) {
+        renderOrderCards();
+      } else if (!chatState.ordersLoadingPromise) {
+        if (chatState.ordersLoadedAt === 0) orderList.innerHTML = `<div class="order-empty">订单加载中...</div>`;
+      }
       helpModal.classList.remove("show");
       helpModal.setAttribute("aria-hidden", "true");
       orderModal.classList.add("show");
       orderModal.setAttribute("aria-hidden", "false");
+      if (chatState.ordersLoadedAt === 0) renderOrders();
     }
 
     function closeOrders(options = {}) {
@@ -6970,6 +7005,7 @@
       chatState.orderGuidanceActive = true;
       closeOrders({ preservePendingAfterOrder: true });
       setScreen("entry");
+      activateChatReadingMode();
       const renderOrderCard = (footerText) => {
         chatList.insertAdjacentHTML("beforeend", userOrderMessageHtml(order, formatClock(), { footerText }));
         iconRefresh();
@@ -7794,6 +7830,8 @@
 
       const orderConsultTarget = event.target.closest("[data-order-consult]");
       if (orderConsultTarget) {
+        event.preventDefault();
+        event.stopPropagation();
         startOrderConsultationFlow({ source: orderConsultTarget.dataset.orderConsult || "inline" });
         return;
       }

@@ -846,6 +846,10 @@
       scroll-snap-align: start;
     }
 
+    .scenario-card:active {
+      transform: none;
+    }
+
     .scenario-card::before {
       content: "";
       position: absolute;
@@ -1347,6 +1351,65 @@
     .pdf-file-open-link i {
       width: 17px;
       height: 17px;
+    }
+
+    .attachment-file-bubble {
+      width: min(100%, 288px);
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .attachment-file-card {
+      min-height: 78px;
+      padding: 12px;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .attachment-file-icon {
+      width: 40px;
+      height: 44px;
+      border-radius: 10px;
+      flex: 0 0 auto;
+      color: #2f70f0;
+      display: grid;
+      place-items: center;
+      background: rgba(47, 112, 240, .12);
+    }
+
+    .attachment-file-icon i { width: 23px; height: 23px; }
+
+    .attachment-file-detail {
+      min-width: 0;
+      flex: 1;
+      display: grid;
+      gap: 5px;
+    }
+
+    .attachment-file-name {
+      overflow: hidden;
+      color: #263752;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attachment-file-meta {
+      color: #7787a4;
+      font-size: 12px;
+    }
+
+    .attachment-file-download {
+      width: 17px;
+      height: 17px;
+      flex: 0 0 auto;
+      color: #2f70f0;
     }
 
     .message.user.image-upload .bubble {
@@ -2387,11 +2450,12 @@
     }
 
     .modal-layer {
-      position: fixed;
+      position: absolute;
       inset: 0;
       z-index: 100;
-      min-height: 100vh;
-      min-height: 100dvh;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
       display: flex;
       align-items: end;
       padding:
@@ -2546,20 +2610,26 @@
     .order-layer {
       padding: 0;
       align-items: end;
-      opacity: 0;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      contain: layout paint;
+      opacity: 1;
       visibility: hidden;
       pointer-events: none;
-      transition: opacity .22s ease, visibility 0s linear .22s;
+      transition: visibility 0s linear .34s;
     }
 
     .order-layer.show {
-      opacity: 1;
       visibility: visible;
       pointer-events: auto;
       transition-delay: 0s;
     }
 
     .order-layer .order-sheet {
+      background: #f8fbff;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
       transform: translateY(104%);
       transition: transform .34s cubic-bezier(.22, .86, .28, 1);
     }
@@ -2967,19 +3037,19 @@
               <div class="title-left"><span class="bar"></span><b>您可以这样问</b></div>
             </div>
             <div class="scenario-grid">
-              <button class="scenario-card" data-order-consult="entry">
+              <button class="scenario-card" type="button" data-order-consult="entry">
                 <span class="scenario-icon"><i data-lucide="ticket-check"></i></span>
                 <span><strong>订单咨询</strong><small>选择订单</small></span>
               </button>
-              <button class="scenario-card" data-clarify="points">
+              <button class="scenario-card" type="button" data-clarify="points">
                 <span class="scenario-icon"><i data-lucide="badge-percent"></i></span>
                 <span><strong>积分规则</strong><small>选择问题</small></span>
               </button>
-              <button class="scenario-card" data-clarify="product">
+              <button class="scenario-card" type="button" data-clarify="product">
                 <span class="scenario-icon"><i data-lucide="shopping-bag"></i></span>
                 <span><strong>产品咨询</strong><small>文旅服务</small></span>
               </button>
-              <button class="scenario-card" data-help="presale">
+              <button class="scenario-card" type="button" data-help="presale">
                 <span class="scenario-icon"><i data-lucide="headphones"></i></span>
                 <span><strong>转人工</strong><small>去排队</small></span>
               </button>
@@ -3513,6 +3583,8 @@
       userId: "",
       conversations: [],
       orders: [],
+      ordersLoadedAt: 0,
+      ordersLoadingPromise: null,
       orderFilter: "全部",
       orderGuidanceActive: false,
       historySource: "ai",
@@ -4205,8 +4277,16 @@
       }
     }
 
-    function iconRefresh() {
-      if (window.lucide) window.lucide.createIcons({ attrs: { "stroke-width": 2.2 } });
+    function iconRefresh(root = document) {
+      if (!window.lucide || !root) return;
+      window.lucide.createIcons({
+        attrs: { "stroke-width": 2.2 },
+        root
+      });
+      // Lucide keeps data-lucide on generated SVG elements. Remove it so later
+      // refreshes only initialize newly inserted <i> nodes instead of replacing
+      // every icon on the page again (which visibly flickers in iOS WKWebView).
+      root.querySelectorAll("svg[data-lucide]").forEach((icon) => icon.removeAttribute("data-lucide"));
     }
 
     function updateSendButtonState() {
@@ -4637,8 +4717,10 @@
       return humanAgentBubbleHtml(`<div class="bubble"><img class="chat-image" src="${escapeHtml(url)}" alt="客服发送的图片"></div>`, time, agentOverride);
     }
 
-    function extractPdfUrl(content = "") {
-      const source = String(content || "").trim();
+    function extractFileUrl(content = "") {
+      const source = typeof content === "object" && content
+        ? String(content.url || content.content || "").trim()
+        : String(content || "").trim();
       const markdownUrl = source.match(/\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/i)?.[1];
       const rawUrl = source.match(/https?:\/\/[^\s<>)\]]+/i)?.[0];
       const url = markdownUrl || rawUrl || "";
@@ -4653,25 +4735,73 @@
       return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
     }
 
-    function pdfFileName(content = "", fileName = "") {
-      if (String(fileName || "").trim()) return String(fileName).trim();
-      const url = extractPdfUrl(content);
-      if (!url) return "PDF 文件";
+    function attachmentFileName(content = "", fileName = "") {
+      const providedName = typeof content === "object" && content
+        ? (content.name || content.fileName || content.file_name || fileName)
+        : fileName;
+      if (String(providedName || "").trim()) return String(providedName).trim();
+      const url = extractFileUrl(content);
+      if (!url) return "文件";
       try {
-        return decodeURIComponent(new URL(url).pathname.split("/").pop() || "PDF 文件");
+        return decodeURIComponent(new URL(url).pathname.split("/").pop() || "文件");
       } catch (_) {
-        return "PDF 文件";
+        return "文件";
       }
     }
 
-    function humanAgentPdfMessageHtml(content, fileName, fileSize, time = formatClock(), agentOverride = serviceState.currentAgent) {
-      const url = extractPdfUrl(content);
-      const name = pdfFileName(content, fileName);
-      const card = url
+    function attachmentFileSize(content, fileSize) {
+      const value = typeof content === "object" && content
+        ? (content.size ?? content.fileSize ?? content.file_size ?? fileSize)
+        : fileSize;
+      return formatFileSize(value);
+    }
+
+    function fileExtension(fileName = "", url = "") {
+      const value = String(fileName || url || "").split(/[?#]/)[0];
+      return value.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "";
+    }
+
+    function fileAttachmentBubbleHtml(content, fileName, fileSize) {
+      const url = extractFileUrl(content);
+      const name = attachmentFileName(content, fileName);
+      const size = attachmentFileSize(content, fileSize);
+      const extension = fileExtension(name, url);
+      if (extension === "pdf") {
+        return `<div class="bubble pdf-file-bubble">${url
         ? `<iframe class="pdf-file-preview" src="${escapeHtml(url)}" title="${escapeHtml(name)}" loading="lazy"></iframe>
            <a class="pdf-file-open-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="external-link"></i>打开原文件</a>`
-        : `<div class="pdf-file-open-link"><i data-lucide="file-text"></i>PDF 文件地址无效</div>`;
-      return humanAgentBubbleHtml(`<div class="bubble pdf-file-bubble">${card}</div>`, time, agentOverride);
+        : `<div class="pdf-file-open-link"><i data-lucide="file-text"></i>PDF 文件地址无效</div>`}</div>`;
+      }
+      const typeLabel = extension ? extension.toUpperCase() : "文件";
+      return `<div class="bubble attachment-file-bubble">${url
+        ? `<a class="attachment-file-card" href="${escapeHtml(url)}" download="${escapeHtml(name)}" target="_blank" rel="noopener noreferrer" aria-label="下载文件：${escapeHtml(name)}">
+            <span class="attachment-file-icon"><i data-lucide="file-text"></i></span>
+            <span class="attachment-file-detail"><span class="attachment-file-name">${escapeHtml(name)}</span><span class="attachment-file-meta">${escapeHtml(typeLabel)} · ${escapeHtml(size)}</span></span>
+            <i class="attachment-file-download" data-lucide="download"></i>
+          </a>`
+        : `<div class="attachment-file-card"><span class="attachment-file-icon"><i data-lucide="file-text"></i></span><span class="attachment-file-detail"><span class="attachment-file-name">${escapeHtml(name)}</span><span class="attachment-file-meta">文件地址无效</span></span></div>`}</div>`;
+    }
+
+    function humanAgentFileMessageHtml(content, fileName, fileSize, time = formatClock(), agentOverride = serviceState.currentAgent) {
+      return humanAgentBubbleHtml(fileAttachmentBubbleHtml(content, fileName, fileSize), time, agentOverride);
+    }
+
+    function aiFileMessageHtml(content, fileName, fileSize, time = formatClock()) {
+      return aiMessageHtml(fileAttachmentBubbleHtml(content, fileName, fileSize), time);
+    }
+
+    function normalizeAnswerAttachment(value) {
+      let payload = value;
+      if (typeof payload === "string") {
+        try { payload = JSON.parse(payload); } catch (_) { return null; }
+      }
+      const data = payload?.data || payload;
+      if (!data || typeof data !== "object" || !extractFileUrl(data)) return null;
+      return {
+        url: extractFileUrl(data),
+        name: data.name || data.fileName || data.file_name || "",
+        size: data.size ?? data.fileSize ?? data.file_size
+      };
     }
 
     function appendHumanAgentMessage(text, time = formatClock(), agentOverride = serviceState.currentAgent) {
@@ -4701,7 +4831,7 @@
         return html.replace('class="message ', 'class="message history-loaded ');
       }
       if (Number(message.type) === 4) {
-        const html = humanAgentPdfMessageHtml(message.content, message.fileName, message.fileSize, time, {
+        const html = humanAgentFileMessageHtml(message.content, message.fileName, message.fileSize, time, {
           id: message.fromUserId,
           username: message.fromUserUserName || message.fromUserUsername || message.fromUserAgentNo || message.fromUserWorkNo,
           nickname: message.fromUserNickName || "人工客服",
@@ -5717,10 +5847,6 @@
 
     function startOrderConsultationFlow(options = {}) {
       chatState.orderGuidanceActive = true;
-      setScreen("entry");
-      activateChatReadingMode();
-      closeEmojiPanel();
-      closeUploadModal();
       openOrders();
     }
 
@@ -5930,14 +6056,31 @@
             streamBubble?.setText(fullText);
           },
           onDone(fullText) {
-            streamBubble?.finish(fullText);
+            // 文件答案没有文本增量，等待最终结果分支替换为对应的文件气泡。
+            if (!normalizeAnswerAttachment(fullText)) streamBubble?.finish(fullText);
           }
         }
       ).then((result) => {
         if (typingId) removeTyping(typingId);
         if (result.streamed) {
-          streamBubble?.finish(result.answer);
-          registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: result.answer, conversationId: chatState.conversationId });
+          const attachment = normalizeAnswerAttachment(result.answer);
+          if (attachment) {
+            streamBubble?.remove();
+            appendAi(aiFileMessageHtml(attachment.url, attachment.name, attachment.size));
+            registerUnifiedRealtimeMessage({
+              source: "ai",
+              role: "ai",
+              type: "file",
+              content: attachment.url,
+              fileName: attachment.name,
+              fileSize: attachment.size,
+              conversationId: chatState.conversationId
+            });
+            scrollChatBottom();
+          } else {
+            streamBubble?.finish(result.answer);
+            registerUnifiedRealtimeMessage({ source: "ai", role: "ai", type: "text", content: result.answer, conversationId: chatState.conversationId });
+          }
           if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
           return;
         }
@@ -6111,25 +6254,30 @@
           timestamp,
           sequence: ++chatState.unifiedSequence
         });
-        if (message.answer) rows.push({
-          source: "ai",
-          role: "ai",
-          type: "text",
-          content: message.answer,
-          conversationId,
-          messageId: message.id ? `${message.id}:answer` : "",
-          date,
-          time,
-          timestamp: timestamp ? timestamp + 1 : 0,
-          sequence: ++chatState.unifiedSequence
-        });
+        if (message.answer) {
+          const attachment = normalizeAnswerAttachment(message.answer);
+          rows.push({
+            source: "ai",
+            role: "ai",
+            type: attachment ? "file" : "text",
+            content: attachment ? attachment.url : message.answer,
+            fileName: attachment?.name || "",
+            fileSize: attachment?.size,
+            conversationId,
+            messageId: message.id ? `${message.id}:answer` : "",
+            date,
+            time,
+            timestamp: timestamp ? timestamp + 1 : 0,
+            sequence: ++chatState.unifiedSequence
+          });
+        }
         return rows;
       });
     }
 
     function humanHistoryMessageType(message = {}) {
       if (Number(message.type) === 2) return "image";
-      if (Number(message.type) === 4) return "pdf";
+      if (Number(message.type) === 4) return "file";
       if (message.order || message.orderInfo || parseOrderTransferText(message.content)) return "order";
       if (Number(message.type) === 3) return "system";
       return "text";
@@ -6214,11 +6362,13 @@
       } else if (message.role === "agent") {
         html = message.type === "image"
           ? humanAgentImageMessageHtml(String(message.content || ""), time, message.agent)
-          : message.type === "pdf"
-            ? humanAgentPdfMessageHtml(message.content, message.fileName, message.fileSize, time, message.agent)
+          : message.type === "file"
+            ? humanAgentFileMessageHtml(message.content, message.fileName, message.fileSize, time, message.agent)
             : humanAgentMessageHtml(String(message.content || ""), time, message.agent);
       } else {
-        html = message.type === "html"
+        html = message.type === "file"
+          ? aiFileMessageHtml(message.content, message.fileName, message.fileSize, time)
+          : message.type === "html"
           ? aiMessageHtml(String(message.content || ""), time)
           : aiMessageHtml(`<div class="bubble">${formatPlainText(String(message.content || ""))}</div>`, time);
       }
@@ -6789,38 +6939,56 @@
             </span>
           </button>
         `).join("");
-      iconRefresh();
+      iconRefresh(orderList);
     }
 
-    function renderOrders() {
+    function renderOrders({ force = false } = {}) {
       if (!currentUser.memberId) {
         chatState.orders = [];
+        chatState.ordersLoadedAt = 0;
         renderOrderCards([]);
         return Promise.resolve([]);
       }
-      return api.queryOrders({ memberId: currentUser.memberId }).then((orders) => {
+
+      if (!force && chatState.ordersLoadedAt > 0) {
+        renderOrderCards();
+        return Promise.resolve(chatState.orders);
+      }
+
+      if (chatState.ordersLoadingPromise) return chatState.ordersLoadingPromise;
+
+      chatState.ordersLoadingPromise = api.queryOrders({ memberId: currentUser.memberId }).then((orders) => {
         chatState.orders = orders || [];
+        chatState.ordersLoadedAt = Date.now();
         renderOrderCards();
         return chatState.orders;
       }).catch((error) => {
         console.warn("queryOrders failed", error);
-        chatState.orders = [];
-        renderOrderCards([]);
-        return [];
+        if (!chatState.orders.length) renderOrderCards([]);
+        return chatState.orders;
+      }).finally(() => {
+        chatState.ordersLoadingPromise = null;
       });
+      return chatState.ordersLoadingPromise;
     }
 
     function openOrders() {
       closeEmojiPanel();
       closeUploadModal();
+      const shouldResetOrderList = chatState.orderFilter !== "全部" || Boolean(orderSearchInput?.value);
       chatState.orderFilter = "全部";
       if (orderSearchInput) orderSearchInput.value = "";
       orderFilterButtons.forEach((button) => button.classList.toggle("active", button.dataset.orderFilter === "全部"));
-      renderOrders();
+      if (chatState.ordersLoadedAt > 0 && shouldResetOrderList) {
+        renderOrderCards();
+      } else if (!chatState.ordersLoadingPromise) {
+        if (chatState.ordersLoadedAt === 0) orderList.innerHTML = `<div class="order-empty">订单加载中...</div>`;
+      }
       helpModal.classList.remove("show");
       helpModal.setAttribute("aria-hidden", "true");
       orderModal.classList.add("show");
       orderModal.setAttribute("aria-hidden", "false");
+      if (chatState.ordersLoadedAt === 0) renderOrders();
     }
 
     function closeOrders(options = {}) {
@@ -6837,6 +7005,7 @@
       chatState.orderGuidanceActive = true;
       closeOrders({ preservePendingAfterOrder: true });
       setScreen("entry");
+      activateChatReadingMode();
       const renderOrderCard = (footerText) => {
         chatList.insertAdjacentHTML("beforeend", userOrderMessageHtml(order, formatClock(), { footerText }));
         iconRefresh();
@@ -7152,7 +7321,7 @@
       registerUnifiedRealtimeMessage({
         source: "human",
         role: packet.type === 3 ? "system" : "agent",
-        type: packet.type === 2 ? "image" : (packet.type === 4 ? "pdf" : (packet.type === 3 ? "system" : "text")),
+        type: packet.type === 2 ? "image" : (packet.type === 4 ? "file" : (packet.type === 3 ? "system" : "text")),
         content: packet.type === 2 ? packet.content : decodeKefuEmoji(packet.content),
         fileName: packet.fileName || packet.file_name || "",
         fileSize: packet.fileSize ?? packet.file_size,
@@ -7190,7 +7359,7 @@
       }
       if (packet.type === 4) {
         clearAgentReplyWatcher();
-        chatList.insertAdjacentHTML("beforeend", humanAgentPdfMessageHtml(
+        chatList.insertAdjacentHTML("beforeend", humanAgentFileMessageHtml(
           packet.content,
           packet.fileName || packet.file_name,
           packet.fileSize ?? packet.file_size,
@@ -7661,6 +7830,8 @@
 
       const orderConsultTarget = event.target.closest("[data-order-consult]");
       if (orderConsultTarget) {
+        event.preventDefault();
+        event.stopPropagation();
         startOrderConsultationFlow({ source: orderConsultTarget.dataset.orderConsult || "inline" });
         return;
       }
