@@ -7004,11 +7004,9 @@
       lastSelectedOrder = order;
       chatState.orderGuidanceActive = true;
       closeOrders({ preservePendingAfterOrder: true });
-      setScreen("entry");
-      activateChatReadingMode();
       const renderOrderCard = (footerText) => {
         chatList.insertAdjacentHTML("beforeend", userOrderMessageHtml(order, formatClock(), { footerText }));
-        iconRefresh();
+        iconRefresh(chatList);
       };
 
       if (serviceState.humanActive && serviceState.currentAgent?.id) {
@@ -7021,8 +7019,11 @@
         return;
       }
 
-      renderOrderCard("黄小西将结合该订单继续答复");
-      appendAi(orderSelectionFollowupHtml());
+      chatList.insertAdjacentHTML(
+        "beforeend",
+        `${userOrderMessageHtml(order, formatClock(), { footerText: "黄小西将结合该订单继续答复" })}${aiMessageHtml(orderSelectionFollowupHtml())}`
+      );
+      iconRefresh(chatList);
       scrollChatBottom();
       if (serviceState.pendingAfterOrder === "售后服务") {
         serviceState.pendingAfterOrder = "";
@@ -7907,9 +7908,12 @@
 
       const orderTarget = event.target.closest("[data-order-id]");
       if (orderTarget) {
+        event.preventDefault();
+        event.stopPropagation();
         const orderSource = chatState.orders.length ? chatState.orders : mockOrders;
         const order = orderSource.find((item) => item.id === orderTarget.dataset.orderId);
         if (order) sendOrder(order);
+        return;
       }
 
       const productTarget = event.target.closest("[data-product-id]");
