@@ -13,6 +13,17 @@
 3. 构建生产包：`npm run build`
 4. 本地预览构建结果：`npm run preview`
 
+环境由启动/打包命令决定：
+
+| 环境 | 本地启动 | 打包 |
+|---|---|---|
+| 正式环境 | `npm run dev` 或 `npm run dev:prod` | `npm run build` |
+| 测试环境 | `npm run dev:test` | `npm run build:test` |
+
+`npm run dev` 保持为默认正式环境入口；需要明确表达环境时使用 `npm run dev:prod`。正式环境配置位于 `.env.development` 和 `.env.production`，测试环境配置位于 `.env.test`。
+
+测试模式下，人工客服、AI 问答、AI 签名、SSO 与行程接口全部连接测试环境；正式模式下全部连接生产环境。
+
 ## Local Proxy
 
 开发环境下，前端不再直连后端地址，而是统一走本地代理：

@@ -13,7 +13,9 @@ export default defineConfig(({mode}) => {
   // 与 travel-client 的 H5 环境一致，为 gkh SSO 登录和用户信息接口提供同源代理。
   // 必须与 travel-client 的 h5pre/h5prod 保持同一套网关；
   // 非 libs 域会落到另一套用户/行程数据，导致“采纳成功”后列表查不到。
-  const hxxAuthTarget = env.VITE_HXX_AUTH_PROXY_TARGET || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/rxqdata/authAdminService';
+  const hxxAuthTarget = env.VITE_HXX_AUTH_PROXY_TARGET
+    || env.VITE_HXX_AUTH_BASE_URL
+    || 'https://glsw-wdgz-libs.aihuangxiaoxi.com/hxx/authAdminService';
   const basePath = env.VITE_BASE_PATH || '/football/';
   const normalizedBasePath = basePath.replace(/\/+$/, '');
 

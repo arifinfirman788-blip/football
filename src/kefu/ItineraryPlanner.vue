@@ -12,7 +12,6 @@
         <button type="button" :class="{ active: tab === 'overview' }" @click="tab = 'overview'">总览</button>
         <button type="button" :class="{ active: tab === 'daily' }" @click="tab = 'daily'">每日</button>
       </nav>
-      <button type="button" class="itinerary-header-button close" aria-label="关闭" @click="emit('close')">×</button>
     </header>
 
     <main class="itinerary-content">
@@ -91,19 +90,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import MainQaRouteMap from './MainQaRouteMap.vue'
 import ItineraryNodeCard from './ItineraryNodeCard.vue'
 import bgIndexTop from './assets/itinerary/bg_top-min.jpg'
 import bgDayHeader from './assets/itinerary/bg_day-min.jpg'
 
-const props = defineProps<{ authorization?: string; clientId?: string; apiBase: string; previewDetail?: any; initialItineraryId?: string | number | null; nodeOpen?: (node: any) => string | void }>()
-const emit = defineEmits<{ close: []; openDetail: [id: string | number]; openNode: [node: any] }>()
+const props = defineProps<{ authorization?: string; clientId?: string; apiBase: string; previewDetail?: any; initialItineraryId?: string | number | null; routeManaged?: boolean; routeDirection?: 'forward' | 'back' | 'none'; nodeOpen?: (node: any) => string | void }>()
+const emit = defineEmits<{ close: []; routeBack: [alreadyRendered?: boolean]; openDetail: [id: string | number]; openNode: [node: any] }>()
 const itineraries = ref<any[]>([])
 const detail = ref<any | null>(null)
 const loading = ref(false)
 const loadingText = ref('正在加载我的行程…')
 const loadingMore = ref(false)
+const listLoaded = ref(false)
 const error = ref('')
 const tab = ref<'overview' | 'daily'>('overview')
 const dayIndex = ref(0)
@@ -111,6 +111,8 @@ const currentYear = new Date().getFullYear()
 const selectedYear = ref<number | null>(null)
 const selectedMonth = ref<number | null>(null)
 const selectedStatus = ref<string | null>(null)
+let routeTransitionId = 0
+let routeTransitionBusy = false
 const showDateFilter = ref(false)
 const showStatusFilter = ref(false)
 const categoryFilter = ref('全部')
@@ -191,6 +193,7 @@ async function loadList(loadMore = false) {
     const data = await request(`api/itinerary/list?${params.toString()}`)
     const list = Array.isArray(data) ? data : (data?.rows || data?.list || data?.records || data?.data?.rows || data?.data?.list || data?.data?.records || [])
     itineraries.value = loadMore ? [...itineraries.value, ...list] : list
+    if (!loadMore) listLoaded.value = true
     const total = Number(data?.total ?? data?.count ?? data?.data?.total ?? 0)
     hasMore.value = total ? itineraries.value.length < total : list.length >= pageSize
     if (hasMore.value) pageNum.value += 1
@@ -198,17 +201,79 @@ async function loadList(loadMore = false) {
     error.value = cause?.message || '行程加载失败，请稍后重试'
   } finally { loading.value = false; loadingMore.value = false }
 }
-async function openDetail(item: any) {
+async function runRouteViewTransition(direction: 'forward' | 'back', update: (fullTransition: boolean) => void | Promise<void>) {
+  const transitionId = ++routeTransitionId
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+  const currentPage = document.querySelector('#itineraryPlannerMount .itinerary-overlay') as HTMLElement | null
+  const snapshot = !reducedMotion && currentPage?.cloneNode(true) as HTMLElement | undefined
+  if (!snapshot || !currentPage?.parentElement) return update(false)
+  routeTransitionBusy = true
+  snapshot.dataset.itineraryTransitionSnapshot = 'true'
+  snapshot.setAttribute('aria-hidden', 'true')
+  currentPage.parentElement.append(snapshot)
+  try {
+    await update(true)
+    if (transitionId !== routeTransitionId) return
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())))
+    if (transitionId !== routeTransitionId) return
+    snapshot.classList.add(`itinerary-transition-exit-${direction}`)
+    currentPage.classList.add(`itinerary-transition-enter-${direction}`)
+    await new Promise((resolve) => window.setTimeout(resolve, 230))
+  } finally {
+    snapshot.remove()
+    currentPage.classList.remove(`itinerary-transition-enter-${direction}`)
+    if (transitionId === routeTransitionId) routeTransitionBusy = false
+  }
+}
+async function openDetail(item: any, animate = true) {
+  if (routeTransitionBusy) return
   const id = typeof item === 'object' ? item?.itineraryId : item
   if (!id) return
-  loading.value = true; loadingText.value = '正在加载行程详情…'; error.value = ''
+  if (!animate) loading.value = true
+  loadingText.value = '正在加载行程详情…'; error.value = ''
   try {
-    detail.value = await request(`api/itinerary/detail?itineraryId=${encodeURIComponent(id)}`)
-    dayIndex.value = 0; tab.value = 'overview'; emit('openDetail', id)
+    const nextDetail = await request(`api/itinerary/detail?itineraryId=${encodeURIComponent(id)}`)
+    const commitDetail = async (_fullTransition: boolean) => {
+      detail.value = nextDetail
+      dayIndex.value = 0; tab.value = 'overview'; emit('openDetail', id)
+      await nextTick()
+    }
+    if (animate) await runRouteViewTransition('forward', commitDetail)
+    else await commitDetail(true)
   } catch (cause: any) { error.value = cause?.message || '行程详情加载失败' }
   finally { loading.value = false }
 }
-function goBack() { if (detail.value) { detail.value = null; error.value = ''; return } emit('close') }
+async function goBack() {
+  if (routeTransitionBusy) return
+  if (props.routeManaged) {
+    // 从列表进入详情时列表数据仍保留在当前组件中。先在同一组件内完成
+    // 双层返回动画，再只更新 History，避免重新挂载和重复请求造成闪屏。
+    if (detail.value && listLoaded.value && window.history.state?.kefuItineraryFromList) {
+      await runRouteViewTransition('back', async () => {
+        detail.value = null
+        tab.value = 'overview'
+        dayIndex.value = 0
+        error.value = ''
+        await nextTick()
+      })
+      emit('routeBack', true)
+    } else {
+      emit('routeBack', false)
+    }
+    return
+  }
+  if (!detail.value) {
+    emit('close')
+    return
+  }
+  // 详情可能由“采纳成功”或回答中的预览直接打开，此时列表从未加载。
+  // 返回列表时统一重新请求，既补齐首次列表，也同步最新的行程状态。
+  detail.value = null
+  tab.value = 'overview'
+  dayIndex.value = 0
+  error.value = ''
+  await loadList()
+}
 function openNodeDetail(node: any) {
   const message = props.nodeOpen?.(node)
   if (!props.nodeOpen) emit('openNode', node)
@@ -274,12 +339,12 @@ onMounted(() => {
     return
   }
   if (props.initialItineraryId) {
-    void openDetail(props.initialItineraryId)
+    void openDetail(props.initialItineraryId, false)
     return
   }
   void loadList()
 })
-onBeforeUnmount(() => window.clearTimeout(nodeNoticeTimer))
+onBeforeUnmount(() => { routeTransitionId += 1; window.clearTimeout(nodeNoticeTimer) })
 </script>
 
 <style scoped>
@@ -305,4 +370,25 @@ onBeforeUnmount(() => window.clearTimeout(nodeNoticeTimer))
 .rxh-day-block { margin:0; padding:0 0 16px; background:#fff; }.rxh-day-block>header { height:62px; min-height:0; box-sizing:border-box; padding:0 16px; display:grid; grid-template-columns:24px minmax(0,1fr) auto; column-gap:8px; align-items:center; color:#1e293b; background-color:#fff;background-position:center top;background-repeat:no-repeat;background-size:100% auto }.rxh-day-block>header>span { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:#fff; background:#f87f5f; font-size:12px; }.rxh-day-block>header b { color:#333; font-size:16px; font-weight:600; }.rxh-day-block>header small { display:flex; align-items:center; gap:4px; color:#1e293b; font-size:11px; white-space:nowrap; }.rxh-day-block>header small i{width:10px;height:10px;box-sizing:border-box;border:1.4px solid currentColor;border-radius:2px}.rxh-day-block>header small i::before{content:"";display:block;margin-top:2px;border-top:1.4px solid currentColor}.rxh-day-subtitle { display:block; width:fit-content; max-width:calc(100% - 32px); box-sizing:border-box; margin:0 16px 4px; overflow:hidden; padding:6px 8px; border-radius:4px; color:#475569; background:#fefae8; font-size:11px; font-style:normal; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }.rxh-schedule-card { position:relative; display:grid; grid-template-columns:42px 17px minmax(0,1fr); gap:7px; padding:12px 12px 0; }.rxh-schedule-card time { padding-top:4px; color:#8a96aa; font-size:10px; }.rxh-schedule-card>i { width:9px; height:9px; margin-top:5px; border:3px solid #dfe6fb; border-radius:50%; background:#7786fc; }.rxh-schedule-card>i::after { content:""; position:absolute; top:25px; width:2px; height:calc(100% - 18px); background:#e2e7f3; }.rxh-schedule-card:last-child>i::after { display:none; }.itinerary-timeline li{position:relative;grid-template-columns:42px 18px minmax(0,1fr);min-height:0;padding-bottom:12px}.itinerary-timeline li::after{content:"";position:absolute;z-index:0;top:21px;bottom:-12px;left:53px;width:2px;background:#dce5f7}.itinerary-timeline li:last-child::after{display:none}.itinerary-timeline li>*{position:relative;z-index:1}.itinerary-timeline li>.node-card{min-width:0}.timeline-dot:after{display:none}
 .daily-day-section{background:#fff}.itinerary-daily .daily-header{height:62px;min-height:0;box-sizing:border-box;margin:0;padding:0 16px;display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:8px;align-items:center;color:#1e293b;background-color:#fff;background-repeat:no-repeat;background-size:100% auto}.itinerary-daily .daily-header .daily-header-heart{width:24px;height:24px;display:grid!important;place-items:center;margin:0!important;padding:0!important;border-radius:50%!important;color:#fff!important;background:#f87f5f!important;font-size:12px}.itinerary-daily .daily-header b{color:#333;font-size:16px;font-weight:600}.itinerary-daily .daily-header small{display:flex;align-items:center;gap:4px;color:#1e293b;font-size:11px;white-space:nowrap}.itinerary-daily .daily-header small i{width:10px;height:10px;box-sizing:border-box;border:1.4px solid currentColor;border-radius:2px}.itinerary-daily .daily-header small i::before{content:"";display:block;margin-top:2px;border-top:1.4px solid currentColor}.daily-day-subtitle{display:block;width:fit-content;max-width:calc(100% - 32px);box-sizing:border-box;margin:0 16px 4px;overflow:hidden;padding:6px 8px;border-radius:4px;color:#475569;background:#fefae8;font-size:11px;font-style:normal;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
 .daily-day-section{background:#fff}.itinerary-daily .daily-header{height:62px;min-height:0;box-sizing:border-box;margin:0;padding:0 16px;display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:8px;align-items:center;color:#1e293b;background-color:#fff;background-repeat:no-repeat;background-size:100% auto}.itinerary-daily .daily-header .daily-header-heart{width:24px;height:24px;display:grid!important;place-items:center;margin:0!important;padding:0!important;border-radius:50%!important;color:#fff!important;background:#f87f5f!important;font-size:12px}.itinerary-daily .daily-header b{color:#333;font-size:16px;font-weight:600}.itinerary-daily .daily-header small{display:flex;align-items:center;gap:4px;color:#1e293b;font-size:11px;white-space:nowrap}.itinerary-daily .daily-header small i{width:10px;height:10px;box-sizing:border-box;border:1.4px solid currentColor;border-radius:2px}.itinerary-daily .daily-header small i::before{content:"";display:block;margin-top:2px;border-top:1.4px solid currentColor}.daily-day-subtitle{display:block;width:fit-content;max-width:calc(100% - 32px);box-sizing:border-box;margin:0 16px 4px;overflow:hidden;padding:6px 8px;border-radius:4px;color:#475569;background:#fefae8;font-size:11px;font-style:normal;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}.itinerary-node-notice{position:absolute;z-index:120;top:50%;left:50%;max-width:310px;margin:0;padding:10px 14px;border-radius:999px;color:#fff;background:rgba(26,41,74,.86);box-shadow:0 16px 38px rgba(18,32,58,.24);transform:translate(-50%,-50%);font-size:12px;font-weight:600;line-height:1.4;text-align:center;white-space:nowrap;pointer-events:none}
+
+/* 行程页面仅保留左上角路由返回，不再为右上角关闭按钮预留列。 */
+.itinerary-overlay{position:fixed;inset:0;box-sizing:border-box;width:100vw;width:100dvw;height:100vh;height:100dvh}
+.itinerary-header{grid-template-columns:36px minmax(0,1fr)}
+.itinerary-header.has-tabs{grid-template-columns:34px minmax(0,1fr) auto}
+</style>
+
+<style>
+[data-itinerary-transition-snapshot]{position:fixed!important;z-index:91!important;inset:0!important;box-sizing:border-box;width:100vw!important;width:100dvw!important;height:100vh!important;height:100dvh!important;overflow:hidden;pointer-events:none}
+.itinerary-transition-enter-forward,
+.itinerary-transition-enter-back{position:fixed!important;z-index:92!important;inset:0!important;box-sizing:border-box;width:100vw!important;width:100dvw!important;height:100vh!important;height:100dvh!important;pointer-events:none}
+.itinerary-transition-exit-forward{animation:itinerary-page-old-forward .20s ease-out both}
+.itinerary-transition-enter-forward{animation:itinerary-page-new-forward .20s ease-out both}
+.itinerary-transition-exit-back{animation:itinerary-page-old-back .20s ease-out both}
+.itinerary-transition-enter-back{animation:itinerary-page-new-back .20s ease-out both}
+/* 真机 WebView 只做颜色/透明度交叉渐变，不再移动页面。 */
+@keyframes itinerary-page-old-forward{from{opacity:1}to{opacity:0}}
+@keyframes itinerary-page-new-forward{from{opacity:0}to{opacity:1}}
+@keyframes itinerary-page-old-back{from{opacity:1}to{opacity:0}}
+@keyframes itinerary-page-new-back{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.itinerary-transition-exit-forward,.itinerary-transition-enter-forward,.itinerary-transition-exit-back,.itinerary-transition-enter-back{animation:none}}
 </style>

@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
 const html = await readFile(new URL('../src/kefu/Kefu.vue', import.meta.url), 'utf8');
+const mainQaAnswerCards = await readFile(new URL('../src/kefu/MainQaAnswerCards.vue', import.meta.url), 'utf8');
+const itineraryPlanner = await readFile(new URL('../src/kefu/ItineraryPlanner.vue', import.meta.url), 'utf8');
+const buildScript = await readFile(new URL('./inline-dist-assets.mjs', import.meta.url), 'utf8');
+const entryHtml = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 const checks = [
   ['dynamic viewport height', /\.screen-shell\s*\{[^}]*height:\s*100dvh/s],
@@ -30,6 +34,37 @@ const checks = [
   ['image gesture supports double tap', /function toggleImagePreviewZoom[\s\S]*?IMAGE_PREVIEW_DOUBLE_TAP_SCALE/s],
   ['image gesture resets with preview lifecycle', /function openImagePreview[\s\S]*?resetImagePreviewGesture[\s\S]*?function closeImagePreview[\s\S]*?resetImagePreviewGesture/s],
   ['custom pinch prevents native gestures', /imagePreviewImage\?\.addEventListener\("pointermove"[\s\S]*?event\.preventDefault\(\)/s],
+  ['mainqa card host may shrink inside bubble', /\.mainqa-stream-host,\s*\.mainqa-answer,\s*\[data-mainqa-answer-cards\]\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s],
+  ['candidate panel is inset-free, transparent, and clips fixed-width cards', () => /\.qa-recommend-panel--candidate\s*\{[^}]*padding:\s*0[^}]*overflow:\s*hidden[^}]*background:\s*transparent[^}]*backdrop-filter:\s*none/s.test(mainQaAnswerCards)],
+  ['candidate strip owns horizontal scrolling', () => /\.qa-recommend-panel\s+\.candidate-strip\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow-x:\s*auto/s.test(mainQaAnswerCards)],
+  ['short chat messages keep content height and follow the history entry', /\.chat-list\s*\{[^}]*grid-auto-rows:\s*max-content[^}]*align-content:\s*start/s],
+  ['streaming answer removes the upper transient status', (source) => !/class="mainqa-status"/.test(source)],
+  ['GKH mini program navigation uses the bundled WeChat SDK', /import wx from "weixin-js-sdk"[\s\S]*?function navigateToGkhMiniProgram[\s\S]*?wx\?\.miniProgram[\s\S]*?miniProgram\.navigateTo/s],
+  ['all GKH entity entry points share the navigation helper', (source) => (source.match(/navigateToGkhMiniProgram\(target\.miniPath(?:,|\))/g) || []).length >= 3],
+  ['GKH navigation emits request, environment, success and failure diagnostics', /\[GKH_NAV\][\s\S]*?navigateTo success[\s\S]*?navigateTo failed/s],
+  ['customer-service back exits through the mini program bridge', /function navigateBackFromKefu[\s\S]*?miniProgram\.getEnv[\s\S]*?miniProgram\.navigateBack[\s\S]*?miniProgram\.switchTab/s],
+  ['header back exits only after internal screens return to entry', /if \(current && current !== "entry"\) setScreen\("entry"\);\s*else navigateBackFromKefu\(\)/s],
+  ['returning from itinerary detail reloads the itinerary list', () => /async function goBack\(\)[\s\S]*?detail\.value\s*=\s*null[\s\S]*?await loadList\(\)/s.test(itineraryPlanner)],
+  ['itinerary list and detail use distinct clean History routes', /ITINERARY_LIST_PATH\s*=\s*`\$\{appBasePath\}\/itinerary`[\s\S]*?ITINERARY_DETAIL_PATH_PREFIX\s*=\s*`\$\{ITINERARY_LIST_PATH\}\/`[\s\S]*?history\.pushState/s],
+  ['itinerary browser back and swipe restore the routed page', /window\.addEventListener\("popstate"[\s\S]*?syncItineraryRoute\(\)/s],
+  ['itinerary header back delegates to History when route managed', () => /if \(props\.routeManaged\)[\s\S]*?emit\('routeBack',[\s\S]*?return/s.test(itineraryPlanner)],
+  ['direct itinerary detail pushes only its real history entry', (source) => {
+    const detailRoute = source.match(/async function openItineraryDetailRoute[\s\S]*?(?=\n\s*async function syncItineraryRoute)/)?.[0] || '';
+    return (detailRoute.match(/history\.pushState/g) || []).length === 1;
+  }],
+  ['itinerary header has no separate close button', () => !/itinerary-header-button close/.test(itineraryPlanner)],
+  ['itinerary route pages cover the dynamic viewport instead of the phone container', () => /\.itinerary-overlay\{[^}]*position:fixed[^}]*width:100dvw[^}]*height:100dvh/s.test(itineraryPlanner)],
+  ['itinerary route mount is outside the clipped phone shell', /<\/div>\s*<!-- 路由页面独立挂载[\s\S]*?<div id="itineraryPlannerMount"><\/div>/s],
+  ['itinerary routes animate forward and back with reduced-motion handling', () => /itinerary-transition-exit-forward[\s\S]*?itinerary-transition-enter-forward[\s\S]*?itinerary-transition-exit-back[\s\S]*?itinerary-transition-enter-back[\s\S]*?prefers-reduced-motion/s.test(itineraryPlanner)],
+  ['itinerary transition cross-fades old and new DOM snapshots without movement', () => /cloneNode\(true\)[\s\S]*?itinerary-transition-exit-[\s\S]*?itinerary-transition-enter-/s.test(itineraryPlanner) && itineraryPlanner.includes('@keyframes itinerary-page-old-forward{from{opacity:1}to{opacity:0}}') && itineraryPlanner.includes('@keyframes itinerary-page-new-forward{from{opacity:0}to{opacity:1}}') && !/itinerary-page-(?:old|new)-(?:forward|back)[^\n]*translate/s.test(itineraryPlanner)],
+  ['home page participates in the same route cross-fade', /currentPage\s*=\s*mountNode\?\.querySelector\("\.itinerary-overlay"\)\s*\|\|\s*document\.querySelector\("\.board"\)[\s\S]*?nextPage\s*=\s*mountNode\?\.querySelector\("\.itinerary-overlay"\)\s*\|\|\s*document\.querySelector\("\.board"\)/s],
+  ['itinerary transition no longer depends on unstable native view transitions', () => !/startViewTransition/.test(itineraryPlanner)],
+  ['iOS swipe back does not replay the page transition after popstate', /if \(itineraryHistoryBackPending\)[\s\S]*?runItineraryRouteTransition\("back"[\s\S]*?else \{[\s\S]*?syncItineraryRoute\("none"\)/s],
+  ['detail back reuses the retained list instead of remounting it', () => /kefuItineraryFromList[\s\S]*?runRouteViewTransition\('back'[\s\S]*?detail\.value = null[\s\S]*?emit\('routeBack', true\)/s.test(itineraryPlanner)],
+  ['itinerary popstate uses the back transition', /popstate[\s\S]*?runItineraryRouteTransition\("back"[\s\S]*?syncItineraryRoute/s],
+  ['entry HTML declares no-store caching', () => /Cache-Control[^>]*no-store[^>]*no-cache/s.test(entryHtml)],
+  ['build emits a WebView version manifest', () => /version\.json[\s\S]*?BUILD_VERSION[\s\S]*?writeFile\(versionFile/s.test(buildScript)],
+  ['WebView checks version on resume and visibility', () => /cache:\s*'no-store'/s.test(buildScript) && /pageshow/s.test(buildScript) && /visibilitychange/s.test(buildScript)],
 ];
 
 const failures = checks.filter(([, matcher]) => (

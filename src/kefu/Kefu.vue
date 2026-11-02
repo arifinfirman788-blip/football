@@ -241,11 +241,13 @@
         </div>
 
         <div class="toast" id="toast">已打开产品详情页</div>
-        <div id="itineraryPlannerMount"></div>
       </section>
     </main>
 
   </div>
+
+  <!-- 路由页面独立挂载，避免被客服手机外壳的最大宽度和 overflow 裁剪。 -->
+  <div id="itineraryPlannerMount"></div>
 
   <div class="image-preview" id="imagePreview" role="dialog" aria-modal="true" aria-label="图片预览" aria-hidden="true">
     <button class="image-preview__close" type="button" data-close-image-preview aria-label="关闭图片预览">
@@ -1415,6 +1417,8 @@
 
     .chat-list {
       display: grid;
+      grid-auto-rows: max-content;
+      align-content: start;
       gap: 12px;
       min-height: 100%;
       transform: rotate(-180deg);
@@ -1577,9 +1581,10 @@
     }
 
     /* mainQA 的结构化回答：保持在 AI 气泡内，避免卡片脱离聊天时间线。 */
-    .mainqa-answer { width: 100%; max-width: none; }
+    .mainqa-stream-host, .mainqa-answer, [data-mainqa-answer-cards] { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+    .mainqa-answer { overflow: hidden; }
     /* 订购/推荐卡本身就是答案容器，不额外套一层通用白色聊天气泡。 */
-    .mainqa-card-answer { width: 100%; max-width: none; }
+    .mainqa-card-answer { width: 100%; min-width: 0; max-width: 100%; }
     .mainqa-card-answer .qa-cards { margin-top: 0; }
     .mainqa-answer .mainqa-text { min-width: 0; }
     .mainqa-think { margin: 0 0 10px; border: 1px solid rgba(65, 91, 150, .14); border-radius: 12px; background: rgba(238, 243, 255, .68); overflow: hidden; }
@@ -1596,9 +1601,6 @@
     .mainqa-loading-dots { display: inline-flex; gap: 3px; margin-left: auto; align-items: center; }
     .mainqa-loading-dots i { width: 4px; height: 4px; border-radius: 50%; background: #7c99e5; animation: mainqa-dot 1.05s ease-in-out infinite; }
     .mainqa-loading-dots i:nth-child(2) { animation-delay: .14s; }.mainqa-loading-dots i:nth-child(3) { animation-delay: .28s; }
-    .mainqa-status { display: flex; align-items: center; gap: 6px; margin: 0 0 9px; color: #5e759f; font-size: 11px; }
-    .mainqa-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #4b7cff; box-shadow: 0 0 0 4px rgba(75,124,255,.12); animation: mainqa-pulse 1.2s ease-out infinite; }
-    .mainqa-status::after { content: ""; width: 4px; height: 13px; border-radius: 999px; background: #5981ef; animation: blink .9s steps(2, start) infinite; }
     .mainqa-section { margin-top: 10px; }
     .mainqa-route-lazy-placeholder { display: grid; min-height: 200px; place-items: center; border-radius: 12px; color: #71809b; background: linear-gradient(135deg, #edf5ff, #f4efff); font-size: 12px; }
     .mainqa-route-lazy-placeholder::before { content: "地图将在显示时加载"; }
@@ -3249,27 +3251,43 @@
 import { createApp, onBeforeUnmount, onMounted } from "vue";
 import { createIcons, icons } from "lucide";
 import md5 from "crypto-js/md5";
+import wx from "weixin-js-sdk";
 import MainQaRouteMap from "./MainQaRouteMap.vue";
 import MainQaAnswerCards from "./MainQaAnswerCards.vue";
 import ItineraryPlanner from "./ItineraryPlanner.vue";
 import { buildItineraryCollectPayload } from "./itineraryPayload";
+import { filterGkhRecords, filterGkhRouteMapData, getGkhTzId, hasGkhTzId } from "./mainQaGkhFilter.js";
 
 const assetBase = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}kefu/assets/`;
 const mascotUpperbody = `${assetBase}huangxiaoxi-3d-upperbody.png`;
+const normalizeServiceBaseUrl = (value: string | undefined, fallback: string) => (value || fallback).replace(/\/+$/, "");
+const difyApiBaseUrl = normalizeServiceBaseUrl(
+  import.meta.env.VITE_DIFY_API_BASE_URL,
+  "https://swarm-brain.aihuangxiaoxi.com/api/hotelAi/dify/hotel/v2"
+);
+const hxxAuthBaseUrl = normalizeServiceBaseUrl(
+  import.meta.env.VITE_HXX_AUTH_BASE_URL,
+  "https://glsw-wdgz-libs.aihuangxiaoxi.com/hxx/authAdminService"
+);
+const kefuApiBaseUrl = normalizeServiceBaseUrl(
+  import.meta.env.VITE_KEFU_API_BASE_URL,
+  "https://customers.lelv.cn/prod-api"
+);
 
 // 同 travel-client/src/config/constant.js 中 h5RoleOverrides.gkh 的问答配置。
 // 客服 H5 是独立工程，不能直接引用 travel-client 的别名模块，故在此保留同一份常量。
 const MAIN_QA_GKH_CONFIG = Object.freeze({
-  baseUrl: "https://swarm-brain.aihuangxiaoxi.com/api/hotelAi/dify/hotel/v2",
+  baseUrl: difyApiBaseUrl,
   roleCode: "gkh",
   platformId: "600",
   channelType: "huangxx",
-  appKey: "glswxcx_xcx_40afd4",
-  appSecret: "d28c3572d629a5ce87806da8567aff98",
+  appKey: import.meta.env.VITE_AI_APP_KEY || "glswxcx_xcx_40afd4",
+  appSecret: import.meta.env.VITE_AI_APP_SECRET || "d28c3572d629a5ce87806da8567aff98",
+  preview: import.meta.env.VITE_AI_PREVIEW || "production",
   // travel-client 本地 H5 使用 /hxx 代理；部署后保持其正式 H5 登录地址。
   authBaseUrl: import.meta.env.DEV
     ? "/hxx/authAdminService"
-    : "https://glsw-wdgz.aihuangxiaoxi.com/hxx/authAdminService",
+    : hxxAuthBaseUrl,
   tenantId: "gkh",
   source: "wechat_app",
   clientId: "e5cd7e4891bf95d1d19206ce24a7b32e",
@@ -3676,14 +3694,14 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     };
 
     const kefuConfig = {
-      baseUrl: "https://customers.lelv.cn/prod-api",
-      // 同域 gkh 代理应转发到 customers.lelv.cn，专供图片上传使用，
-      // 避免 Android 微信 X5 对跨域 multipart 请求返回 HTTP 0。
-      uploadProxyBaseUrl: window.KEFU_RUNTIME_CONFIG?.uploadProxyBaseUrl || "/football/gkh",
-      wsUrl: "wss://customers.lelv.cn/kefu/ws",
+      baseUrl: kefuApiBaseUrl,
+      uploadApiBaseUrl: window.KEFU_RUNTIME_CONFIG?.uploadProxyBaseUrl
+        ? `${normalizeServiceBaseUrl(window.KEFU_RUNTIME_CONFIG.uploadProxyBaseUrl, "/football/gkh")}/prod-api`
+        : normalizeServiceBaseUrl(import.meta.env.VITE_KEFU_UPLOAD_BASE_URL, kefuApiBaseUrl),
+      wsUrl: import.meta.env.VITE_KEFU_WS_URL || "wss://customers.lelv.cn/kefu/ws",
       workStart: 9,
       workEnd: 18,
-      surveyUrl: "https://customers.lelv.cn/survey-fill",
+      surveyUrl: import.meta.env.VITE_KEFU_SURVEY_URL || "https://customers.lelv.cn/survey-fill",
       postSessionTimeoutMs: 15 * 60 * 1000
     };
 
@@ -3695,8 +3713,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     };
 
     const memberApiConfig = {
-      accessTokenUrl: "https://e.lelv.cn/msvc-shop/v1/api/getCurrentPlatformAccessToken",
-      userProfileUrl: "https://e.lelv.cn/msvc-shop/v4/order/new/get/user/by/id",
+      accessTokenUrl: import.meta.env.VITE_MEMBER_ACCESS_TOKEN_URL || "https://e.lelv.cn/msvc-shop/v1/api/getCurrentPlatformAccessToken",
+      userProfileUrl: import.meta.env.VITE_MEMBER_USER_PROFILE_URL || "https://e.lelv.cn/msvc-shop/v4/order/new/get/user/by/id",
       bootstrapToken: window.KEFU_RUNTIME_CONFIG?.platformAccessBootstrapToken || window.PLATFORM_ACCESS_BOOTSTRAP_TOKEN || "",
       tokenCacheMs: 90 * 60 * 1000
     };
@@ -4131,16 +4149,21 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       return mainQaLoginState.pending;
     }
 
-    function resolveAiUser(user = chatState.userId) {
-      if (user) return user;
-      // mainQA 的 requestUserQuery 由渠道登录用户构成 `${userId}_${platformId}`。
-      // 非人工问答不依赖人工客服访客登录完成，直接使用页面 URL 中的 userId。
-      const baseId = mainQaLoginState.userId
+    function resolveAiUserId(userId = "") {
+      return userId
+        || mainQaLoginState.userId
         || normalizeChannelUserId(urlUserId)
         || currentUser.channelUserId
         || currentUser.memberNo
         || currentUser.memberId
         || "test";
+    }
+
+    function resolveAiUser(user = chatState.userId) {
+      if (user) return user;
+      // mainQA 的 requestUserQuery 由渠道登录用户构成 `${userId}_${platformId}`。
+      // 非人工问答不依赖人工客服访客登录完成，直接使用页面 URL 中的 userId。
+      const baseId = resolveAiUserId();
       return `${baseId}_${difyConfig.platformId}`;
     }
 
@@ -4194,7 +4217,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
           user_name: mainQaLoginState.userName || currentUser.name || "贵客荟用户",
           session_id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           sender: "human",
-          preview: "production",
+          preview: difyConfig.preview,
           client: "wechatApplet",
           inputs: { channel: difyConfig.channel, ...tool }
         }
@@ -4233,10 +4256,13 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       queryConversations(payload = {}) {
         const limit = encodeURIComponent(payload.limit || difyConfig.recentLimit);
         const lastId = payload.lastId ? `&last_id=${encodeURIComponent(payload.lastId)}` : "&last_id=";
-        return ensureMainQaLogin().then(() => fetch(`${difyConfig.baseUrl}/conversations?user=${encodeURIComponent(resolveAiUser(payload.user))}&limit=${limit}${lastId}`, {
-          method: "GET",
-          headers: buildAiHeaders()
-        })).then((response) => {
+        return ensureMainQaLogin().then(() => {
+          const conversationUser = resolveAiUser(payload.user);
+          return fetch(`${difyConfig.baseUrl}/conversations?user=${encodeURIComponent(conversationUser)}&userId=${encodeURIComponent(conversationUser)}&limit=${limit}${lastId}`, {
+            method: "GET",
+            headers: buildAiHeaders()
+          });
+        }).then((response) => {
           if (!response.ok) throw new Error(`conversations ${response.status}`);
           return response.json();
         });
@@ -4245,10 +4271,13 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         const conversationId = encodeURIComponent(payload.conversationId || "");
         const limit = encodeURIComponent(payload.limit || 100);
         const firstId = payload.firstId ? `&first_id=${encodeURIComponent(payload.firstId)}` : "";
-        return ensureMainQaLogin().then(() => fetch(`${difyConfig.baseUrl}/messages?user=${encodeURIComponent(resolveAiUser(payload.user))}&conversation_id=${conversationId}&limit=${limit}${firstId}`, {
-          method: "GET",
-          headers: buildAiHeaders()
-        })).then((response) => {
+        return ensureMainQaLogin().then(() => {
+          const messageUser = resolveAiUser(payload.user);
+          return fetch(`${difyConfig.baseUrl}/messages?user=${encodeURIComponent(messageUser)}&userId=${encodeURIComponent(messageUser)}&conversation_id=${conversationId}&limit=${limit}${firstId}`, {
+            method: "GET",
+            headers: buildAiHeaders()
+          });
+        }).then((response) => {
           if (!response.ok) throw new Error(`messages ${response.status}`);
           return response.json();
         });
@@ -4287,7 +4316,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         // 否则服务端可能把它当作普通字段而不是图片文件。
         formData.append("file", file, file?.name || "chat-image.jpg");
         imageDebug("开始请求上传接口", { name: file?.name || "", type: file?.type || "", size: file?.size || 0 });
-        const endpoint = `${kefuConfig.uploadProxyBaseUrl}/prod-api/kefu/chat/messageBoard/uploadImage?timestamp=${Date.now()}`;
+        const endpoint = `${kefuConfig.uploadApiBaseUrl}/kefu/chat/messageBoard/uploadImage?timestamp=${Date.now()}`;
         const normalizeUploadResponse = (result = {}) => {
           if (result.code && Number(result.code) !== 200) {
             throw new Error(result.msg || result.message || `接口返回异常：${result.code}`);
@@ -4653,21 +4682,33 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
 
     function normalizeMainQaActionEvents(...groups) {
       const events = [];
-      const collect = (value) => {
+      const collect = (value, inheritedSourceId = "") => {
         const parsed = parseMainQaData(value);
         if (Array.isArray(parsed)) {
-          parsed.forEach(collect);
+          parsed.forEach((item) => collect(item, inheritedSourceId));
           return;
         }
         if (!parsed || typeof parsed !== "object") return;
-        if (parsed.event || parsed.action) events.push(parsed);
+        // 部分网关把 plat_chat_id 放在 action_answer 的外层包装对象上，
+        // 内层真正的路线事件不再重复该字段。采纳行程必须使用这个 ID，
+        // 因此展开包装层时要将它继续传给所有内层 action。
+        const sourceId = parsed.plat_chat_id
+          || parsed.platChatId
+          || parsed.data?.plat_chat_id
+          || parsed.data?.platChatId
+          || inheritedSourceId;
+        if (parsed.event || parsed.action) {
+          events.push(sourceId && !parsed.plat_chat_id
+            ? { ...parsed, plat_chat_id: sourceId }
+            : parsed);
+        }
         // 同一份 action 流在不同网关版本会再包进 data / outputs；全部展开。
-        collect(parsed.action_answer);
-        collect(parsed.actionAnswer);
-        collect(parsed.data?.action_answer);
-        collect(parsed.data?.actionAnswer);
-        collect(parsed.data?.outputs?.action_answer);
-        collect(parsed.data?.outputs?.actionAnswer);
+        collect(parsed.action_answer, sourceId);
+        collect(parsed.actionAnswer, sourceId);
+        collect(parsed.data?.action_answer, sourceId);
+        collect(parsed.data?.actionAnswer, sourceId);
+        collect(parsed.data?.outputs?.action_answer, sourceId);
+        collect(parsed.data?.outputs?.actionAnswer, sourceId);
       };
       groups.forEach(collect);
       return events;
@@ -4705,6 +4746,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       return mainQaSafeUrl(Array.isArray(raw) ? raw[0] : raw);
     }
     function mainQaRecordLink(item, className, content) {
+      if (!mainQaRecordTarget(item).miniPath) return `<div class="${className}">${content}</div>`;
       return `<a class="${className}" href="#" data-mainqa-record="${escapeHtml(encodeURIComponent(JSON.stringify(item || {})))}">${content}</a>`;
     }
     function mainQaScenicCardHtml(item = {}, selectable = false) {
@@ -4738,20 +4780,121 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     }
 
     function mainQaRecordTarget(record = {}) {
-      let tzId = record.tzId;
-      if (typeof tzId === "string") { try { tzId = JSON.parse(tzId); } catch { tzId = []; } }
-      const gkh = Array.isArray(tzId) ? tzId.find((item) => item?.channelType === "GKH") : null;
+      if (record?.sourceFrom === "outside") return { miniPath: "", external: "" };
+      const gkh = getGkhTzId(record);
+      if (!gkh) return { miniPath: "", external: "" };
       const type = record.entity_type || "";
       let miniPath = "";
-      if (gkh) {
-        if (["景区", "打卡"].includes(type)) miniPath = `/common/scenic/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
-        else if (type === "酒店") miniPath = `/common/hotel/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
-        else if (type === "线路") miniPath = `/common/tourist-line/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
+      if (["景区", "打卡"].includes(type)) miniPath = `/common/scenic/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
+      else if (type === "酒店") miniPath = `/common/hotel/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
+      else if (type === "线路") miniPath = `/common/tourist-line/detail?itemId=${encodeURIComponent(gkh.itemId || "")}&goodsId=${encodeURIComponent(gkh.goodsId || "")}`;
+      // GKH 问答只允许展示并跳转 tzId 中明确标记为 GKH 的实体。
+      return { miniPath, external: "" };
+    }
+
+    function logGkhNavigation(stage, detail = {}) {
+      console.info(`[GKH_NAV] ${stage}`, {
+        timestamp: new Date().toISOString(),
+        pageUrl: window.location.href,
+        wxEnvironment: window.__wxjs_environment || "",
+        userAgent: navigator.userAgent,
+        ...detail
+      });
+    }
+
+    function navigateToGkhMiniProgram(miniPath, context = {}) {
+      if (!miniPath) {
+        logGkhNavigation("blocked: empty mini program path", { context });
+        return false;
       }
-      // 与 utils.js 的 RESOLVED_ROLE_CODE === 'gkh' 分支一致：
-      // 1. 优先使用 tzId 中 GKH 渠道的商品标识；2. 没有渠道标识时再使用业务下发链接；
-      // 两种情况都由 wx.miniProgram.navigateTo 执行，而不是在 H5 新开外链。
-      return { miniPath: miniPath || String(record.commodityLink || record.url || record.link || ""), external: "" };
+      const miniProgram = wx?.miniProgram || window.wx?.miniProgram;
+      logGkhNavigation("request", {
+        miniPath,
+        context,
+        bridgeAvailable: Boolean(miniProgram),
+        navigateToAvailable: Boolean(miniProgram?.navigateTo),
+        getEnvAvailable: Boolean(miniProgram?.getEnv)
+      });
+      if (!miniProgram?.navigateTo) {
+        console.warn("[GKH_NAV] bridge unavailable", { miniPath, context, wx, windowWx: window.wx });
+        showToast("请在贵客荟小程序内打开详情");
+        return false;
+      }
+      if (miniProgram.getEnv) {
+        try {
+          miniProgram.getEnv((environment) => {
+            logGkhNavigation("environment", { miniPath, context, environment });
+          });
+        } catch (error) {
+          console.warn("[GKH_NAV] getEnv threw", { miniPath, context, error });
+        }
+      }
+      try {
+        miniProgram.navigateTo({
+          url: miniPath,
+          success(result) {
+            logGkhNavigation("navigateTo success", { miniPath, context, result });
+          },
+          fail(error) {
+            console.warn("[GKH_NAV] navigateTo failed", { miniPath, context, error });
+            showToast("页面跳转失败，请稍后重试");
+          },
+          complete(result) {
+            logGkhNavigation("navigateTo complete", { miniPath, context, result });
+          }
+        });
+        return true;
+      } catch (error) {
+        console.warn("[GKH_NAV] navigateTo threw", { miniPath, context, error });
+        showToast("页面跳转失败，请稍后重试");
+        return false;
+      }
+    }
+
+    function navigateBackFromKefu() {
+      const miniProgram = wx?.miniProgram || window.wx?.miniProgram;
+      const browserBack = () => {
+        if (window.history.length > 1) window.history.back();
+        else showToast("已返回客服首页");
+      };
+      if (!miniProgram?.getEnv || !miniProgram?.navigateBack) {
+        browserBack();
+        return;
+      }
+      let resolved = false;
+      const fallbackTimer = window.setTimeout(() => {
+        if (!resolved) browserBack();
+      }, 500);
+      try {
+        miniProgram.getEnv((environment) => {
+          resolved = true;
+          window.clearTimeout(fallbackTimer);
+          if (!environment?.miniprogram) {
+            browserBack();
+            return;
+          }
+          miniProgram.navigateBack({
+            delta: 1,
+            fail(error) {
+              console.warn("navigate back from GKH customer service failed", error);
+              // 客服 WebView 若是小程序页面栈首层，navigateBack 会失败，
+              // 此时回到贵客荟首页 tab，避免返回按钮没有任何反应。
+              miniProgram.switchTab({
+                url: "/pages/index/index",
+                fail(switchError) {
+                  console.warn("switch to GKH home failed", switchError);
+                  showToast("返回失败，请点击右上角关闭");
+                }
+              });
+            }
+          });
+        });
+      } catch (error) {
+        resolved = true;
+        window.clearTimeout(fallbackTimer);
+        console.warn("detect GKH mini program environment failed", error);
+        browserBack();
+      }
     }
 
     // 行程详情节点与问答推荐卡使用同一套贵客荟跳转规则。
@@ -4761,13 +4904,10 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       const entityType = ({ ATTRACTION: "景区", DINING: "餐饮", ACCOMMODATION: "酒店", ENTERTAINMENT: "文娱" })[rawType] || rawType;
       const record = { ...node, ...nodeDetail, entity_type: entityType };
       const target = mainQaRecordTarget(record);
-      if (target.miniPath && window.wx?.miniProgram?.navigateTo) {
-        try { window.wx.miniProgram.navigateTo({ url: target.miniPath }); return "正在跳转贵客荟…"; } catch { return "页面跳转失败，请稍后重试"; }
-      } else if (target.miniPath) {
-        return "请在贵客荟小程序内打开详情";
-      } else {
-        return "该节点暂未提供可跳转详情";
-      }
+      if (!target.miniPath) return;
+      return navigateToGkhMiniProgram(target.miniPath, { source: "itinerary-node", record })
+        ? "正在跳转贵客荟…"
+        : "页面跳转失败，请稍后重试";
     }
 
     function formatMainQaRouteAnswer(answerContent, candidates = []) {
@@ -4790,7 +4930,12 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         parsed = parsed.split(replacement.name).join(token);
         const target = mainQaRecordTarget(replacement.record);
         const payload = encodeURIComponent(JSON.stringify(replacement.record));
-        tokens.push({ token, html: `<a class="mainqa-entity-link" href="#" data-mainqa-record="${escapeHtml(payload)}">${escapeHtml(replacement.name)}</a>` });
+        tokens.push({
+          token,
+          html: target.miniPath
+            ? `<a class="mainqa-entity-link" href="#" data-mainqa-record="${escapeHtml(payload)}">${escapeHtml(replacement.name)}</a>`
+            : escapeHtml(replacement.name)
+        });
       });
       let html = formatPlainText(parsed);
       tokens.forEach(({ token, html: link }) => { html = html.split(token).join(link); });
@@ -4858,8 +5003,75 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       return itineraryStatusObserver;
     }
     let itineraryPlannerApp = null;
+    let itineraryPlannerRequestId = 0;
+    let itineraryRouteTransitionId = 0;
+    let itineraryHistoryBackPending = false;
+    let itineraryRouteRenderedBeforePop = false;
+
+    const appBasePath = String(import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
+    const ITINERARY_LIST_PATH = `${appBasePath}/itinerary`;
+    const ITINERARY_DETAIL_PATH_PREFIX = `${ITINERARY_LIST_PATH}/`;
+
+    function currentItineraryRoute() {
+      const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+      if (pathname === ITINERARY_LIST_PATH) return { name: "list", itineraryId: "" };
+      if (!pathname.startsWith(ITINERARY_DETAIL_PATH_PREFIX)) return null;
+      const itineraryId = decodeURIComponent(pathname.slice(ITINERARY_DETAIL_PATH_PREFIX.length));
+      return itineraryId ? { name: "detail", itineraryId } : { name: "list", itineraryId: "" };
+    }
+
+    function itineraryRouteUrl(pathname) {
+      const url = new URL(window.location.href);
+      url.pathname = pathname;
+      url.hash = "";
+      return url.toString();
+    }
+
+    function clearItineraryRouteTransition() {
+      document.querySelectorAll("[data-itinerary-transition-snapshot]").forEach((node) => node.remove());
+      document.querySelectorAll(".itinerary-transition-enter-forward,.itinerary-transition-enter-back")
+        .forEach((node) => node.classList.remove("itinerary-transition-enter-forward", "itinerary-transition-enter-back"));
+    }
+
+    async function nextPaint() {
+      await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
+    }
+
+    async function runItineraryRouteTransition(direction, update) {
+      const transitionId = ++itineraryRouteTransitionId;
+      clearItineraryRouteTransition();
+      const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const mountNode = document.querySelector("#itineraryPlannerMount");
+      // 首页与行程列表/详情共用同一套交叉渐变。行程页存在时取行程页，
+      // 否则取完整首页，而不是只对行程内部页面做动画。
+      const currentPage = mountNode?.querySelector(".itinerary-overlay") || document.querySelector(".board");
+      const snapshot = !reducedMotion && currentPage?.cloneNode(true);
+      if (snapshot && mountNode?.parentElement) {
+        snapshot.dataset.itineraryTransitionSnapshot = "true";
+        snapshot.setAttribute("aria-hidden", "true");
+        mountNode.parentElement.append(snapshot);
+      }
+      await update(Boolean(snapshot));
+      if (transitionId !== itineraryRouteTransitionId) {
+        snapshot?.remove();
+        return;
+      }
+      if (!snapshot) return;
+      await nextPaint();
+      const nextPage = mountNode?.querySelector(".itinerary-overlay") || document.querySelector(".board");
+      if (!nextPage || transitionId !== itineraryRouteTransitionId) {
+        snapshot.remove();
+        return;
+      }
+      snapshot.classList.add(`itinerary-transition-exit-${direction}`);
+      nextPage.classList.add(`itinerary-transition-enter-${direction}`);
+      await new Promise((resolve) => window.setTimeout(resolve, 230));
+      snapshot.remove();
+      nextPage.classList.remove(`itinerary-transition-enter-${direction}`);
+    }
 
     function closeItineraryPlanner() {
+      itineraryPlannerRequestId += 1;
       const mountNode = document.querySelector("#itineraryPlannerMount");
       // Vite 热更新会重建当前闭包，旧的 itineraryPlannerApp 引用会丢失；
       // 以 Vue 挂载节点保存的实例为准，避免多个列表实例同时请求和渲染。
@@ -4870,8 +5082,103 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       mountNode?.replaceChildren();
     }
 
+    function returnFromItineraryRoute(alreadyRendered = false) {
+      if (!currentItineraryRoute()) {
+        closeItineraryPlanner();
+        return;
+      }
+      itineraryRouteRenderedBeforePop = Boolean(alreadyRendered);
+      itineraryHistoryBackPending = true;
+      window.history.back();
+    }
+
+    function closeItineraryRoute() {
+      if (!currentItineraryRoute()) {
+        closeItineraryPlanner();
+        return;
+      }
+      itineraryHistoryBackPending = true;
+      window.history.back();
+    }
+
+    function recordItineraryDetailRoute(itineraryId) {
+      const id = String(itineraryId || "");
+      const current = currentItineraryRoute();
+      if (!id || (current?.name === "detail" && current.itineraryId === id)) return;
+      window.history.pushState(
+        { ...(window.history.state || {}), kefuItineraryRoute: "detail", kefuItineraryFromList: current?.name === "list" },
+        "",
+        itineraryRouteUrl(`${ITINERARY_DETAIL_PATH_PREFIX}${encodeURIComponent(id)}`)
+      );
+    }
+
+    async function openItineraryListRoute() {
+      const current = currentItineraryRoute();
+      await runItineraryRouteTransition("forward", async (nativeTransition) => {
+        if (current?.name !== "list") {
+          window.history.pushState(
+            { ...(window.history.state || {}), kefuItineraryRoute: "list", kefuItineraryFromList: false },
+            "",
+            itineraryRouteUrl(ITINERARY_LIST_PATH)
+          );
+        }
+        await openItineraryPlanner({ routeManaged: true, routeDirection: nativeTransition ? "none" : "forward" });
+      });
+    }
+
+    async function openItineraryDetailRoute(itineraryId, previewDetail = null) {
+      const id = String(itineraryId || (previewDetail ? "preview" : ""));
+      if (!id) return;
+      const current = currentItineraryRoute();
+      await runItineraryRouteTransition("forward", async (nativeTransition) => {
+        window.history.pushState(
+          {
+            ...(window.history.state || {}),
+            kefuItineraryRoute: "detail",
+            kefuItineraryFromList: current?.name === "list",
+            ...(previewDetail ? { kefuItineraryPreview: previewDetail } : {})
+          },
+          "",
+          itineraryRouteUrl(`${ITINERARY_DETAIL_PATH_PREFIX}${encodeURIComponent(id)}`)
+        );
+        await openItineraryPlanner({
+          routeManaged: true,
+          routeDirection: nativeTransition ? "none" : "forward",
+          ...(previewDetail ? { previewDetail } : { initialItineraryId: id })
+        });
+      });
+    }
+
+    async function syncItineraryRoute(routeDirection = "none") {
+      const route = currentItineraryRoute();
+      if (!route) {
+        closeItineraryPlanner();
+        return;
+      }
+      if (route.name === "list") {
+        await openItineraryPlanner({ routeManaged: true, routeDirection });
+        return;
+      }
+      const previewDetail = route.itineraryId === "preview" ? window.history.state?.kefuItineraryPreview : null;
+      if (route.itineraryId === "preview" && !previewDetail) {
+        window.history.replaceState(
+          { ...(window.history.state || {}), kefuItineraryRoute: "list" },
+          "",
+          itineraryRouteUrl(ITINERARY_LIST_PATH)
+        );
+        await openItineraryPlanner({ routeManaged: true, routeDirection });
+        return;
+      }
+      await openItineraryPlanner({
+        routeManaged: true,
+        routeDirection,
+        ...(previewDetail ? { previewDetail } : { initialItineraryId: route.itineraryId })
+      });
+    }
+
     async function openItineraryPlanner(options = {}) {
       if (itineraryPlannerApp) closeItineraryPlanner();
+      const requestId = ++itineraryPlannerRequestId;
       const mountNode = document.querySelector("#itineraryPlannerMount");
       if (!mountNode) return;
       try {
@@ -4879,14 +5186,16 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         if (mountNode.__vue_app__) mountNode.__vue_app__.unmount();
         mountNode.replaceChildren();
         await ensureMainQaLogin();
+        if (requestId !== itineraryPlannerRequestId) return;
         itineraryPlannerApp = createApp(ItineraryPlanner, {
           authorization: mainQaLoginState.accessToken,
           clientId: MAIN_QA_GKH_CONFIG.clientId,
           apiBase: import.meta.env.DEV
             ? "/hxx/authAdminService"
-            : "https://glsw-wdgz-libs.aihuangxiaoxi.com/hxx/authAdminService",
-          onClose: closeItineraryPlanner,
-          onOpenDetail: (itineraryId) => console.info("open itinerary detail", { itineraryId }),
+            : hxxAuthBaseUrl,
+          onClose: options.routeManaged ? closeItineraryRoute : closeItineraryPlanner,
+          onRouteBack: options.routeManaged ? returnFromItineraryRoute : undefined,
+          onOpenDetail: options.routeManaged ? recordItineraryDetailRoute : (itineraryId) => console.info("open itinerary detail", { itineraryId }),
           nodeOpen: openItineraryNodeDetail,
           ...options,
         });
@@ -4910,7 +5219,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     function itineraryApiBaseUrl() {
       return import.meta.env.DEV
         ? "/hxx/authAdminService"
-        : "https://glsw-wdgz-libs.aihuangxiaoxi.com/hxx/authAdminService";
+        : hxxAuthBaseUrl;
     }
 
     async function syncMainQaItineraryCollectStatus(scope = chatList) {
@@ -4993,7 +5302,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         button.classList.add("is-collected");
         button.textContent = "✓ 已采纳";
         showToast("采纳行程成功");
-        await openItineraryPlanner({ initialItineraryId: itineraryId });
+        await openItineraryDetailRoute(itineraryId);
       } catch (error) {
         console.warn("collect mainQA itinerary failed", error);
         button.textContent = originalText || "采纳行程";
@@ -5047,10 +5356,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     }
     function openMainQaRecord(record) {
       const target = mainQaRecordTarget(record);
-      if (target.miniPath && window.wx?.miniProgram?.navigateTo) {
-        try { window.wx.miniProgram.navigateTo({ url: target.miniPath }); } catch { showToast("页面跳转失败，请稍后重试"); }
-      } else if (target.miniPath) showToast("请在贵客荟小程序内打开详情");
-      else showToast("该内容暂未提供可跳转详情");
+      if (target.miniPath) navigateToGkhMiniProgram(target.miniPath, { source: "answer-card", record });
     }
     function mountMainQaAnswerCard(node) {
       if (!node || mountedAnswerCardApps.has(node)) return;
@@ -5070,15 +5376,17 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         app.mount(node); mountedAnswerCardApps.set(node, app);
       } catch (error) { console.warn("mainQA card payload invalid", error); }
     }
-    function mountMainQaAnswerCards(scope) {
+    function mountMainQaAnswerCards(scope, options = {}) {
       if (!scope) return;
-      scope.querySelectorAll?.("[data-unified-message-key]").forEach((node) => {
-        if (pendingItineraryStatusNodes.has(node)) return;
-        const observer = getItineraryStatusObserver();
-        if (!observer) { void syncMainQaItineraryCollectStatus(node); return; }
-        pendingItineraryStatusNodes.add(node);
-        observer.observe(node);
-      });
+      if (!options.skipItineraryStatus) {
+        scope.querySelectorAll?.("[data-unified-message-key]").forEach((node) => {
+          if (pendingItineraryStatusNodes.has(node)) return;
+          const observer = getItineraryStatusObserver();
+          if (!observer) { void syncMainQaItineraryCollectStatus(node); return; }
+          pendingItineraryStatusNodes.add(node);
+          observer.observe(node);
+        });
+      }
       scope.querySelectorAll?.("[data-mainqa-answer-cards]").forEach((node) => {
         if (mountedAnswerCardApps.has(node) || pendingAnswerCardNodes.has(node)) return;
         const observer = getAnswerCardObserver();
@@ -5113,33 +5421,33 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         if (action === "stop") state.hideCards = true;
         if (action === "gz_travel_homepage_card") {
           state.showMainAnswer = false;
-          const list = Array.isArray(data) ? data : (data?.list || []);
+          const list = filterGkhRecords(Array.isArray(data) ? data : (data?.list || []));
           const type = data?.entity_type || list[0]?.entity_type || "";
           state.cardData = list.map((item) => ({ ...item, checked: false, checkAble: true }));
           state.cardType = type === "启发" ? "city" : (["景区", "打卡"].includes(type) ? "area" : ({ "美食": "food", "文娱": "holiday", "酒店": "hotel", "餐饮": "restaurant" }[type] || ""));
           const options = raw?.cardOptions || data?.cardOptions;
           if (options) { state.selectedArea = options.selectedArea || state.selectedArea; state.checkedIds = options.checkedIds || []; }
         }
-        if (action === "gz_dialogue_entity_info" && data && typeof data === "object") state.candidates.push({ ...data, checked: false, checkAble: true });
+        if (action === "gz_dialogue_entity_info" && data && typeof data === "object" && hasGkhTzId(data)) state.candidates.push({ ...data, checked: false, checkAble: true });
         if (action === "gz_travel_homepage_text_card" && Array.isArray(data)) {
-          state.candidates.push(...data.map((item) => ({ ...item, checked: false, checkAble: true })));
+          state.candidates.push(...filterGkhRecords(data).map((item) => ({ ...item, checked: false, checkAble: true })));
         }
         if (action === "travel_itinerary_planning_args_templete" && Array.isArray(data)) state.argsTemplate = data[0] || null;
         if (action === "travel_itinerary_llm_response" && Array.isArray(data) && data[0]) {
-          state.candidates = data[0].candidates || []; state.isRoutePlan = false;
+          state.candidates = filterGkhRecords(data[0].candidates || []); state.isRoutePlan = false;
         }
         if (action === "travel_itinerary_planning_results" && Array.isArray(data) && data[0]) {
-          const item = data[0]; state.mapData = item.detail || {}; state.routeDetail = item.detail || {};
-          state.candidates = item.candidates || []; state.isRoutePlan = Boolean(item.detail?.result?.length);
+          const item = data[0]; state.mapData = filterGkhRouteMapData(item.detail || {}); state.routeDetail = filterGkhRouteMapData(item.detail || {});
+          state.candidates = filterGkhRecords(item.candidates || []); state.isRoutePlan = Boolean(item.detail?.result?.length && state.candidates.length);
         }
         if (action === "r1_results" && Array.isArray(data) && data[0]) {
-          const item = data[0]; const incoming = item.candidates || [];
+          const item = data[0]; const incoming = filterGkhRecords(item.candidates || []);
           const missing = state.candidates.filter((old) => !incoming.some((next) => next?.id === old?.id));
-          state.candidates = incoming.concat(missing); state.mapData = item.day_plans || []; state.routeDetail = item;
-          state.r1DayPlans = item.day_plans || []; state.isR1 = true; state.isRoutePlan = Boolean(state.r1DayPlans.length);
+          state.candidates = incoming.concat(missing); state.mapData = filterGkhRouteMapData(item.day_plans || []); state.routeDetail = { ...item, candidates: incoming, day_plans: filterGkhRouteMapData(item.day_plans || []) };
+          state.r1DayPlans = filterGkhRouteMapData(item.day_plans || []); state.isR1 = true; state.isRoutePlan = Boolean(state.r1DayPlans.length);
         }
         if (action === "shopping_info" && Array.isArray(data) && data.length) state.showShopping = true;
-        if (action === "travel_itinerary_planning_candidates") state.planningCandidates = data;
+        if (action === "travel_itinerary_planning_candidates") state.planningCandidates = filterGkhRecords(data);
         if (action === "itinerary_question_suggest") {
           const directQuestions = Array.isArray(data) && data.every((item) => typeof item === "string") ? data : null;
           const suggestionData = Array.isArray(data) ? (data[0] || {}) : (data?.data || data || {});
@@ -5150,16 +5458,21 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         if (action === "TravelOrderTool-NotSupported") state.guide = typeof data === "string" ? data : "暂不支持该订购服务";
         if (action === "TravelOrderTool-FinalResult" && Array.isArray(data) && data.length) {
           state.showMainAnswer = false; state.orderSupported = true;
-          const type = data[0]?.entity_type || "";
+          const filteredData = filterGkhRecords(data);
+          const type = filteredData[0]?.entity_type || "";
           state.cardType = ["景区", "打卡"].includes(type) ? "area" : ({ "美食": "food", "文娱": "holiday", "酒店": "hotel", "餐饮": "restaurant", "火车票订购": "train", "飞机票订购": "airplane", "本地活动订购": "activity" }[type] || "");
-          if (["area", "food", "holiday"].includes(state.cardType)) state.filteredCardData = data;
-          else state.cardData = data;
+          if (["area", "food", "holiday"].includes(state.cardType)) state.filteredCardData = filteredData;
+          else state.cardData = filteredData;
         }
         if (action === "TravelOrderTool-FinalResultLink") {
           // 不渲染“景区门票订购”等底部功能入口；订购结果直接点击对应实体卡片跳转。
           state.showMainAnswer = false;
         }
       });
+      state.candidates = filterGkhRecords(state.candidates);
+      state.cardData = filterGkhRecords(state.cardData);
+      state.filteredCardData = filterGkhRecords(state.filteredCardData);
+      if (!state.cardData.length && !state.filteredCardData.length && !state.candidates.length) state.cardType = "";
       return state;
     }
 
@@ -5213,7 +5526,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       const answerBlocks = state.hideCards ? "" : `${routeHtml}${shouldMountAnswerCards ? `<div data-mainqa-answer-cards="${cardPayload}"></div>` : ""}${state.guide ? `<div class="mainqa-guide">${escapeHtml(state.guide)}</div>` : ""}`;
       const cardOnly = shouldMountAnswerCards && !stage && !think && !answerHtml && !routeHtml && !state.guide && !suggestionsHtml;
       const className = cardOnly ? "mainqa-answer mainqa-card-answer" : `bubble${streaming ? " streaming" : ""} mainqa-answer`;
-      return `<div class="${className}">${stage}<div class="mainqa-text">${think ? `<details class="mainqa-think"><summary>深度思考</summary><div class="mainqa-think-content">${escapeHtml(think)}</div></details>` : ""}${streaming && answer ? `<div class="mainqa-status">${escapeHtml(state.hint || "正在生成回答")}</div>` : ""}${answerHtml}</div>${answerBlocks}${suggestionsHtml}</div>`;
+      return `<div class="${className}">${stage}<div class="mainqa-text">${think ? `<details class="mainqa-think"><summary>深度思考</summary><div class="mainqa-think-content">${escapeHtml(think)}</div></details>` : ""}${answerHtml}</div>${answerBlocks}${suggestionsHtml}</div>`;
     }
 
     function formatClock(date = new Date()) {
@@ -5882,6 +6195,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       if (queryType !== 1 && queryType !== 2) {
         throw new Error("智能问答请求缺少有效的 queryType");
       }
+      const messageUser = resolveAiUser();
       const response = await fetch(`${difyConfig.baseUrl}/chat-messages`, {
         method: "POST",
         headers: buildAiHeaders({ "Content-Type": "application/json" }),
@@ -5894,7 +6208,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
           query: payload.text,
           response_mode: "streaming",
           conversation_id: chatState.conversationId,
-          user: resolveAiUser(),
+          user: messageUser,
+          userId: messageUser,
           files: []
         })
       });
@@ -5924,11 +6239,16 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         if (event.event === "workflow_finished" && event.data?.outputs?.answer) finalAnswer = event.data.outputs.answer;
         if (event.event === "message_end" && event.metadata?.retriever_resources) retrieverResources = event.metadata.retriever_resources;
         // 实时协议可能直接下发 action，也可能把完整 action_answer 数组包在事件里。
-        const nestedActionEvents = normalizeMainQaActionEvents(
-          event.action_answer, event.actionAnswer,
-          event.data?.action_answer, event.data?.actionAnswer,
-          event.data?.outputs?.action_answer, event.data?.outputs?.actionAnswer
-        );
+        const nestedActionEvents = normalizeMainQaActionEvents({
+          plat_chat_id: event.plat_chat_id || event.platChatId || event.data?.plat_chat_id || event.data?.platChatId,
+          action_answer: event.action_answer,
+          actionAnswer: event.actionAnswer,
+          data: {
+            action_answer: event.data?.action_answer,
+            actionAnswer: event.data?.actionAnswer,
+            outputs: event.data?.outputs
+          }
+        });
         // mainQA 原实时协议使用 action，Dify 使用 event；两个字段都必须作为直接 action 处理。
         const actionName = event.action || event.event;
         const directActionEvent = actionName && !["message", "agent_message", "workflow_finished", "message_end", "ping_pong"].includes(actionName)
@@ -6919,12 +7239,21 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         });
         // mainQA 的历史接口在不同版本中将事件放在 event/events、answer.event，
         // 或 data.outputs.event。统一解包后交给与实时流完全相同的渲染器。
-        const events = normalizeMainQaActionEvents(
+        const events = normalizeMainQaActionEvents({
           // 实际 /messages 接口使用 action_answer；这是历史结构化答案的主字段。
-          message.action_answer, message.actionAnswer,
-          message.event, message.events, message.answer_event, message.answer?.event,
-          message.answer?.events, message.data?.event, message.data?.events, message.data?.outputs?.event
-        );
+          // plat_chat_id 可能位于消息/会话包装层，需在解包时传给内层 action。
+          plat_chat_id: message.plat_chat_id || message.platChatId
+            || message.data?.plat_chat_id || message.data?.platChatId
+            || conversation.plat_chat_id || conversation.platChatId,
+          action_answer: message.action_answer,
+          actionAnswer: message.actionAnswer,
+          data: {
+            action_answer: message.data?.action_answer,
+            actionAnswer: message.data?.actionAnswer,
+            outputs: message.data?.outputs
+          }
+        }, message.event, message.events, message.answer_event, message.answer?.event,
+        message.answer?.events, message.data?.event, message.data?.events, message.data?.outputs?.event);
         const answerContent = typeof message.answer === "object"
           ? (message.answer.text || message.answer.answer || message.answer.content || "")
           : message.answer;
@@ -7087,7 +7416,11 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       }
       iconRefresh();
       mountMainQaRouteMaps(chatList);
-      mountMainQaAnswerCards(chatList);
+      // 历史消息中的行程可能早已采纳。列表重绘后立即批量查询全部
+      // plat_chat_id 并恢复按钮状态，不能依赖 IntersectionObserver，
+      // 否则倒序滚动容器中的消息可能一直保持“采纳行程”。
+      mountMainQaAnswerCards(chatList, { skipItineraryStatus: true });
+      void syncMainQaItineraryCollectStatus(chatList);
       if (preserveScroll) {
         chatScrollViewport.scrollTop = wasAtBottom
           ? 0
@@ -8486,7 +8819,8 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     document.addEventListener("click", (event) => {
       if (event.target.closest("[data-back]")) {
         const current = document.querySelector(".screen.active")?.dataset.panel;
-        setScreen("entry");
+        if (current && current !== "entry") setScreen("entry");
+        else navigateBackFromKefu();
         return;
       }
 
@@ -8552,7 +8886,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       }
 
       if (event.target.closest("[data-open-itinerary]")) {
-        openItineraryPlanner();
+        void openItineraryListRoute();
         return;
       }
 
@@ -8643,13 +8977,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         const target = mainQaRecordTarget(record);
         event.preventDefault();
         // 客服页固定为 GKH 环境：与 utils.js 的 goGzwlDetailPage 一样，统一调用小程序跳转。
-        if (target.miniPath && window.wx?.miniProgram?.navigateTo) {
-          try { window.wx.miniProgram.navigateTo({ url: target.miniPath }); } catch { showToast("页面跳转失败，请稍后重试"); }
-        } else if (target.miniPath) {
-          showToast("请在贵客荟小程序内打开详情");
-        } else {
-          showToast("该内容暂未提供可跳转详情");
-        }
+        if (target.miniPath) navigateToGkhMiniProgram(target.miniPath, { source: "chat-record-link", record });
         return;
       }
       const mainQaQuestion = event.target.closest("[data-mainqa-question]");
@@ -8679,7 +9007,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
         else if (action === "buy") showToast("已为您准备行程商品，请在详情页继续购买");
         else if (action === "view") {
           if (!itineraryContext) showToast("行程规划数据暂不可用，请重新生成");
-          else openItineraryPlanner({ previewDetail: buildItineraryCollectPayload(itineraryContext) });
+          else void openItineraryDetailRoute("preview", buildItineraryCollectPayload(itineraryContext));
         }
         else showToast("行程总览已展示在当前回答中");
         return;
@@ -8807,8 +9135,27 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     });
 
     window.addEventListener("popstate", () => {
-      if (!imagePreview?.classList.contains("open")) return;
-      closeImagePreview({ fromPopState: true });
+      if (imagePreview?.classList.contains("open")) {
+        closeImagePreview({ fromPopState: true });
+        return;
+      }
+      // 顶部返回按钮由页面负责动画；iOS 左滑返回已有系统交互动画，
+      // 此时只同步路由，避免 popstate 后再播放一次造成双重过渡和闪屏。
+      if (itineraryHistoryBackPending) {
+        itineraryHistoryBackPending = false;
+        if (itineraryRouteRenderedBeforePop) {
+          itineraryRouteRenderedBeforePop = false;
+        } else {
+          void runItineraryRouteTransition("back", (fullTransition) => (
+            syncItineraryRoute(fullTransition ? "none" : "back")
+          ));
+        }
+      } else {
+        itineraryRouteRenderedBeforePop = false;
+        itineraryRouteTransitionId += 1;
+        clearItineraryRouteTransition();
+        void syncItineraryRoute("none");
+      }
     });
 
     window.addEventListener("resize", () => {
@@ -8960,6 +9307,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
       if (!serviceState.humanActive && !serviceState.queued) startRobotHintTimer();
       window.handleKefuMessagePacket = handleKefuMessagePacket;
       iconRefresh();
+      void syncItineraryRoute();
     })();
 
     // Returning from the host app can restore this page from its back/forward
@@ -8967,6 +9315,7 @@ const KEFU_IMAGE_DEBUG_STORAGE_KEY = "kefu-image-debug-logs";
     // message instead of retaining the earlier scroll position.
     window.addEventListener("pageshow", (event) => {
       if (event.persisted) restoreActiveChatToLatest();
+      if (event.persisted) void syncItineraryRoute();
     });
 
 });

@@ -12,7 +12,7 @@
 
     <template v-else-if="cardType === 'area'">
       <section class="qa-recommend-panel qa-recommend-panel--area">
-        <article v-for="(item, index) in paginatedAreaData" :key="item.id || areaItemKey(item, index)" class="scenic-card" @click="open(item)">
+        <article v-for="(item, index) in paginatedAreaData" :key="item.id || areaItemKey(item, index)" class="scenic-card" :class="{ 'is-interactive': canOpen(item) }" @click="open(item)">
           <img :src="image(item)" alt="" @error="fallbackImageLoad"><span v-if="!image(item)" class="image-placeholder"></span>
           <div><b>{{ item.scenicSpotAlias || item.specialSpotName || item.scenicSpotName || item.name }}</b><p class="tags"><i v-if="item.scenicSpotScore">{{ Number(item.scenicSpotScore).toFixed(1) }}分</i><i v-for="tag in tags(item)" :key="tag">{{ tag }}</i></p><small v-if="item.openingStart || item.openingEnd">开放：{{ item.openingStart }}-{{ item.openingEnd }}</small><small>门票：{{ item.cost || item.ticketPrice || item.charging || '免费' }}　游览：{{ item.tourDurationText || item.tourDuration || '' }}</small><small>{{ item.addressDetail || item.address || item.city || '' }}</small></div>
           <label v-if="!orderSupported" class="choice" @click.stop><input v-model="selectedArea" type="checkbox" :value="item.id || item.scenicSpotAlias || item.name" :aria-label="`选择${item.scenicSpotAlias || item.specialSpotName || item.scenicSpotName || item.name}`"><span class="selection-indicator" aria-hidden="true"></span></label>
@@ -27,12 +27,12 @@
     </template>
 
     <template v-else-if="cardType === 'food' || cardType === 'holiday'">
-      <div class="folk-grid"><article v-for="(item, index) in cardData" :key="item.id || index" class="folk-card" @click="open(item)"><img :src="image(item)" alt="" @error="fallbackImageLoad"><div><b>{{ item.specialFood || item.eventName || item.productName || item.name }}</b><small>{{ item.introduction || item.eventDescription || '' }}</small></div></article></div>
+      <div class="folk-grid"><article v-for="(item, index) in cardData" :key="item.id || index" class="folk-card" :class="{ 'is-interactive': canOpen(item) }" @click="open(item)"><img :src="image(item)" alt="" @error="fallbackImageLoad"><div><b>{{ item.specialFood || item.eventName || item.productName || item.name }}</b><small>{{ item.introduction || item.eventDescription || '' }}</small></div></article></div>
     </template>
 
     <template v-else-if="cardType === 'hotel' || cardType === 'restaurant'">
       <!-- 对齐 CardItem > CardNodeType：灰色头部 + 图文内容区，而非普通横向商品行。 -->
-      <article v-for="(item, index) in cardData" :key="item.id || index" class="entity-node-card" @click="open(item)">
+      <article v-for="(item, index) in cardData" :key="item.id || index" class="entity-node-card" :class="{ 'is-interactive': canOpen(item) }" @click="open(item)">
         <header><div><b>{{ item.hotelName || item.restaurantName || item.name || item.title }}</b><small>{{ entitySubtitle(item) }}</small></div><span v-if="item.sourceFrom === 'outside'">手动添加</span></header>
         <div class="entity-node-body"><img :src="image(item)" alt="" @error="fallbackImageLoad"><div><strong>⌖ {{ entityAddress(item) }}</strong><p><i v-for="tag in entityTags(item)" :key="tag">{{ tag }}</i></p></div></div>
       </article>
@@ -40,7 +40,7 @@
 
     <template v-else-if="['train', 'airplane', 'activity'].includes(cardType)">
       <!-- 与 travel-client/components/card/Order.vue 一致：按票种使用原卡片背景和日期/星期结构。 -->
-      <article v-for="(item, index) in cardData" :key="item.id || index" class="order-card" :class="orderBackground(item)" @click="open(item)">
+      <article v-for="(item, index) in cardData" :key="item.id || index" class="order-card" :class="[orderBackground(item), { 'is-interactive': canOpen(item) }]" @click="open(item)">
         <b>{{ orderName(item) }}</b>
         <small v-if="item.starting_date"><span>{{ item.starting_date }}</span><span>{{ orderWeekday(item.starting_date) }}</span></small>
       </article>
@@ -49,7 +49,7 @@
     <template v-else-if="candidates.length">
       <section class="qa-recommend-panel qa-recommend-panel--candidate">
         <div class="candidate-strip">
-          <article v-for="(item, index) in candidates" :key="item.id || index" class="candidate-card" @click="open(item)">
+          <article v-for="(item, index) in candidates" :key="item.id || index" class="candidate-card" :class="{ 'is-interactive': canOpen(item) }" @click="open(item)">
             <img :src="image(item)" alt="" @error="fallbackImageLoad">
             <span class="candidate-type" :class="typeClass(item)">{{ typeLabel(item) }}</span>
             <span class="candidate-bottom"><b>{{ item.scenicSpotAlias || item.scenicSpotName || item.specialFood || item.hotelName || item.restaurantName || item.name }}</b><i>{{ candidateTag(item) }}</i><em v-if="candidatePrice(item)">¥{{ candidatePrice(item) }}起</em></span>
@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { hasGkhTzId } from './mainQaGkhFilter.js'
 const props = defineProps<{ cardType?: string, cardData?: any[], candidates?: any[], orderSupported?: boolean, cueText?: string, suggestions?: any[] }>()
 const emit = defineEmits<{ open: [item: any], generate: [payload: { city: boolean, items: any[] }], ask: [question: string] }>()
 const selectedCity = ref<any[]>([]); const selectedArea = ref<any[]>([])
@@ -152,7 +153,8 @@ function orderWeekday(value: any) {
   if (Number.isNaN(date.getTime())) return ''
   return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()]
 }
-const open = (item: any) => emit('open', item)
+const canOpen = (item: any) => hasGkhTzId(item)
+const open = (item: any) => { if (canOpen(item)) emit('open', item) }
 function generateCity() { emit('generate', { city: true, items: cardData.value.filter((item) => selectedCity.value.includes(item.id || item.shortName || item.name)) }) }
 function generateArea() { emit('generate', { city: false, items: cardData.value.filter((item) => selectedArea.value.includes(item.id || item.scenicSpotAlias || item.name)) }) }
 function questionText(question: any) { return typeof question === 'string' ? question : (question?.question || question?.title || question?.text || '继续咨询') }
@@ -169,11 +171,14 @@ function ask(question: any) { emit('ask', questionText(question)) }
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .qa-recommend-panel {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin: 8px 0;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, .78);
@@ -182,6 +187,14 @@ function ask(question: any) { emit('ask', questionText(question)) }
   backdrop-filter: blur(18px) saturate(1.28);
   -webkit-backdrop-filter: blur(18px) saturate(1.28);
   isolation: isolate;
+}
+
+.qa-recommend-panel--candidate {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .qa-recommend-panel .where-card,
@@ -200,8 +213,15 @@ function ask(question: any) { emit('ask', questionText(question)) }
 }
 
 .qa-recommend-panel .candidate-strip {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 2px 0 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
 }
 
 .city-choice,
@@ -347,6 +367,15 @@ function ask(question: any) { emit('ask', questionText(question)) }
   color: #9ba7ba;
   background: rgba(255, 255, 255, .42);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5);
+}
+
+.entity-node-card,
+.order-card {
+  cursor: default;
+}
+
+.is-interactive {
+  cursor: pointer;
 }
 
 </style>

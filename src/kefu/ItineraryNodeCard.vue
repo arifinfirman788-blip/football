@@ -33,6 +33,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import avatarIp from './assets/itinerary/avatar_ip_3-min.png'
+import { hasGkhTzId } from './mainQaGkhFilter.js'
 
 const props = defineProps<{ node: any; dayDate?: string; tripStatus?: string }>()
 const emit = defineEmits<{ open: [node: any] }>()
@@ -47,7 +48,7 @@ const typeKey = computed(() => {
 const typeLabel = computed(() => typeKey.value === '打卡' ? '景区' : typeKey.value)
 const entityName = computed(() => item.value.name || item.value.scenicSpotAlias || item.value.scenicSpotName || item.value.hotelName || item.value.restaurantName || item.value.specialFood || '未命名')
 const isOutside = computed(() => item.value.sourceFrom === 'outside')
-const canOpen = computed(() => !isOutside.value && !['航班', '火车', '自驾', '交通', '自定义活动'].includes(typeKey.value))
+const canOpen = computed(() => hasGkhTzId(item.value) && !isOutside.value && !['航班', '火车', '自驾', '交通', '自定义活动'].includes(typeKey.value))
 const image = computed(() => { const value = item.value.imageUrl || item.value.imageCompress?.[0] || item.value.image?.[0] || item.value.coverImageUrl; return !imageFailed.value && value ? (/^https?:\/\//.test(value) ? value : `https://gzwlcs-obs.aihuangxiaoxi.com/${String(value).replace(/^\/+/, '')}`) : '' })
 const address = computed(() => item.value.addressDetail || item.value.restaurantAddress || item.value.hotelAddress || item.value.address || item.value.remark || item.value.city || '')
 const tags = computed(() => { const raw = typeKey.value === '美食' ? item.value.cuisineTypes : typeKey.value === '餐饮' ? item.value.cateringNote : typeKey.value === '酒店' ? item.value.tags : item.value.scenicSpotTags || item.value.subjectPreference || item.value.eventType; return (Array.isArray(raw) ? raw : String(raw || '').split(/[，,、]/)).filter(Boolean).slice(0, 4) })
